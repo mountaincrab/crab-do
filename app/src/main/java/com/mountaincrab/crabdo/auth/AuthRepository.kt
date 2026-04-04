@@ -14,14 +14,26 @@ import javax.inject.Singleton
 class AuthRepository @Inject constructor(
     private val auth: FirebaseAuth
 ) {
+    // Fallback ID used when Firebase is unreachable (local testing without emulator).
+    // All data saved under this ID stays local — nothing syncs to Firestore.
+    private var offlineUserId: String? = null
+
     val currentUser: FirebaseUser? get() = auth.currentUser
-    val currentUserId: String? get() = auth.currentUser?.uid
+    val currentUserId: String? get() = auth.currentUser?.uid ?: offlineUserId
 
     suspend fun ensureAuthenticated(): String {
         val user = auth.currentUser
         if (user != null) return user.uid
-        val result = auth.signInAnonymously().await()
-        return result.user!!.uid
+        return try {
+            val result = auth.signInAnonymously().await()
+            result.user!!.uid
+        } catch (e: Exception) {
+            // Firebase unreachable (no emulator, no real google-services.json).
+            // Fall back to a stable local ID so the app is usable offline.
+            val fallback = offlineUserId ?: "local-user-offline"
+            offlineUserId = fallback
+            fallback
+        }
     }
 
     suspend fun linkWithGoogle(idToken: String) {

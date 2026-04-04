@@ -35,7 +35,7 @@ class MainActivity : ComponentActivity() {
                     var isAuthReady by remember { mutableStateOf(false) }
 
                     LaunchedEffect(Unit) {
-                        authRepository.ensureAuthenticated()
+                        runCatching { authRepository.ensureAuthenticated() }
                         isAuthReady = true
                     }
 
