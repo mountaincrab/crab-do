@@ -1,5 +1,6 @@
 package com.mountaincrab.crabdo.ui.navigation
 
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Notifications
@@ -68,7 +69,7 @@ fun AppNavigation(navController: NavHostController, startDestination: String) {
         NavHost(
             navController = navController,
             startDestination = startDestination,
-            modifier = Modifier
+            modifier = Modifier.padding(bottom = padding.calculateBottomPadding())
         ) {
             composable(Screen.PinnedBoard.route) {
                 PinnedBoardScreen(navController = navController, innerPadding = padding)
