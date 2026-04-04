@@ -1,9 +1,12 @@
 package com.mountaincrab.crabdo.ui.boards.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.draganddrop.dragAndDropSource
+import androidx.compose.foundation.draganddrop.dragAndDropTarget
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -11,8 +14,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.content.ClipEntry
-import androidx.compose.ui.draganddrop.*
+import androidx.compose.ui.draganddrop.DragAndDropEvent
+import androidx.compose.ui.draganddrop.DragAndDropTarget
+import androidx.compose.ui.draganddrop.DragAndDropTransferData
+import androidx.compose.ui.draganddrop.toAndroidDragEvent
 import androidx.compose.ui.unit.dp
 import com.mountaincrab.crabdo.data.local.entity.ColumnEntity
 import com.mountaincrab.crabdo.data.local.entity.TaskEntity
@@ -49,15 +54,14 @@ fun KanbanColumn(
         }
     }
 
-    val reorderState = rememberReorderableLazyListState(
-        onMove = { from, to ->
-            val reordered = tasks.toMutableList().apply { add(to.index, removeAt(from.index)) }
-            val moved = reordered[to.index]
-            val before = reordered.getOrNull(to.index - 1)?.order ?: 0.0
-            val after = reordered.getOrNull(to.index + 1)?.order ?: (before + 2.0)
-            onReorder(moved.id, before, after)
-        }
-    )
+    val lazyListState = rememberLazyListState()
+    val reorderState = rememberReorderableLazyListState(lazyListState) { from, to ->
+        val reordered = tasks.toMutableList().apply { add(to.index, removeAt(from.index)) }
+        val moved = reordered[to.index]
+        val before = reordered.getOrNull(to.index - 1)?.order ?: 0.0
+        val after = reordered.getOrNull(to.index + 1)?.order ?: (before + 2.0)
+        onReorder(moved.id, before, after)
+    }
 
     Card(
         modifier = modifier
@@ -89,7 +93,7 @@ fun KanbanColumn(
             HorizontalDivider()
 
             LazyColumn(
-                state = reorderState.listState,
+                state = lazyListState,
                 modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(8.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -100,19 +104,11 @@ fun KanbanColumn(
                             task = task,
                             isDragging = isDragging,
                             modifier = Modifier
-                                .longPressDraggable(reorderState)
-                                .dragAndDropSource(
-                                    drawDragDecoration = {}
-                                ) {
-                                    detectTapGestures(onLongPress = {
-                                        startTransfer(
-                                            DragAndDropTransferData(
-                                                clipEntry = ClipEntry(
-                                                    android.content.ClipData.newPlainText("taskId", task.id)
-                                                )
-                                            )
-                                        )
-                                    })
+                                .longPressDraggableHandle()
+                                .dragAndDropSource(drawDragDecoration = {}) {
+                                    DragAndDropTransferData(
+                                        clipData = android.content.ClipData.newPlainText("taskId", task.id)
+                                    )
                                 },
                             onTap = { onCardTapped(task.id) }
                         )

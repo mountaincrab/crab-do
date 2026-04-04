@@ -9,6 +9,7 @@ import androidx.compose.ui.unit.dp
 import com.mountaincrab.crabdo.data.model.RecurrenceRule
 import java.util.Calendar
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RecurrencePicker(
     rule: RecurrenceRule?,

@@ -3,6 +3,7 @@ package com.mountaincrab.crabdo.ui.boards
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragHandle
@@ -27,12 +28,11 @@ fun ColumnConfigSheet(
     var orderedColumns by remember(columns) { mutableStateOf(columns.toList()) }
     var showDeleteConfirm by remember { mutableStateOf<ColumnEntity?>(null) }
 
-    val reorderState = rememberReorderableLazyListState(
-        onMove = { from, to ->
-            orderedColumns = orderedColumns.toMutableList().apply { add(to.index, removeAt(from.index)) }
-            onReorder(orderedColumns.map { it.id })
-        }
-    )
+    val lazyListState = rememberLazyListState()
+    val reorderState = rememberReorderableLazyListState(lazyListState) { from, to ->
+        orderedColumns = orderedColumns.toMutableList().apply { add(to.index, removeAt(from.index)) }
+        onReorder(orderedColumns.map { it.id })
+    }
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(modifier = Modifier.padding(bottom = 32.dp)) {
@@ -42,12 +42,12 @@ fun ColumnConfigSheet(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
             )
             HorizontalDivider()
-            LazyColumn(state = reorderState.listState) {
+            LazyColumn(state = lazyListState) {
                 items(orderedColumns, key = { it.id }) { column ->
                     ReorderableItem(reorderState, key = column.id) {
                         ColumnConfigRow(
                             column = column,
-                            reorderState = reorderState,
+                            dragHandleModifier = Modifier.longPressDraggableHandle(),
                             onRename = { onRename(column, it) },
                             onDelete = { showDeleteConfirm = column }
                         )
@@ -77,7 +77,7 @@ fun ColumnConfigSheet(
 @Composable
 private fun ColumnConfigRow(
     column: ColumnEntity,
-    reorderState: sh.calvin.reorderable.ReorderableLazyListState,
+    dragHandleModifier: Modifier,
     onRename: (String) -> Unit,
     onDelete: () -> Unit
 ) {
@@ -93,7 +93,7 @@ private fun ColumnConfigRow(
         Icon(
             imageVector = Icons.Default.DragHandle,
             contentDescription = "Drag to reorder",
-            modifier = Modifier.longPressDraggable(reorderState),
+            modifier = dragHandleModifier,
             tint = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(Modifier.width(12.dp))
