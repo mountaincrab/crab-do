@@ -27,16 +27,18 @@ fun AddEditReminderScreen(
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
 
+    // Derive initial hour/minute from the ViewModel's selectedDateTime
+    val initialCal = remember(viewModel.selectedDateTime) {
+        Calendar.getInstance().apply { timeInMillis = viewModel.selectedDateTime }
+    }
+
     val datePickerState = rememberDatePickerState(
         initialSelectedDateMillis = viewModel.selectedDateTime
     )
     val timePickerState = rememberTimePickerState(
-        initialHour = Calendar.getInstance().apply {
-            timeInMillis = viewModel.selectedDateTime
-        }.get(Calendar.HOUR_OF_DAY),
-        initialMinute = Calendar.getInstance().apply {
-            timeInMillis = viewModel.selectedDateTime
-        }.get(Calendar.MINUTE)
+        initialHour = initialCal.get(Calendar.HOUR_OF_DAY),
+        initialMinute = initialCal.get(Calendar.MINUTE),
+        is24Hour = true
     )
 
     Scaffold(
@@ -68,20 +70,43 @@ fun AddEditReminderScreen(
                 singleLine = true
             )
 
-            // Date & Time
-            OutlinedCard(
-                onClick = { showDatePicker = true },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Date & Time", style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = SimpleDateFormat("EEE, d MMM yyyy 'at' HH:mm", Locale.getDefault())
-                            .format(Date(viewModel.selectedDateTime)),
-                        style = MaterialTheme.typography.bodyLarge
-                    )
+            // Date and Time as separate side-by-side fields
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedCard(
+                    onClick = { showDatePicker = true },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            "Date",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = SimpleDateFormat("EEE, d MMM yyyy", Locale.getDefault())
+                                .format(Date(viewModel.selectedDateTime)),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+                OutlinedCard(
+                    onClick = { showTimePicker = true },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            "Time",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = SimpleDateFormat("HH:mm", Locale.getDefault())
+                                .format(Date(viewModel.selectedDateTime)),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
                 }
             }
 
@@ -123,9 +148,7 @@ fun AddEditReminderScreen(
             Spacer(Modifier.height(8.dp))
 
             Button(
-                onClick = {
-                    viewModel.save { navController.popBackStack() }
-                },
+                onClick = { viewModel.save { navController.popBackStack() } },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = viewModel.title.isNotBlank()
             ) {
@@ -142,16 +165,17 @@ fun AddEditReminderScreen(
                     datePickerState.selectedDateMillis?.let { dateMillis ->
                         val cal = Calendar.getInstance().apply {
                             timeInMillis = dateMillis
-                            set(Calendar.HOUR_OF_DAY, timePickerState.hour)
-                            set(Calendar.MINUTE, timePickerState.minute)
+                            // preserve existing hour/minute
+                            val existing = Calendar.getInstance().also { it.timeInMillis = viewModel.selectedDateTime }
+                            set(Calendar.HOUR_OF_DAY, existing.get(Calendar.HOUR_OF_DAY))
+                            set(Calendar.MINUTE, existing.get(Calendar.MINUTE))
                             set(Calendar.SECOND, 0)
                             set(Calendar.MILLISECOND, 0)
                         }
                         viewModel.selectedDateTime = cal.timeInMillis
                     }
                     showDatePicker = false
-                    showTimePicker = true
-                }) { Text("Next") }
+                }) { Text("OK") }
             },
             dismissButton = {
                 TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
@@ -164,7 +188,7 @@ fun AddEditReminderScreen(
     if (showTimePicker) {
         AlertDialog(
             onDismissRequest = { showTimePicker = false },
-            title = { Text("Pick a time") },
+            title = { Text("Set time") },
             text = { TimePicker(state = timePickerState) },
             confirmButton = {
                 TextButton(onClick = {

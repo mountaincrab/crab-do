@@ -24,11 +24,11 @@ class BoardListViewModel @Inject constructor(
 
     val boards: StateFlow<List<BoardEntity>> =
         boardRepository.observeBoards(userId)
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val pinnedBoardId: StateFlow<String?> =
         prefsRepository.pinnedBoardId
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+            .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     fun createBoard(title: String) {
         viewModelScope.launch { boardRepository.createBoard(userId, title) }

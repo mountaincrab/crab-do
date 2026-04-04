@@ -13,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -161,7 +162,7 @@ private fun BoardCard(
                     Icon(
                         imageVector = if (isPinned) Icons.Filled.Star else Icons.Outlined.Star,
                         contentDescription = if (isPinned) "Unpin" else "Pin",
-                        tint = if (isPinned) MaterialTheme.colorScheme.primary
+                        tint = if (isPinned) Color(0xFFFFB300)
                                else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }

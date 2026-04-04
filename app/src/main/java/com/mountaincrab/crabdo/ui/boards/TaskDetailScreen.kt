@@ -204,13 +204,18 @@ private fun TaskReminderDialog(
     onConfirm: (Long, TaskEntity.ReminderStyle) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val defaultMillis = System.currentTimeMillis() + 3_600_000L
     var selectedStyle by remember { mutableStateOf(currentStyle) }
-    val datePickerState = rememberDatePickerState(
-        initialSelectedDateMillis = System.currentTimeMillis() + 3_600_000L
-    )
+    var selectedMillis by remember { mutableStateOf(defaultMillis) }
+    var showDatePicker by remember { mutableStateOf(false) }
+    var showTimePicker by remember { mutableStateOf(false) }
+
+    val initialCal = remember { Calendar.getInstance().apply { timeInMillis = defaultMillis } }
+    val datePickerState = rememberDatePickerState(initialSelectedDateMillis = defaultMillis)
     val timePickerState = rememberTimePickerState(
-        initialHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY),
-        initialMinute = Calendar.getInstance().get(Calendar.MINUTE)
+        initialHour = initialCal.get(Calendar.HOUR_OF_DAY),
+        initialMinute = initialCal.get(Calendar.MINUTE),
+        is24Hour = true
     )
 
     AlertDialog(
@@ -218,8 +223,38 @@ private fun TaskReminderDialog(
         title = { Text("Set Reminder") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                DatePicker(state = datePickerState)
-                TimePicker(state = timePickerState)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedCard(
+                        onClick = { showDatePicker = true },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text("Date", style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = SimpleDateFormat("d MMM yyyy", Locale.getDefault())
+                                    .format(Date(selectedMillis)),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                    OutlinedCard(
+                        onClick = { showTimePicker = true },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text("Time", style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = SimpleDateFormat("HH:mm", Locale.getDefault())
+                                    .format(Date(selectedMillis)),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
                         selected = selectedStyle == TaskEntity.ReminderStyle.ALARM,
@@ -235,20 +270,51 @@ private fun TaskReminderDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = {
-                val dateMillis = datePickerState.selectedDateMillis ?: return@TextButton
-                val cal = Calendar.getInstance().apply {
-                    timeInMillis = dateMillis
-                    set(Calendar.HOUR_OF_DAY, timePickerState.hour)
-                    set(Calendar.MINUTE, timePickerState.minute)
-                    set(Calendar.SECOND, 0)
-                    set(Calendar.MILLISECOND, 0)
-                }
-                onConfirm(cal.timeInMillis, selectedStyle)
-            }) { Text("Set") }
+            TextButton(onClick = { onConfirm(selectedMillis, selectedStyle) }) { Text("Set") }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel") }
         }
     )
+
+    if (showDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { dateMillis ->
+                        val existing = Calendar.getInstance().also { it.timeInMillis = selectedMillis }
+                        selectedMillis = Calendar.getInstance().apply {
+                            timeInMillis = dateMillis
+                            set(Calendar.HOUR_OF_DAY, existing.get(Calendar.HOUR_OF_DAY))
+                            set(Calendar.MINUTE, existing.get(Calendar.MINUTE))
+                            set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+                        }.timeInMillis
+                    }
+                    showDatePicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("Cancel") } }
+        ) { DatePicker(state = datePickerState) }
+    }
+
+    if (showTimePicker) {
+        AlertDialog(
+            onDismissRequest = { showTimePicker = false },
+            title = { Text("Set time") },
+            text = { TimePicker(state = timePickerState) },
+            confirmButton = {
+                TextButton(onClick = {
+                    selectedMillis = Calendar.getInstance().apply {
+                        timeInMillis = selectedMillis
+                        set(Calendar.HOUR_OF_DAY, timePickerState.hour)
+                        set(Calendar.MINUTE, timePickerState.minute)
+                        set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+                    }.timeInMillis
+                    showTimePicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = { TextButton(onClick = { showTimePicker = false }) { Text("Cancel") } }
+        )
+    }
 }
