@@ -1,0 +1,94 @@
+package com.mountaincrab.crabdo.alarm
+
+import android.app.AlarmManager
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import androidx.core.content.getSystemService
+import com.mountaincrab.crabdo.data.local.entity.ReminderEntity
+import com.mountaincrab.crabdo.data.repository.ReminderRepository
+import com.mountaincrab.crabdo.data.repository.TaskRepository
+import com.mountaincrab.crabdo.notification.NotificationHelper
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+
+class ReminderReceiver : BroadcastReceiver() {
+
+    override fun onReceive(context: Context, intent: Intent) {
+        when (intent.action) {
+            ACTION_FIRE_REMINDER -> handleFire(context, intent)
+            ACTION_DISMISS -> handleDismiss(context, intent)
+            ACTION_SNOOZE -> handleSnooze(context, intent)
+        }
+    }
+
+    private fun handleFire(context: Context, intent: Intent) {
+        val reminderId = intent.getStringExtra(EXTRA_REMINDER_ID) ?: return
+        val title = intent.getStringExtra(EXTRA_TITLE) ?: "Reminder"
+        val styleStr = intent.getStringExtra(EXTRA_STYLE) ?: "ALARM"
+        val style = try { ReminderEntity.ReminderStyle.valueOf(styleStr) }
+                    catch (e: Exception) { ReminderEntity.ReminderStyle.ALARM }
+        val notificationId = reminderId.hashCode() and 0x7FFFFFFF
+
+        NotificationHelper.showAlarmNotification(context, reminderId, title, notificationId, style)
+
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        scope.launch {
+            val entryPoint = EntryPointAccessors.fromApplication(
+                context.applicationContext, ReceiverEntryPoint::class.java)
+            entryPoint.reminderRepository().onReminderFired(reminderId)
+        }
+    }
+
+    private fun handleDismiss(context: Context, intent: Intent) {
+        val notificationId = intent.getIntExtra(EXTRA_NOTIFICATION_ID, -1)
+        if (notificationId != -1) {
+            context.getSystemService<NotificationManager>()?.cancel(notificationId)
+        }
+    }
+
+    private fun handleSnooze(context: Context, intent: Intent) {
+        val reminderId = intent.getStringExtra(EXTRA_REMINDER_ID) ?: return
+        val notificationId = intent.getIntExtra(EXTRA_NOTIFICATION_ID, -1)
+        if (notificationId != -1) {
+            context.getSystemService<NotificationManager>()?.cancel(notificationId)
+        }
+        val snoozeTime = System.currentTimeMillis() + 10 * 60 * 1000L
+        val alarmManager = context.getSystemService<AlarmManager>() ?: return
+        val pendingIntent = PendingIntent.getBroadcast(
+            context, reminderId.hashCode() and 0x7FFFFFFF,
+            Intent(context, ReminderReceiver::class.java).apply {
+                action = ACTION_FIRE_REMINDER
+                putExtra(EXTRA_REMINDER_ID, reminderId)
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, snoozeTime, pendingIntent)
+    }
+
+    companion object {
+        const val ACTION_FIRE_REMINDER = "com.mountaincrab.crabdo.ACTION_FIRE_REMINDER"
+        const val ACTION_DISMISS = "com.mountaincrab.crabdo.ACTION_DISMISS"
+        const val ACTION_SNOOZE = "com.mountaincrab.crabdo.ACTION_SNOOZE"
+        const val EXTRA_REMINDER_ID = "reminder_id"
+        const val EXTRA_NOTIFICATION_ID = "notification_id"
+        const val EXTRA_TITLE = "title"
+        const val EXTRA_TYPE = "type"
+        const val EXTRA_STYLE = "style"
+    }
+}
+
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface ReceiverEntryPoint {
+    fun reminderRepository(): ReminderRepository
+    fun taskRepository(): TaskRepository
+}

@@ -1,0 +1,17 @@
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Gradle wrapper jar (regenerate with: gradle wrapper --gradle-version 8.9)
+gradle/wrapper/gradle-wrapper.jar
+
+# Kotlin
+*.class
+*.jar (not wrapper)

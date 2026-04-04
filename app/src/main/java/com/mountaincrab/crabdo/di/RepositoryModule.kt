@@ -1,0 +1,53 @@
+package com.mountaincrab.crabdo.di
+
+import androidx.work.WorkManager
+import com.mountaincrab.crabdo.alarm.AlarmScheduler
+import com.mountaincrab.crabdo.auth.AuthRepository
+import com.mountaincrab.crabdo.data.local.dao.*
+import com.mountaincrab.crabdo.data.repository.*
+import com.google.firebase.auth.FirebaseAuth
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.components.SingletonComponent
+import javax.inject.Singleton
+
+@Module
+@InstallIn(SingletonComponent::class)
+object RepositoryModule {
+
+    @Provides
+    @Singleton
+    fun provideBoardRepository(
+        boardDao: BoardDao,
+        columnDao: ColumnDao,
+        workManager: WorkManager
+    ): BoardRepository = BoardRepository(boardDao, columnDao, workManager)
+
+    @Provides
+    @Singleton
+    fun provideTaskRepository(
+        taskDao: TaskDao,
+        alarmScheduler: AlarmScheduler,
+        workManager: WorkManager
+    ): TaskRepository = TaskRepository(taskDao, alarmScheduler, workManager)
+
+    @Provides
+    @Singleton
+    fun provideSubtaskRepository(
+        subtaskDao: SubtaskDao,
+        workManager: WorkManager
+    ): SubtaskRepository = SubtaskRepository(subtaskDao, workManager)
+
+    @Provides
+    @Singleton
+    fun provideReminderRepository(
+        reminderDao: ReminderDao,
+        alarmScheduler: AlarmScheduler,
+        workManager: WorkManager
+    ): ReminderRepository = ReminderRepository(reminderDao, alarmScheduler, workManager)
+
+    @Provides
+    @Singleton
+    fun provideAuthRepository(auth: FirebaseAuth): AuthRepository = AuthRepository(auth)
+}
