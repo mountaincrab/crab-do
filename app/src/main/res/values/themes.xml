@@ -2,8 +2,5 @@
 <resources>
     <style name="Theme.Crabban" parent="android:Theme.Material.Light.NoActionBar" />
 
-    <style name="Theme.App.Fullscreen" parent="android:Theme.Material.NoActionBar.Fullscreen">
-        <item name="android:windowShowWhenLocked">true</item>
-        <item name="android:windowTurnScreenOn">true</item>
-    </style>
+    <style name="Theme.App.Fullscreen" parent="android:Theme.Material.NoActionBar.Fullscreen" />
 </resources>
