@@ -1,6 +1,7 @@
 package com.mountaincrab.crabdo.ui.boards.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.draganddrop.dragAndDropSource
 import androidx.compose.foundation.draganddrop.dragAndDropTarget
 import androidx.compose.foundation.layout.*
@@ -24,6 +25,7 @@ import com.mountaincrab.crabdo.data.local.entity.TaskEntity
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun KanbanColumn(
     column: ColumnEntity,
