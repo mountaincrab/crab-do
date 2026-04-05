@@ -76,6 +76,22 @@ All repositories write to Room first, then enqueue a `SyncWorker` via WorkManage
 ### User preferences (DataStore)
 - `UserPreferencesRepository` — persists `pinnedBoardId` and `lastSyncTimestamp`
 
+### Permissions
+- `POST_NOTIFICATIONS` runtime permission requested in `MainActivity` on first launch (API 33+)
+- `SCHEDULE_EXACT_ALARM` — banner in `SettingsScreen` links to system settings if not granted
+
+### Delete reminders
+- Bin icon on each row in `RemindersScreen` (next to the toggle switch) — deletes immediately
+- Swipe-to-delete also still available
+- Delete icon in `AddEditReminderScreen` top bar when editing — shows confirmation dialog before deleting
+
+### Snooze duration picker (`SnoozePickerActivity`)
+- When an alarm fires, pressing **Snooze** (notification action or full-screen `AlarmAlertActivity`) opens `SnoozePickerActivity`
+- Shows preset buttons: 5 / 10 / 15 / 20 / 30 minutes
+- "Custom…" option reveals a number input for any duration
+- "Dismiss alarm" button dismisses without rescheduling
+- Duration chosen at snooze time — not stored on the reminder
+
 ---
 
 ## What still needs doing
@@ -89,7 +105,6 @@ All repositories write to Room first, then enqueue a `SyncWorker` via WorkManage
 
 ### Features not yet implemented
 - [ ] Google Sign-In flow in `SettingsScreen` (stub button present, `CredentialManager` call not wired up)
-- [ ] `POST_NOTIFICATIONS` runtime permission request (should be triggered when user first creates a reminder on API 33+)
 - [ ] Column pull-sync in `SyncWorker` (boards and reminders pull; columns/tasks/subtasks push only for now)
 - [ ] Firestore composite indexes (will be prompted in logcat on first run with real Firebase)
 
@@ -120,6 +135,9 @@ All repositories write to Room first, then enqueue a `SyncWorker` via WorkManage
 | FAB hidden behind bottom nav bar | `NavHost` modifier had no padding; added `Modifier.padding(bottom = padding.calculateBottomPadding())` |
 | Pinned board tab showed "No board pinned" even when pinned | `BoardListViewModel` used `SharingStarted.WhileSubscribed(5000)` — flows paused when off-screen and emitted `null` on resume; changed to `SharingStarted.Eagerly` |
 | Crash when navigating to pinned board | `KanbanBoardViewModel` used `checkNotNull(savedStateHandle["boardId"])` but `PinnedBoardScreen` called `KanbanBoardScreen` directly (not via nav), so `SavedStateHandle` was empty; fixed with `@AssistedInject` — `boardId` now passed via factory callback |
+| Notifications not firing on API 33+ | `POST_NOTIFICATIONS` is a runtime permission — manifest declaration alone is not enough; added `registerForActivityResult(RequestPermission)` call in `MainActivity` |
+| App crash on launch after adding `snoozeDurationMinutes` field | Room schema hash mismatch (new column added without bumping DB version); resolved by moving snooze config to fire-time picker (`SnoozePickerActivity`) and reverting the entity change |
+| App hangs on spinner on real device | `signInAnonymously()` reaches real Firebase servers with placeholder credentials and hangs indefinitely; added `withTimeout(5_000)` around the call so it falls back to offline mode within 5 s |
 
 ---
 
@@ -128,6 +146,8 @@ All repositories write to Room first, then enqueue a `SyncWorker` via WorkManage
 - Boards list: create, rename, delete, pin/unpin (pinned boards show amber star ⭐)
 - Pinned board tab navigates to the pinned board's Kanban view
 - Kanban board: columns visible, tasks visible
-- Reminders list: FAB visible, navigates to Add Reminder screen
-- Add Reminder: separate Date and Time fields, style toggle, recurrence toggle
+- Reminders list: FAB visible, navigates to Add Reminder screen; bin icon on each row deletes; swipe-to-delete also works
+- Add Reminder: separate Date and Time fields, style toggle, recurrence toggle; delete icon in top bar when editing
 - Date/time pickers default to today + 1 hour
+- `POST_NOTIFICATIONS` permission dialog shown on first launch (API 33+)
+- Snooze picker: tapping Snooze on a notification or alarm screen opens duration selector (5/10/15/20/30 min + custom)

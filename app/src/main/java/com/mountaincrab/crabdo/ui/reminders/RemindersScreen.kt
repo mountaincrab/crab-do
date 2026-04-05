@@ -102,7 +102,8 @@ fun RemindersScreen(
                         ) {
                             ReminderItem(
                                 reminder = reminder,
-                                onToggleEnabled = { viewModel.toggleEnabled(reminder) }
+                                onToggleEnabled = { viewModel.toggleEnabled(reminder) },
+                                onDelete = { viewModel.deleteReminder(reminder.id) }
                             )
                         }
                     }

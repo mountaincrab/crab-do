@@ -43,6 +43,14 @@ class AddEditReminderViewModel @Inject constructor(
         }
     }
 
+    fun delete(onSuccess: () -> Unit) {
+        val id = existingReminderId ?: return
+        viewModelScope.launch {
+            reminderRepository.deleteReminder(id)
+            onSuccess()
+        }
+    }
+
     fun save(onSuccess: () -> Unit) {
         viewModelScope.launch {
             if (existingReminderId == null) {

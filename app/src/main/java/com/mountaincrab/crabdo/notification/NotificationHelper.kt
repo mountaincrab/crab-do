@@ -13,6 +13,7 @@ import androidx.core.content.getSystemService
 import com.mountaincrab.crabdo.R
 import com.mountaincrab.crabdo.alarm.AlarmAlertActivity
 import com.mountaincrab.crabdo.alarm.ReminderReceiver
+import com.mountaincrab.crabdo.alarm.SnoozePickerActivity
 import com.mountaincrab.crabdo.data.local.entity.ReminderEntity
 
 object NotificationHelper {
@@ -67,12 +68,14 @@ object NotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val snoozeIntent = PendingIntent.getBroadcast(
+        val snoozeIntent = PendingIntent.getActivity(
             context, notificationId + 2000,
-            Intent(context, ReminderReceiver::class.java).apply {
-                action = ReminderReceiver.ACTION_SNOOZE
+            Intent(context, SnoozePickerActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                 putExtra(ReminderReceiver.EXTRA_REMINDER_ID, id)
                 putExtra(ReminderReceiver.EXTRA_NOTIFICATION_ID, notificationId)
+                putExtra(ReminderReceiver.EXTRA_TITLE, title)
+                putExtra(ReminderReceiver.EXTRA_STYLE, style.name)
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -87,7 +90,7 @@ object NotificationHelper {
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setAutoCancel(false)
             .addAction(R.drawable.ic_dismiss, "Dismiss", dismissIntent)
-            .addAction(R.drawable.ic_snooze, "Snooze 10 min", snoozeIntent)
+            .addAction(R.drawable.ic_snooze, "Snooze", snoozeIntent)
 
         if (style == ReminderEntity.ReminderStyle.ALARM) {
             builder.setOngoing(true)

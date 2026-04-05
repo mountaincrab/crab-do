@@ -2,6 +2,7 @@ package com.mountaincrab.crabdo.ui.reminders.components
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material3.*
@@ -19,6 +20,7 @@ import java.util.*
 fun ReminderItem(
     reminder: ReminderEntity,
     onToggleEnabled: () -> Unit,
+    onDelete: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val recurrenceDesc = reminder.recurrenceRuleJson
@@ -67,5 +69,12 @@ fun ReminderItem(
             checked = reminder.isEnabled,
             onCheckedChange = { onToggleEnabled() }
         )
+        if (onDelete != null) {
+            Spacer(Modifier.width(4.dp))
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Default.Delete, contentDescription = "Delete",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
     }
 }

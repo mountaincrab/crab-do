@@ -41,6 +41,13 @@
             android:turnScreenOn="true"
             android:theme="@style/Theme.App.Fullscreen" />
 
+        <!-- Snooze duration picker (launched from notification action or alarm screen) -->
+        <activity
+            android:name=".alarm.SnoozePickerActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.Crabban" />
+
         <!-- Alarm receiver -->
         <receiver
             android:name=".alarm.ReminderReceiver"

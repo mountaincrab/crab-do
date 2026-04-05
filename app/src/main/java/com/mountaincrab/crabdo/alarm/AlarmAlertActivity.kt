@@ -50,10 +50,12 @@ class AlarmAlertActivity : ComponentActivity() {
                         finish()
                     },
                     onSnooze = {
-                        sendBroadcast(Intent(this, ReminderReceiver::class.java).apply {
-                            action = ReminderReceiver.ACTION_SNOOZE
+                        startActivity(Intent(this, SnoozePickerActivity::class.java).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                             putExtra(ReminderReceiver.EXTRA_REMINDER_ID, reminderId)
                             putExtra(ReminderReceiver.EXTRA_NOTIFICATION_ID, notificationId)
+                            putExtra(ReminderReceiver.EXTRA_TITLE, title)
+                            putExtra(ReminderReceiver.EXTRA_STYLE, "ALARM")
                         })
                         finish()
                     }
@@ -94,7 +96,7 @@ private fun AlarmAlertScreen(
                 onClick = onSnooze,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Snooze 10 min")
+                Text("Snooze…")
             }
         }
     }

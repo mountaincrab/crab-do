@@ -25,6 +25,14 @@ class AlarmScheduler @Inject constructor(
         )
     }
 
+    fun scheduleSnooze(reminderId: String, title: String, style: ReminderEntity.ReminderStyle, triggerMillis: Long) {
+        schedule(
+            requestCode = reminderRequestCode(reminderId),
+            triggerMillis = triggerMillis,
+            intent = buildReminderIntent(reminderId, title, style)
+        )
+    }
+
     fun scheduleTaskReminder(taskId: String, triggerMillis: Long, style: TaskEntity.ReminderStyle) {
         schedule(
             requestCode = taskRequestCode(taskId),

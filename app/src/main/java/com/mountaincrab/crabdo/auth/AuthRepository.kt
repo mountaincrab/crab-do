@@ -7,6 +7,7 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withTimeout
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -25,7 +26,7 @@ class AuthRepository @Inject constructor(
         val user = auth.currentUser
         if (user != null) return user.uid
         return try {
-            val result = auth.signInAnonymously().await()
+            val result = withTimeout(5_000) { auth.signInAnonymously().await() }
             result.user!!.uid
         } catch (e: Exception) {
             // Firebase unreachable (no emulator, no real google-services.json).
