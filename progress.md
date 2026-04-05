@@ -14,9 +14,10 @@ Android Kanban + Reminders app. Offline-first, Room as local source of truth, Fi
 
 ### Build & project setup
 - Gradle project created from scratch (no Android Studio wizard): `settings.gradle.kts`, root and app `build.gradle.kts`, `gradle/libs.versions.toml`
-- All dependencies pinned: Compose BOM, Room 2.7, Hilt 2.52, Firebase BOM 33.7, WorkManager 2.10, Reorderable 2.4
+- All dependencies pinned: Compose BOM 2025.04.00, Room 2.7, Hilt 2.52, Firebase BOM 33.7, WorkManager 2.10, Reorderable 2.4
 - `gradle.properties` with 4g JVM heap (needed to avoid OOM during build)
 - Placeholder `app/google-services.json` — **must be replaced** with real one from Firebase console before Firebase features work (see `~/claude/FIREBASE_SETUP_CRABBAN.md`)
+- `.gitignore` updated to exclude `**/build/` (was previously only excluding root `/build`)
 
 ### Data layer (Room)
 - 5 entities: `BoardEntity`, `ColumnEntity`, `TaskEntity`, `SubtaskEntity`, `ReminderEntity`
@@ -55,19 +56,20 @@ All repositories write to Room first, then enqueue a `SyncWorker` via WorkManage
 - `FirebaseModule` — provides `FirebaseAuth` and `FirebaseFirestore` singletons
 - `WorkerModule` — provides `WorkManager`
 - `RepositoryModule` — provides all repositories
+- `KanbanApplication` implements `Configuration.Provider` to supply Hilt's `HiltWorkerFactory` to WorkManager (required for Hilt-injected workers)
 
 ### Navigation & UI
 3-tab bottom nav: **Board** (pinned) · **Boards** (list) · **Reminders**
 
 | Screen | Notes |
 |--------|-------|
-| `BoardListScreen` | List of boards; pin/unpin ⭐; rename/delete via dropdown; FAB to create |
+| `BoardListScreen` | List of boards; pin/unpin ⭐ (amber colour when pinned); rename/delete via dropdown; FAB to create |
 | `KanbanBoardScreen` | Horizontal `LazyRow` of columns; drag-and-drop between columns (`dragAndDropSource`/`dragAndDropTarget`); within-column reorder (Reorderable library) |
 | `ColumnConfigSheet` | Bottom sheet: rename, delete, drag-to-reorder columns |
-| `TaskDetailScreen` | Edit title/description; checklist subtasks; set/clear reminder with date+time picker and alarm/notification toggle |
+| `TaskDetailScreen` | Edit title/description; checklist subtasks; set/clear reminder with separate date + time pickers |
 | `PinnedBoardScreen` | Renders pinned board inline; shows prompt if none pinned |
 | `RemindersScreen` | Sorted list; swipe-to-delete; enable/disable toggle |
-| `AddEditReminderScreen` | Title, date+time picker, style toggle (Alarm/Notification), recurrence toggle + `RecurrencePicker` |
+| `AddEditReminderScreen` | Title, separate date and time fields (each opens its own picker), style toggle, recurrence toggle + `RecurrencePicker` |
 | `RecurrencePicker` | Interval + period dropdown; day-of-week chips (weeks); day-of-month input (months); time input |
 | `SettingsScreen` | Account section (anonymous / Google link); pinned board picker; exact-alarm permission banner |
 
@@ -100,7 +102,7 @@ All repositories write to Room first, then enqueue a `SyncWorker` via WorkManage
 
 ---
 
-## Build issues resolved so far
+## Build issues resolved
 
 | Error | Fix |
 |-------|-----|
@@ -108,3 +110,24 @@ All repositories write to Room first, then enqueue a `SyncWorker` via WorkManage
 | `windowShowWhenLocked` / `windowTurnScreenOn` not found in XML | Removed from `themes.xml` — `AlarmAlertActivity` sets these in code |
 | `mipmap/ic_launcher` not found | Added adaptive icon XML in `mipmap-anydpi-v26/` |
 | App hangs on spinner without Firebase | Added offline fallback in `AuthRepository` (separate revertable commit `2ba33c7`) |
+| `attr/colorControlNormal` not found in notification drawables | Removed `android:tint` attribute; `fillColor` is already white |
+| Reorderable 2.x API changes | `rememberReorderableLazyListState` requires explicit `LazyListState`; `longPressDraggable` → `longPressDraggableHandle()` (scope-level) |
+| `dragAndDropSource`/`dragAndDropTarget` unresolved | Moved to `androidx.compose.foundation.draganddrop` in newer Compose; added `@OptIn(ExperimentalFoundationApi::class)` |
+| `ClipEntry` not found | `DragAndDropTransferData` takes `clipData: ClipData` directly, not `clipEntry` |
+| `ExposedDropdownMenuBox` experimental error | Added `@OptIn(ExperimentalMaterial3Api::class)` to `RecurrencePicker` |
+| Missing `import android.content.Intent` in `AlarmAlertActivity` | Added import |
+| `WorkManagerInitializer` ClassNotFoundException on startup | Manifest entry was enabling auto-init instead of disabling it; fixed with `tools:node="remove"` on the `<meta-data>`; `KanbanApplication` now implements `Configuration.Provider` with injected `HiltWorkerFactory` |
+| FAB hidden behind bottom nav bar | `NavHost` modifier had no padding; added `Modifier.padding(bottom = padding.calculateBottomPadding())` |
+| Pinned board tab showed "No board pinned" even when pinned | `BoardListViewModel` used `SharingStarted.WhileSubscribed(5000)` — flows paused when off-screen and emitted `null` on resume; changed to `SharingStarted.Eagerly` |
+| Crash when navigating to pinned board | `KanbanBoardViewModel` used `checkNotNull(savedStateHandle["boardId"])` but `PinnedBoardScreen` called `KanbanBoardScreen` directly (not via nav), so `SavedStateHandle` was empty; fixed with `@AssistedInject` — `boardId` now passed via factory callback |
+
+---
+
+## Runtime behaviour confirmed working
+- App launches and shows the 3-tab navigation
+- Boards list: create, rename, delete, pin/unpin (pinned boards show amber star ⭐)
+- Pinned board tab navigates to the pinned board's Kanban view
+- Kanban board: columns visible, tasks visible
+- Reminders list: FAB visible, navigates to Add Reminder screen
+- Add Reminder: separate Date and Time fields, style toggle, recurrence toggle
+- Date/time pickers default to today + 1 hour
