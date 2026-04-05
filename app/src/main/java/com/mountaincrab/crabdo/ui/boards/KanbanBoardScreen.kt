@@ -20,7 +20,9 @@ import com.mountaincrab.crabdo.ui.boards.components.KanbanColumn
 fun KanbanBoardScreen(
     boardId: String,
     navController: NavController,
-    viewModel: KanbanBoardViewModel = hiltViewModel()
+    viewModel: KanbanBoardViewModel = hiltViewModel<KanbanBoardViewModel, KanbanBoardViewModel.Factory>(
+        creationCallback = { factory -> factory.create(boardId) }
+    )
 ) {
     val board by viewModel.board.collectAsStateWithLifecycle()
     val columns by viewModel.columns.collectAsStateWithLifecycle()

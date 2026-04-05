@@ -1,6 +1,5 @@
 package com.mountaincrab.crabdo.ui.boards
 
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mountaincrab.crabdo.data.local.entity.BoardEntity
@@ -8,19 +7,24 @@ import com.mountaincrab.crabdo.data.local.entity.ColumnEntity
 import com.mountaincrab.crabdo.data.local.entity.TaskEntity
 import com.mountaincrab.crabdo.data.repository.BoardRepository
 import com.mountaincrab.crabdo.data.repository.TaskRepository
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedFactory
+import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
-@HiltViewModel
-class KanbanBoardViewModel @Inject constructor(
+@HiltViewModel(assistedFactory = KanbanBoardViewModel.Factory::class)
+class KanbanBoardViewModel @AssistedInject constructor(
+    @Assisted private val boardId: String,
     private val boardRepository: BoardRepository,
-    private val taskRepository: TaskRepository,
-    savedStateHandle: SavedStateHandle
+    private val taskRepository: TaskRepository
 ) : ViewModel() {
 
-    private val boardId: String = checkNotNull(savedStateHandle["boardId"])
+    @AssistedFactory
+    interface Factory {
+        fun create(boardId: String): KanbanBoardViewModel
+    }
 
     val board: StateFlow<BoardEntity?> =
         boardRepository.observeBoard(boardId)
