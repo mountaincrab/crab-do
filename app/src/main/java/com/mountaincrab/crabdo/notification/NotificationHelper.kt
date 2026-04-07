@@ -23,18 +23,18 @@ object NotificationHelper {
     fun createChannels(context: Context) {
         val manager = context.getSystemService<NotificationManager>() ?: return
 
+        // Channel sound can't be changed after creation, so drop the old alarm channel
+        // (which had a ringtone attached) before re-registering it as silent.
+        manager.deleteNotificationChannel(CHANNEL_ALARM)
+
         val alarmChannel = NotificationChannel(
             CHANNEL_ALARM, "Alarms", NotificationManager.IMPORTANCE_HIGH
         ).apply {
             description = "Persistent reminders that require dismissal"
-            setSound(
-                RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM),
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ALARM)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build()
-            )
-            enableVibration(true)
+            // Silent channel — AlarmRingerService plays the sound itself via a looping MediaPlayer,
+            // so we don't want the channel to play a second overlapping ringtone.
+            setSound(null, null)
+            enableVibration(false)
             lockscreenVisibility = NotificationCompat.VISIBILITY_PUBLIC
         }
 

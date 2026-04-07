@@ -25,6 +25,7 @@ class ReminderRepository @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     fun observeReminders(userId: String) = reminderDao.observeReminders(userId)
+    fun observeCompletedReminders(userId: String) = reminderDao.observeCompletedReminders(userId)
 
     suspend fun getReminderById(id: String): ReminderEntity? = reminderDao.getReminderById(id)
 
@@ -87,8 +88,15 @@ class ReminderRepository @Inject constructor(
             if (nextTrigger != null) {
                 reminderDao.updateNextTrigger(reminderId, nextTrigger)
                 alarmScheduler.scheduleReminder(reminder.copy(nextTriggerMillis = nextTrigger))
+            } else {
+                // Recurrence has ended (e.g. UNTIL date passed) — treat as completed.
+                reminderDao.markCompleted(reminderId)
             }
+        } else {
+            // One-shot reminder has fired — mark it completed so it drops out of the active list.
+            reminderDao.markCompleted(reminderId)
         }
+        enqueueSyncWork()
         notifyWidgets()
     }
 

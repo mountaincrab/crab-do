@@ -6,13 +6,16 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ReminderDao {
-    @Query("SELECT * FROM reminders WHERE userId = :userId AND isDeleted = 0 ORDER BY nextTriggerMillis")
+    @Query("SELECT * FROM reminders WHERE userId = :userId AND isDeleted = 0 AND isCompleted = 0 ORDER BY nextTriggerMillis")
     fun observeReminders(userId: String): Flow<List<ReminderEntity>>
+
+    @Query("SELECT * FROM reminders WHERE userId = :userId AND isDeleted = 0 AND isCompleted = 1 ORDER BY completedAt DESC")
+    fun observeCompletedReminders(userId: String): Flow<List<ReminderEntity>>
 
     @Query("SELECT * FROM reminders WHERE id = :id")
     suspend fun getReminderById(id: String): ReminderEntity?
 
-    @Query("SELECT * FROM reminders WHERE isEnabled = 1 AND isDeleted = 0")
+    @Query("SELECT * FROM reminders WHERE isEnabled = 1 AND isDeleted = 0 AND isCompleted = 0")
     suspend fun getAllActiveReminders(): List<ReminderEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -32,4 +35,7 @@ interface ReminderDao {
 
     @Query("UPDATE reminders SET snoozedUntilMillis = :millis WHERE id = :reminderId")
     suspend fun updateSnoozeUntil(reminderId: String, millis: Long?)
+
+    @Query("UPDATE reminders SET isCompleted = 1, completedAt = :completedAt, updatedAt = :updatedAt, syncStatus = 'PENDING' WHERE id = :reminderId")
+    suspend fun markCompleted(reminderId: String, completedAt: Long = System.currentTimeMillis(), updatedAt: Long = System.currentTimeMillis())
 }

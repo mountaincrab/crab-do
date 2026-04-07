@@ -15,6 +15,8 @@ data class ReminderEntity(
     val recurrenceRuleJson: String? = null,
     val isEnabled: Boolean = true,
     val snoozedUntilMillis: Long? = null,
+    val isCompleted: Boolean = false,
+    val completedAt: Long? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
     val syncStatus: SyncStatus = SyncStatus.PENDING,

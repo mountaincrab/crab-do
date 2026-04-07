@@ -23,6 +23,7 @@ fun ReminderItem(
     reminder: ReminderEntity,
     onToggleEnabled: () -> Unit,
     onDelete: (() -> Unit)? = null,
+    completed: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val now = System.currentTimeMillis()
@@ -38,6 +39,7 @@ fun ReminderItem(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        val mutedColor = MaterialTheme.colorScheme.onSurfaceVariant
         Icon(
             imageVector = when {
                 isSnoozed -> Icons.Default.Snooze
@@ -46,9 +48,10 @@ fun ReminderItem(
             },
             contentDescription = null,
             tint = when {
+                completed -> mutedColor
                 isSnoozed -> MaterialTheme.colorScheme.tertiary
                 reminder.isEnabled -> MaterialTheme.colorScheme.primary
-                else -> MaterialTheme.colorScheme.onSurfaceVariant
+                else -> mutedColor
             },
             modifier = Modifier.size(20.dp)
         )
@@ -57,8 +60,8 @@ fun ReminderItem(
             Text(
                 text = reminder.title,
                 style = MaterialTheme.typography.bodyLarge,
-                color = if (reminder.isEnabled) MaterialTheme.colorScheme.onSurface
-                        else MaterialTheme.colorScheme.onSurfaceVariant
+                color = if (completed || !reminder.isEnabled) mutedColor
+                        else MaterialTheme.colorScheme.onSurface
             )
             Spacer(Modifier.height(1.dp))
             when {
@@ -81,11 +84,13 @@ fun ReminderItem(
                 )
             }
         }
-        Switch(
-            checked = reminder.isEnabled,
-            onCheckedChange = { onToggleEnabled() },
-            modifier = Modifier.scale(0.85f)
-        )
+        if (!completed) {
+            Switch(
+                checked = reminder.isEnabled,
+                onCheckedChange = { onToggleEnabled() },
+                modifier = Modifier.scale(0.85f)
+            )
+        }
         if (onDelete != null) {
             IconButton(
                 onClick = onDelete,

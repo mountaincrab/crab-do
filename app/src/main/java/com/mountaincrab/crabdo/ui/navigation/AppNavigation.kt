@@ -26,7 +26,8 @@ import com.mountaincrab.crabdo.ui.settings.SettingsScreen
 fun AppNavigation(
     navController: NavHostController,
     startDestination: String,
-    openAddReminder: Boolean = false
+    openAddReminder: Boolean = false,
+    openReminderId: String? = null
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
@@ -44,6 +45,13 @@ fun AppNavigation(
     LaunchedEffect(openAddReminder) {
         if (openAddReminder) {
             navController.navigate(Screen.AddEditReminder.createRoute(fromWidget = true))
+        }
+    }
+    LaunchedEffect(openReminderId) {
+        if (openReminderId != null) {
+            navController.navigate(
+                Screen.AddEditReminder.createRoute(reminderId = openReminderId, fromWidget = true)
+            )
         }
     }
 

@@ -109,6 +109,8 @@ fun ReminderEntity.toFirestoreMap(): Map<String, Any?> = mapOf(
     "reminderStyle" to reminderStyle.name,
     "recurrenceRuleJson" to recurrenceRuleJson,
     "isEnabled" to isEnabled,
+    "isCompleted" to isCompleted,
+    "completedAt" to completedAt,
     "createdAt" to createdAt,
     "updatedAt" to FieldValue.serverTimestamp(),
     "isDeleted" to isDeleted
@@ -124,6 +126,8 @@ fun DocumentSnapshot.toReminderEntity(userId: String): ReminderEntity = Reminder
     } catch (e: Exception) { ReminderEntity.ReminderStyle.ALARM },
     recurrenceRuleJson = getString("recurrenceRuleJson"),
     isEnabled = getBoolean("isEnabled") ?: true,
+    isCompleted = getBoolean("isCompleted") ?: false,
+    completedAt = getLong("completedAt"),
     createdAt = getLong("createdAt") ?: 0L,
     updatedAt = getTimestamp("updatedAt")?.toDate()?.time ?: System.currentTimeMillis(),
     syncStatus = SyncStatus.SYNCED,

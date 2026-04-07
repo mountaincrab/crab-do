@@ -24,6 +24,10 @@ class RemindersViewModel @Inject constructor(
         reminderRepository.observeReminders(userId)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val completedReminders: StateFlow<List<ReminderEntity>> =
+        reminderRepository.observeCompletedReminders(userId)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     fun deleteReminder(reminderId: String) {
         viewModelScope.launch { reminderRepository.deleteReminder(reminderId) }
     }

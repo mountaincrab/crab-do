@@ -8,8 +8,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -30,6 +33,8 @@ fun RemindersScreen(
     viewModel: RemindersViewModel = hiltViewModel()
 ) {
     val reminders by viewModel.reminders.collectAsStateWithLifecycle()
+    val completedReminders by viewModel.completedReminders.collectAsStateWithLifecycle()
+    var showCompleted by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     Scaffold(
@@ -47,7 +52,7 @@ fun RemindersScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { scaffoldPadding ->
-        if (reminders.isEmpty()) {
+        if (reminders.isEmpty() && completedReminders.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize().padding(scaffoldPadding),
                 contentAlignment = Alignment.Center
@@ -98,8 +103,50 @@ fun RemindersScreen(
                         ReminderRow(reminder, navController, viewModel)
                     }
                 }
+                if (completedReminders.isNotEmpty()) {
+                    item {
+                        TextButton(
+                            onClick = { showCompleted = !showCompleted },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (showCompleted) Icons.Default.ExpandLess
+                                              else Icons.Default.ExpandMore,
+                                contentDescription = null
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                if (showCompleted) "Hide completed reminders"
+                                else "Show completed reminders (${completedReminders.size})"
+                            )
+                        }
+                    }
+                    if (showCompleted) {
+                        item { SectionHeader("Completed") }
+                        items(completedReminders, key = { it.id }) { reminder ->
+                            CompletedReminderRow(reminder, viewModel)
+                        }
+                    }
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun CompletedReminderRow(
+    reminder: com.mountaincrab.crabdo.data.local.entity.ReminderEntity,
+    viewModel: RemindersViewModel
+) {
+    Surface(color = MaterialTheme.colorScheme.surface) {
+        ReminderItem(
+            reminder = reminder,
+            onToggleEnabled = {},
+            onDelete = { viewModel.deleteReminder(reminder.id) },
+            completed = true
+        )
     }
 }
 

@@ -116,7 +116,16 @@ private fun WidgetContent(context: Context, reminders: List<ReminderEntity>, isD
         } else {
             LazyColumn(modifier = GlanceModifier.fillMaxSize()) {
                 items(reminders) { reminder ->
-                    ReminderWidgetRow(reminder, textColor, subtextColor)
+                    val editIntent = Intent(context, MainActivity::class.java).apply {
+                        putExtra("open_reminder_id", reminder.id)
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    }
+                    ReminderWidgetRow(
+                        reminder = reminder,
+                        textColor = textColor,
+                        subtextColor = subtextColor,
+                        modifier = GlanceModifier.clickable(actionStartActivity(editIntent))
+                    )
                 }
             }
         }
@@ -127,7 +136,8 @@ private fun WidgetContent(context: Context, reminders: List<ReminderEntity>, isD
 private fun ReminderWidgetRow(
     reminder: ReminderEntity,
     textColor: ColorProvider,
-    subtextColor: ColorProvider
+    subtextColor: ColorProvider,
+    modifier: GlanceModifier = GlanceModifier
 ) {
     val now = System.currentTimeMillis()
     val isSnoozed = reminder.snoozedUntilMillis != null && reminder.snoozedUntilMillis > now
@@ -136,7 +146,7 @@ private fun ReminderWidgetRow(
     val prefix = if (isSnoozed) "💤 " else ""
 
     Column(
-        modifier = GlanceModifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 3.dp)
     ) {

@@ -37,6 +37,7 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* continue either way */ }
 
     private var openAddReminder by mutableStateOf(false)
+    private var openReminderId by mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -50,6 +51,7 @@ class MainActivity : ComponentActivity() {
         if (intent?.getBooleanExtra("open_add_reminder", false) == true) {
             openAddReminder = true
         }
+        intent?.getStringExtra("open_reminder_id")?.let { openReminderId = it }
         setContent {
             val themeViewModel: ThemeViewModel = hiltViewModel()
             val appTheme by themeViewModel.appTheme.collectAsStateWithLifecycle()
@@ -75,15 +77,22 @@ class MainActivity : ComponentActivity() {
                     } else {
                         val navController = rememberNavController()
                         val shouldOpenAddReminder = openAddReminder
+                        val shouldOpenReminderId = openReminderId
                         LaunchedEffect(shouldOpenAddReminder) {
                             if (shouldOpenAddReminder) {
                                 openAddReminder = false
                             }
                         }
+                        LaunchedEffect(shouldOpenReminderId) {
+                            if (shouldOpenReminderId != null) {
+                                openReminderId = null
+                            }
+                        }
                         AppNavigation(
                             navController = navController,
                             startDestination = Screen.PinnedBoard.route,
-                            openAddReminder = shouldOpenAddReminder
+                            openAddReminder = shouldOpenAddReminder,
+                            openReminderId = shouldOpenReminderId
                         )
                     }
                 }
@@ -96,5 +105,6 @@ class MainActivity : ComponentActivity() {
         if (intent.getBooleanExtra("open_add_reminder", false)) {
             openAddReminder = true
         }
+        intent.getStringExtra("open_reminder_id")?.let { openReminderId = it }
     }
 }
