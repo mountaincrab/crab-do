@@ -20,15 +20,26 @@ class TaskRepository @Inject constructor(
     fun observeTasksByColumn(columnId: String) = taskDao.observeTasksByColumn(columnId)
     fun observeTask(taskId: String) = taskDao.observeTask(taskId)
 
-    suspend fun createTask(boardId: String, columnId: String, title: String,
-                           description: String = ""): TaskEntity {
+    suspend fun createTask(
+        boardId: String,
+        columnId: String,
+        title: String,
+        description: String = "",
+        reminderTimeMillis: Long? = null,
+        reminderStyle: TaskEntity.ReminderStyle = TaskEntity.ReminderStyle.ALARM
+    ): TaskEntity {
         val tasks = taskDao.observeTasksByColumn(columnId).first()
         val maxOrder = tasks.maxOfOrNull { it.order } ?: 0.0
         val task = TaskEntity(
             boardId = boardId, columnId = columnId,
-            title = title, description = description, order = maxOrder + 1.0
+            title = title, description = description, order = maxOrder + 1.0,
+            reminderTimeMillis = reminderTimeMillis,
+            reminderStyle = reminderStyle
         )
         taskDao.upsert(task)
+        if (reminderTimeMillis != null && reminderTimeMillis > System.currentTimeMillis()) {
+            alarmScheduler.scheduleTaskReminder(task.id, reminderTimeMillis, reminderStyle)
+        }
         enqueueSyncWork()
         return task
     }

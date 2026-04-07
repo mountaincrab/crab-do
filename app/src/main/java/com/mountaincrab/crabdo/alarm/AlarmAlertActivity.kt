@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.getSystemService
+import com.mountaincrab.crabdo.ui.theme.CrabbanTheme
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -40,13 +41,14 @@ class AlarmAlertActivity : ComponentActivity() {
         val reminderId = intent.getStringExtra(ReminderReceiver.EXTRA_REMINDER_ID) ?: ""
 
         setContent {
-            MaterialTheme {
+            CrabbanTheme {
                 AlarmAlertScreen(
                     title = title,
                     onDismiss = {
                         if (notificationId != -1) {
                             getSystemService<NotificationManager>()?.cancel(notificationId)
                         }
+                        stopService(Intent(this, AlarmRingerService::class.java))
                         finish()
                     },
                     onSnooze = {

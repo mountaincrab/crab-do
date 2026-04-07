@@ -14,6 +14,7 @@ data class ReminderEntity(
     val reminderStyle: ReminderStyle = ReminderStyle.ALARM,
     val recurrenceRuleJson: String? = null,
     val isEnabled: Boolean = true,
+    val snoozedUntilMillis: Long? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
     val syncStatus: SyncStatus = SyncStatus.PENDING,

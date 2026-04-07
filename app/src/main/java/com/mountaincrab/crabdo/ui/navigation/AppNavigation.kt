@@ -1,14 +1,17 @@
 package com.mountaincrab.crabdo.ui.navigation
 
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.navigation.*
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -20,49 +23,85 @@ import com.mountaincrab.crabdo.ui.reminders.RemindersScreen
 import com.mountaincrab.crabdo.ui.settings.SettingsScreen
 
 @Composable
-fun AppNavigation(navController: NavHostController, startDestination: String) {
+fun AppNavigation(
+    navController: NavHostController,
+    startDestination: String,
+    openAddReminder: Boolean = false
+) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+    val tabRoutes = setOf(
+        Screen.PinnedBoard.route,
+        Screen.BoardList.route,
+        Screen.Reminders.route,
+        Screen.Settings.route,
+    )
+    // Show the bottom bar on tabs AND on drill-in destinations where the user
+    // still benefits from keeping the tab context (e.g. viewing a board).
+    val showBottomBar = currentRoute in tabRoutes || currentRoute == Screen.KanbanBoard.route
+
+    // Handle deep-link from widget
+    LaunchedEffect(openAddReminder) {
+        if (openAddReminder) {
+            navController.navigate(Screen.AddEditReminder.createRoute(fromWidget = true))
+        }
+    }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0),
         bottomBar = {
-            NavigationBar {
-                NavigationBarItem(
-                    selected = currentRoute == Screen.PinnedBoard.route,
-                    onClick = {
-                        navController.navigate(Screen.PinnedBoard.route) {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
-                    icon = { Icon(Icons.Default.Star, contentDescription = "Pinned Board") },
-                    label = { Text("Board") }
-                )
-                NavigationBarItem(
-                    selected = currentRoute == Screen.BoardList.route,
-                    onClick = {
-                        navController.navigate(Screen.BoardList.route) {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
-                    icon = { Icon(Icons.Default.GridView, contentDescription = "All Boards") },
-                    label = { Text("Boards") }
-                )
-                NavigationBarItem(
-                    selected = currentRoute == Screen.Reminders.route,
-                    onClick = {
-                        navController.navigate(Screen.Reminders.route) {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
-                    icon = { Icon(Icons.Default.Notifications, contentDescription = "Reminders") },
-                    label = { Text("Reminders") }
-                )
+            if (showBottomBar) {
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 0.dp
+                ) {
+                    NavigationBarItem(
+                        selected = currentRoute == Screen.PinnedBoard.route,
+                        onClick = {
+                            navController.navigate(Screen.PinnedBoard.route) {
+                                popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                            }
+                        },
+                        icon = { Icon(Icons.Default.Star, contentDescription = "Pinned Board") },
+                        label = { Text("Board") }
+                    )
+                    NavigationBarItem(
+                        selected = currentRoute == Screen.BoardList.route,
+                        onClick = {
+                            navController.navigate(Screen.BoardList.route) {
+                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        icon = { Icon(Icons.Default.GridView, contentDescription = "All Boards") },
+                        label = { Text("Boards") }
+                    )
+                    NavigationBarItem(
+                        selected = currentRoute == Screen.Reminders.route,
+                        onClick = {
+                            navController.navigate(Screen.Reminders.route) {
+                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        icon = { Icon(Icons.Default.Notifications, contentDescription = "Reminders") },
+                        label = { Text("Reminders") }
+                    )
+                    NavigationBarItem(
+                        selected = currentRoute == Screen.Settings.route,
+                        onClick = {
+                            navController.navigate(Screen.Settings.route) {
+                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
+                        label = { Text("Settings") }
+                    )
+                }
             }
         }
     ) { padding ->
@@ -100,12 +139,18 @@ fun AppNavigation(navController: NavHostController, startDestination: String) {
             }
             composable(
                 Screen.AddEditReminder.route,
-                arguments = listOf(navArgument("reminderId") {
-                    type = NavType.StringType; nullable = true; defaultValue = null
-                })
+                arguments = listOf(
+                    navArgument("reminderId") {
+                        type = NavType.StringType; nullable = true; defaultValue = null
+                    },
+                    navArgument("fromWidget") {
+                        type = NavType.BoolType; defaultValue = false
+                    }
+                )
             ) { backStackEntry ->
                 AddEditReminderScreen(
                     reminderId = backStackEntry.arguments?.getString("reminderId"),
+                    fromWidget = backStackEntry.arguments?.getBoolean("fromWidget") ?: false,
                     navController = navController
                 )
             }

@@ -20,13 +20,18 @@ fun PinnedBoardScreen(
     val pinnedBoardId by viewModel.pinnedBoardId.collectAsStateWithLifecycle()
     val boards by viewModel.boards.collectAsStateWithLifecycle()
 
-    // Verify the pinned board still exists
     val boardExists = pinnedBoardId != null && boards.any { it.id == pinnedBoardId }
 
     if (boardExists && pinnedBoardId != null) {
         KanbanBoardScreen(
             boardId = pinnedBoardId!!,
-            navController = navController
+            navController = navController,
+            onBack = {
+                navController.navigate(Screen.BoardList.route) {
+                    popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                    launchSingleTop = true
+                }
+            }
         )
     } else {
         Box(
@@ -39,11 +44,11 @@ fun PinnedBoardScreen(
                 Text(
                     text = "No board pinned",
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    text = "Go to Boards and tap ⭐ to pin one",
+                    text = "Go to Boards and tap the star to pin one",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

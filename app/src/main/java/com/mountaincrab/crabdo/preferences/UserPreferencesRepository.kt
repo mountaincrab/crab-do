@@ -20,9 +20,23 @@ class UserPreferencesRepository @Inject constructor(
     private object Keys {
         val PINNED_BOARD_ID = stringPreferencesKey("pinned_board_id")
         val LAST_SYNC_TIMESTAMP = longPreferencesKey("last_sync_timestamp")
+        val TIME_INPUT_KEYBOARD = booleanPreferencesKey("time_input_keyboard")
+        val APP_THEME = stringPreferencesKey("app_theme")
     }
 
     val pinnedBoardId: Flow<String?> = context.dataStore.data.map { it[Keys.PINNED_BOARD_ID] }
+
+    val timeInputKeyboard: Flow<Boolean> = context.dataStore.data.map { it[Keys.TIME_INPUT_KEYBOARD] ?: false }
+
+    val appTheme: Flow<String?> = context.dataStore.data.map { it[Keys.APP_THEME] }
+
+    suspend fun setAppTheme(themeName: String) {
+        context.dataStore.edit { it[Keys.APP_THEME] = themeName }
+    }
+
+    suspend fun setTimeInputKeyboard(value: Boolean) {
+        context.dataStore.edit { it[Keys.TIME_INPUT_KEYBOARD] = value }
+    }
 
     suspend fun setPinnedBoardId(boardId: String?) {
         context.dataStore.edit { prefs ->

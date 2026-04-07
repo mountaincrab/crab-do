@@ -11,6 +11,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
     <application
         android:name=".KanbanApplication"
@@ -48,6 +49,12 @@
             android:launchMode="singleTop"
             android:theme="@style/Theme.Crabban" />
 
+        <!-- Alarm ringer foreground service (loops alarm sound until dismissed) -->
+        <service
+            android:name=".alarm.AlarmRingerService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
         <!-- Alarm receiver -->
         <receiver
             android:name=".alarm.ReminderReceiver"
@@ -70,6 +77,18 @@
                 <action android:name="android.intent.action.TIMEZONE_CHANGED" />
                 <action android:name="android.intent.action.TIME_SET" />
             </intent-filter>
+        </receiver>
+
+        <!-- Home screen widget -->
+        <receiver
+            android:name=".widget.RemindersWidgetReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/reminders_widget_info" />
         </receiver>
 
         <!-- Disable default WorkManager auto-init so Hilt can configure it via Configuration.Provider -->

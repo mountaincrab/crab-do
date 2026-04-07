@@ -1,5 +1,6 @@
 package com.mountaincrab.crabdo.di
 
+import android.content.Context
 import androidx.work.WorkManager
 import com.mountaincrab.crabdo.alarm.AlarmScheduler
 import com.mountaincrab.crabdo.auth.AuthRepository
@@ -9,6 +10,7 @@ import com.google.firebase.auth.FirebaseAuth
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
@@ -44,8 +46,9 @@ object RepositoryModule {
     fun provideReminderRepository(
         reminderDao: ReminderDao,
         alarmScheduler: AlarmScheduler,
-        workManager: WorkManager
-    ): ReminderRepository = ReminderRepository(reminderDao, alarmScheduler, workManager)
+        workManager: WorkManager,
+        @ApplicationContext context: Context
+    ): ReminderRepository = ReminderRepository(reminderDao, alarmScheduler, workManager, context)
 
     @Provides
     @Singleton

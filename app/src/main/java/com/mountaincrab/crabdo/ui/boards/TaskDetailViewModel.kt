@@ -1,5 +1,8 @@
 package com.mountaincrab.crabdo.ui.boards
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -7,9 +10,11 @@ import com.mountaincrab.crabdo.data.local.entity.SubtaskEntity
 import com.mountaincrab.crabdo.data.local.entity.TaskEntity
 import com.mountaincrab.crabdo.data.repository.SubtaskRepository
 import com.mountaincrab.crabdo.data.repository.TaskRepository
+import com.mountaincrab.crabdo.preferences.UserPreferencesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -18,8 +23,22 @@ import javax.inject.Inject
 class TaskDetailViewModel @Inject constructor(
     private val taskRepository: TaskRepository,
     private val subtaskRepository: SubtaskRepository,
+    private val userPrefsRepository: UserPreferencesRepository,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
+
+    var isTimeInputKeyboard by mutableStateOf(false)
+
+    init {
+        viewModelScope.launch {
+            isTimeInputKeyboard = userPrefsRepository.timeInputKeyboard.first()
+        }
+    }
+
+    fun updateTimeInputKeyboard(value: Boolean) {
+        isTimeInputKeyboard = value
+        viewModelScope.launch { userPrefsRepository.setTimeInputKeyboard(value) }
+    }
 
     private val taskId: String = checkNotNull(savedStateHandle["taskId"])
 

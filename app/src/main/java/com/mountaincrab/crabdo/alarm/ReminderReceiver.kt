@@ -6,6 +6,8 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.Build
+import android.util.Log
 import androidx.core.content.getSystemService
 import com.mountaincrab.crabdo.data.local.entity.ReminderEntity
 import com.mountaincrab.crabdo.data.repository.ReminderRepository
@@ -38,13 +40,33 @@ class ReminderReceiver : BroadcastReceiver() {
                     catch (e: Exception) { ReminderEntity.ReminderStyle.ALARM }
         val notificationId = reminderId.hashCode() and 0x7FFFFFFF
 
-        NotificationHelper.showAlarmNotification(context, reminderId, title, notificationId, style)
+        Log.d(TAG, "handleFire: reminderId=$reminderId, style=$style, title=$title")
+
+        if (style == ReminderEntity.ReminderStyle.ALARM) {
+            // Start foreground service so the alarm keeps ringing until dismissed
+            val serviceIntent = Intent(context, AlarmRingerService::class.java).apply {
+                action = AlarmRingerService.ACTION_START
+                putExtra(EXTRA_REMINDER_ID, reminderId)
+                putExtra(EXTRA_TITLE, title)
+                putExtra(EXTRA_NOTIFICATION_ID, notificationId)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(serviceIntent)
+            } else {
+                context.startService(serviceIntent)
+            }
+        } else {
+            // NOTIFICATION style — one-shot notification, no looping
+            NotificationHelper.showAlarmNotification(context, reminderId, title, notificationId, style)
+        }
 
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         scope.launch {
             val entryPoint = EntryPointAccessors.fromApplication(
                 context.applicationContext, ReceiverEntryPoint::class.java)
-            entryPoint.reminderRepository().onReminderFired(reminderId)
+            val repo = entryPoint.reminderRepository()
+            repo.clearSnooze(reminderId)
+            repo.onReminderFired(reminderId)
         }
     }
 
@@ -53,6 +75,8 @@ class ReminderReceiver : BroadcastReceiver() {
         if (notificationId != -1) {
             context.getSystemService<NotificationManager>()?.cancel(notificationId)
         }
+        // Stop the ringer service if it's running
+        context.stopService(Intent(context, AlarmRingerService::class.java))
     }
 
     private fun handleSnooze(context: Context, intent: Intent) {
@@ -75,6 +99,7 @@ class ReminderReceiver : BroadcastReceiver() {
     }
 
     companion object {
+        private const val TAG = "ReminderReceiver"
         const val ACTION_FIRE_REMINDER = "com.mountaincrab.crabdo.ACTION_FIRE_REMINDER"
         const val ACTION_DISMISS = "com.mountaincrab.crabdo.ACTION_DISMISS"
         const val ACTION_SNOOZE = "com.mountaincrab.crabdo.ACTION_SNOOZE"

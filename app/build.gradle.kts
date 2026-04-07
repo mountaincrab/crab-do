@@ -75,6 +75,8 @@ dependencies {
     implementation(libs.gson)
     // Reorderable (drag-and-drop within columns)
     implementation(libs.reorderable)
+    // Glance (home screen widgets)
+    implementation(libs.glance.appwidget)
     // Debug
     debugImplementation(libs.compose.ui.tooling)
 }

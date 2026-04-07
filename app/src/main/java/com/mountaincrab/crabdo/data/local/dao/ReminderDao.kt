@@ -29,4 +29,7 @@ interface ReminderDao {
 
     @Query("UPDATE reminders SET isDeleted = 1, updatedAt = :updatedAt, syncStatus = 'PENDING' WHERE id = :reminderId")
     suspend fun softDelete(reminderId: String, updatedAt: Long = System.currentTimeMillis())
+
+    @Query("UPDATE reminders SET snoozedUntilMillis = :millis WHERE id = :reminderId")
+    suspend fun updateSnoozeUntil(reminderId: String, millis: Long?)
 }

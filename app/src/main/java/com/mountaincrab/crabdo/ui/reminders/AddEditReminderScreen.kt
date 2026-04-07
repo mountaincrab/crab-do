@@ -1,14 +1,28 @@
 package com.mountaincrab.crabdo.ui.reminders
 
+import android.app.Activity
+import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Keyboard
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.*
+import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
@@ -16,26 +30,39 @@ import com.mountaincrab.crabdo.data.local.entity.ReminderEntity
 import com.mountaincrab.crabdo.ui.reminders.components.RecurrencePicker
 import java.text.SimpleDateFormat
 import java.util.*
+import java.util.TimeZone
+import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddEditReminderScreen(
     reminderId: String?,
+    fromWidget: Boolean = false,
     navController: NavController,
     viewModel: AddEditReminderViewModel = hiltViewModel()
 ) {
+    val activity = LocalContext.current as? Activity
     val isEditing = reminderId != null
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val titleFocusRequester = remember { FocusRequester() }
 
-    // Derive initial hour/minute from the ViewModel's selectedDateTime
+    // Auto-focus title field when creating a new reminder
+    LaunchedEffect(Unit) {
+        if (!isEditing) {
+            titleFocusRequester.requestFocus()
+        }
+    }
+
     val initialCal = remember(viewModel.selectedDateTime) {
         Calendar.getInstance().apply { timeInMillis = viewModel.selectedDateTime }
     }
 
     val datePickerState = rememberDatePickerState(
-        initialSelectedDateMillis = viewModel.selectedDateTime
+        initialSelectedDateMillis = localDateToUtcMidnight(viewModel.selectedDateTime)
     )
     val timePickerState = rememberTimePickerState(
         initialHour = initialCal.get(Calendar.HOUR_OF_DAY),
@@ -69,24 +96,25 @@ fun AddEditReminderScreen(
                 .padding(padding)
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Title
             OutlinedTextField(
                 value = viewModel.title,
                 onValueChange = { viewModel.title = it },
                 label = { Text("Title") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(titleFocusRequester),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
             )
 
-            // Date and Time as separate side-by-side fields
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedCard(
                     onClick = { showDatePicker = true },
                     modifier = Modifier.weight(1f)
                 ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
+                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                         Text(
                             "Date",
                             style = MaterialTheme.typography.labelSmall,
@@ -104,7 +132,7 @@ fun AddEditReminderScreen(
                     onClick = { showTimePicker = true },
                     modifier = Modifier.weight(1f)
                 ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
+                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                         Text(
                             "Time",
                             style = MaterialTheme.typography.labelSmall,
@@ -120,28 +148,32 @@ fun AddEditReminderScreen(
                 }
             }
 
-            // Style toggle
             Text("Reminder style", style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                val chipSelectedColors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                )
                 FilterChip(
                     selected = viewModel.selectedStyle == ReminderEntity.ReminderStyle.ALARM,
                     onClick = { viewModel.selectedStyle = ReminderEntity.ReminderStyle.ALARM },
-                    label = { Text("🔔 Alarm") }
+                    label = { Text("🔔 Alarm") },
+                    colors = chipSelectedColors
                 )
                 FilterChip(
                     selected = viewModel.selectedStyle == ReminderEntity.ReminderStyle.NOTIFICATION,
                     onClick = { viewModel.selectedStyle = ReminderEntity.ReminderStyle.NOTIFICATION },
-                    label = { Text("📳 Notification") }
+                    label = { Text("📳 Notification") },
+                    colors = chipSelectedColors
                 )
             }
 
-            // Recurrence toggle
             Row(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Repeat", style = MaterialTheme.typography.bodyLarge)
+                Text("Repeat", style = MaterialTheme.typography.bodyMedium)
                 Switch(
                     checked = viewModel.isRecurring,
                     onCheckedChange = { viewModel.isRecurring = it }
@@ -155,14 +187,37 @@ fun AddEditReminderScreen(
                 )
             }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(4.dp))
 
             Button(
-                onClick = { viewModel.save { navController.popBackStack() } },
+                onClick = {
+                    keyboardController?.hide()
+                    viewModel.save {
+                        val diffMs = viewModel.selectedDateTime - System.currentTimeMillis()
+                        val totalMins = abs(diffMs) / 60_000
+                        val hours = totalMins / 60
+                        val mins = totalMins % 60
+                        val msg = buildString {
+                            append("\"${viewModel.title}\" set for ")
+                            if (hours > 0) append("${hours}h ")
+                            append("${mins}m from now")
+                        }
+                        Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                        if (fromWidget) {
+                            activity?.finish()
+                        } else {
+                            navController.popBackStack()
+                        }
+                    }
+                },
                 modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ),
                 enabled = viewModel.title.isNotBlank()
             ) {
-                Text("Save")
+                Text("Save", fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -192,7 +247,6 @@ fun AddEditReminderScreen(
                     datePickerState.selectedDateMillis?.let { dateMillis ->
                         val cal = Calendar.getInstance().apply {
                             timeInMillis = dateMillis
-                            // preserve existing hour/minute
                             val existing = Calendar.getInstance().also { it.timeInMillis = viewModel.selectedDateTime }
                             set(Calendar.HOUR_OF_DAY, existing.get(Calendar.HOUR_OF_DAY))
                             set(Calendar.MINUTE, existing.get(Calendar.MINUTE))
@@ -213,26 +267,68 @@ fun AddEditReminderScreen(
     }
 
     if (showTimePicker) {
-        AlertDialog(
-            onDismissRequest = { showTimePicker = false },
-            title = { Text("Set time") },
-            text = { TimePicker(state = timePickerState) },
-            confirmButton = {
-                TextButton(onClick = {
-                    val cal = Calendar.getInstance().apply {
-                        timeInMillis = viewModel.selectedDateTime
-                        set(Calendar.HOUR_OF_DAY, timePickerState.hour)
-                        set(Calendar.MINUTE, timePickerState.minute)
-                        set(Calendar.SECOND, 0)
-                        set(Calendar.MILLISECOND, 0)
-                    }
-                    viewModel.selectedDateTime = cal.timeInMillis
-                    showTimePicker = false
-                }) { Text("OK") }
+        TimePickerDialog(
+            state = timePickerState,
+            isKeyboardMode = viewModel.isTimeInputKeyboard,
+            onToggleMode = { viewModel.updateTimeInputKeyboard(!viewModel.isTimeInputKeyboard) },
+            onConfirm = {
+                val cal = Calendar.getInstance().apply {
+                    timeInMillis = viewModel.selectedDateTime
+                    set(Calendar.HOUR_OF_DAY, timePickerState.hour)
+                    set(Calendar.MINUTE, timePickerState.minute)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }
+                viewModel.selectedDateTime = cal.timeInMillis
+                showTimePicker = false
             },
-            dismissButton = {
-                TextButton(onClick = { showTimePicker = false }) { Text("Cancel") }
-            }
+            onDismiss = { showTimePicker = false }
         )
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun TimePickerDialog(
+    state: TimePickerState,
+    isKeyboardMode: Boolean,
+    onToggleMode: () -> Unit,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Set time")
+                IconButton(onClick = onToggleMode) {
+                    Icon(
+                        imageVector = if (isKeyboardMode) Icons.Default.Schedule else Icons.Default.Keyboard,
+                        contentDescription = if (isKeyboardMode) "Switch to clock" else "Switch to keyboard"
+                    )
+                }
+            }
+        },
+        text = {
+            if (isKeyboardMode) {
+                TimeInput(state = state)
+            } else {
+                TimePicker(state = state)
+            }
+        },
+        confirmButton = { TextButton(onClick = onConfirm) { Text("OK") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
+}
+
+private fun localDateToUtcMidnight(localMillis: Long): Long {
+    val local = Calendar.getInstance()
+    local.timeInMillis = localMillis
+    return Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+        set(local.get(Calendar.YEAR), local.get(Calendar.MONTH), local.get(Calendar.DAY_OF_MONTH), 0, 0, 0)
+        set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
 }

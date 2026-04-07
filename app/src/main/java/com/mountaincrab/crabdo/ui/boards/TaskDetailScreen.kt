@@ -18,8 +18,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.mountaincrab.crabdo.data.local.entity.TaskEntity
 import com.mountaincrab.crabdo.ui.boards.components.SubtaskItem
+import com.mountaincrab.crabdo.ui.reminders.TimePickerDialog
 import java.text.SimpleDateFormat
 import java.util.*
+import java.util.TimeZone
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -188,6 +190,8 @@ fun TaskDetailScreen(
     if (showReminderDialog) {
         TaskReminderDialog(
             currentStyle = task?.reminderStyle ?: TaskEntity.ReminderStyle.ALARM,
+            isTimeInputKeyboard = viewModel.isTimeInputKeyboard,
+            onToggleTimeInputMode = { viewModel.updateTimeInputKeyboard(!viewModel.isTimeInputKeyboard) },
             onConfirm = { millis, style ->
                 viewModel.setReminder(millis, style)
                 showReminderDialog = false
@@ -201,6 +205,8 @@ fun TaskDetailScreen(
 @Composable
 private fun TaskReminderDialog(
     currentStyle: TaskEntity.ReminderStyle,
+    isTimeInputKeyboard: Boolean,
+    onToggleTimeInputMode: () -> Unit,
     onConfirm: (Long, TaskEntity.ReminderStyle) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -211,7 +217,9 @@ private fun TaskReminderDialog(
     var showTimePicker by remember { mutableStateOf(false) }
 
     val initialCal = remember { Calendar.getInstance().apply { timeInMillis = defaultMillis } }
-    val datePickerState = rememberDatePickerState(initialSelectedDateMillis = defaultMillis)
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = localDateToUtcMidnight(defaultMillis)
+    )
     val timePickerState = rememberTimePickerState(
         initialHour = initialCal.get(Calendar.HOUR_OF_DAY),
         initialMinute = initialCal.get(Calendar.MINUTE),
@@ -299,22 +307,29 @@ private fun TaskReminderDialog(
     }
 
     if (showTimePicker) {
-        AlertDialog(
-            onDismissRequest = { showTimePicker = false },
-            title = { Text("Set time") },
-            text = { TimePicker(state = timePickerState) },
-            confirmButton = {
-                TextButton(onClick = {
-                    selectedMillis = Calendar.getInstance().apply {
-                        timeInMillis = selectedMillis
-                        set(Calendar.HOUR_OF_DAY, timePickerState.hour)
-                        set(Calendar.MINUTE, timePickerState.minute)
-                        set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-                    }.timeInMillis
-                    showTimePicker = false
-                }) { Text("OK") }
+        TimePickerDialog(
+            state = timePickerState,
+            isKeyboardMode = isTimeInputKeyboard,
+            onToggleMode = onToggleTimeInputMode,
+            onConfirm = {
+                selectedMillis = Calendar.getInstance().apply {
+                    timeInMillis = selectedMillis
+                    set(Calendar.HOUR_OF_DAY, timePickerState.hour)
+                    set(Calendar.MINUTE, timePickerState.minute)
+                    set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+                }.timeInMillis
+                showTimePicker = false
             },
-            dismissButton = { TextButton(onClick = { showTimePicker = false }) { Text("Cancel") } }
+            onDismiss = { showTimePicker = false }
         )
     }
+}
+
+private fun localDateToUtcMidnight(localMillis: Long): Long {
+    val local = Calendar.getInstance()
+    local.timeInMillis = localMillis
+    return Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+        set(local.get(Calendar.YEAR), local.get(Calendar.MONTH), local.get(Calendar.DAY_OF_MONTH), 0, 0, 0)
+        set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
 }

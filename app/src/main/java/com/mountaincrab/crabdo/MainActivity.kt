@@ -1,6 +1,7 @@
 package com.mountaincrab.crabdo
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -20,7 +21,10 @@ import androidx.navigation.compose.rememberNavController
 import com.mountaincrab.crabdo.auth.AuthRepository
 import com.mountaincrab.crabdo.ui.navigation.AppNavigation
 import com.mountaincrab.crabdo.ui.navigation.Screen
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mountaincrab.crabdo.ui.theme.CrabbanTheme
+import com.mountaincrab.crabdo.ui.theme.ThemeViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -30,7 +34,9 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var authRepository: AuthRepository
 
     private val requestNotificationPermission =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* granted or denied — continue either way */ }
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* continue either way */ }
+
+    private var openAddReminder by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -41,8 +47,13 @@ class MainActivity : ComponentActivity() {
                 requestNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
+        if (intent?.getBooleanExtra("open_add_reminder", false) == true) {
+            openAddReminder = true
+        }
         setContent {
-            CrabbanTheme {
+            val themeViewModel: ThemeViewModel = hiltViewModel()
+            val appTheme by themeViewModel.appTheme.collectAsStateWithLifecycle()
+            CrabbanTheme(appTheme = appTheme) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -63,13 +74,27 @@ class MainActivity : ComponentActivity() {
                         }
                     } else {
                         val navController = rememberNavController()
+                        val shouldOpenAddReminder = openAddReminder
+                        LaunchedEffect(shouldOpenAddReminder) {
+                            if (shouldOpenAddReminder) {
+                                openAddReminder = false
+                            }
+                        }
                         AppNavigation(
                             navController = navController,
-                            startDestination = Screen.PinnedBoard.route
+                            startDestination = Screen.PinnedBoard.route,
+                            openAddReminder = shouldOpenAddReminder
                         )
                     }
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (intent.getBooleanExtra("open_add_reminder", false)) {
+            openAddReminder = true
         }
     }
 }

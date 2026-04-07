@@ -1,5 +1,6 @@
 package com.mountaincrab.crabdo.ui.boards
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -9,6 +10,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Star
+import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -35,33 +37,28 @@ fun BoardListScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Boards") },
-                actions = {
-                    IconButton(onClick = { navController.navigate(Screen.Settings.route) }) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings")
-                    }
-                }
-            )
+            TopAppBar(title = { Text("Boards") })
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showCreateDialog = true }) {
+            FloatingActionButton(
+                onClick = { showCreateDialog = true },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            ) {
                 Icon(Icons.Default.Add, contentDescription = "Create board")
             }
         }
     ) { scaffoldPadding ->
         if (boards.isEmpty()) {
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(scaffoldPadding),
+                modifier = Modifier.fillMaxSize().padding(scaffoldPadding),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         text = "No boards yet",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
@@ -73,14 +70,10 @@ fun BoardListScreen(
             }
         } else {
             LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(scaffoldPadding),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier.fillMaxSize().padding(scaffoldPadding)
             ) {
                 items(boards, key = { it.id }) { board ->
-                    BoardCard(
+                    BoardRow(
                         board = board,
                         isPinned = board.id == pinnedBoardId,
                         onTap = { navController.navigate(Screen.KanbanBoard.createRoute(board.id)) },
@@ -129,7 +122,7 @@ fun BoardListScreen(
 }
 
 @Composable
-private fun BoardCard(
+private fun BoardRow(
     board: BoardEntity,
     isPinned: Boolean,
     onTap: () -> Unit,
@@ -141,50 +134,60 @@ private fun BoardCard(
     var showRenameDialog by remember { mutableStateOf(false) }
     var renameText by remember { mutableStateOf(board.title) }
 
-    Card(
-        onClick = onTap,
-        modifier = Modifier.fillMaxWidth()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onTap)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = board.title,
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.weight(1f)
+        Icon(
+            imageVector = Icons.Default.Tag,
+            contentDescription = null,
+            tint = if (isPinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(22.dp)
+        )
+        Spacer(Modifier.width(14.dp))
+        Text(
+            text = board.title,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.weight(1f)
+        )
+        if (isPinned) {
+            Icon(
+                imageVector = Icons.Filled.Star,
+                contentDescription = "Pinned",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(16.dp)
             )
-            Row {
-                IconButton(onClick = onPin) {
-                    Icon(
-                        imageVector = if (isPinned) Icons.Filled.Star else Icons.Outlined.Star,
-                        contentDescription = if (isPinned) "Unpin" else "Pin",
-                        tint = if (isPinned) Color(0xFFFFB300)
-                               else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Box {
-                    IconButton(onClick = { showMenu = true }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = "More options")
+            Spacer(Modifier.width(8.dp))
+        }
+        Box {
+            IconButton(
+                onClick = { showMenu = true },
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(Icons.Default.MoreVert, contentDescription = "More options",
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                DropdownMenuItem(
+                    text = { Text(if (isPinned) "Unpin" else "Pin") },
+                    onClick = { showMenu = false; onPin() }
+                )
+                DropdownMenuItem(
+                    text = { Text("Rename") },
+                    onClick = {
+                        showMenu = false
+                        renameText = board.title
+                        showRenameDialog = true
                     }
-                    DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                        DropdownMenuItem(
-                            text = { Text("Rename") },
-                            onClick = {
-                                showMenu = false
-                                renameText = board.title
-                                showRenameDialog = true
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
-                            onClick = { showMenu = false; onDelete() }
-                        )
-                    }
-                }
+                )
+                DropdownMenuItem(
+                    text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+                    onClick = { showMenu = false; onDelete() }
+                )
             }
         }
     }

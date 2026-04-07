@@ -1,6 +1,7 @@
 package com.mountaincrab.crabdo.ui.boards.components
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.*
@@ -23,21 +24,24 @@ fun TaskCard(
     onTap: () -> Unit
 ) {
     Card(
-        onClick = onTap,
         modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(10.dp),
         elevation = CardDefaults.cardElevation(
-            defaultElevation = if (isDragging) 8.dp else 2.dp
+            defaultElevation = if (isDragging) 4.dp else 0.dp
+        ),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
         )
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
             Text(
                 text = task.title,
-                style = MaterialTheme.typography.titleSmall,
+                style = MaterialTheme.typography.bodyLarge,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
             if (task.description.isNotBlank()) {
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = task.description,
                     style = MaterialTheme.typography.bodySmall,
@@ -47,30 +51,33 @@ fun TaskCard(
                 )
             }
             if (subtaskCount > 0 || task.reminderTimeMillis != null) {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (subtaskCount > 0) {
                         Text(
-                            text = "$completedSubtaskCount/$subtaskCount ✓",
+                            text = "$completedSubtaskCount/$subtaskCount",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     task.reminderTimeMillis?.let { millis ->
-                        Icon(
-                            imageVector = Icons.Default.Notifications,
-                            contentDescription = "Reminder",
-                            modifier = Modifier.size(14.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            text = SimpleDateFormat("d MMM", Locale.getDefault()).format(Date(millis)),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Notifications,
+                                contentDescription = "Reminder",
+                                modifier = Modifier.size(12.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(Modifier.width(3.dp))
+                            Text(
+                                text = SimpleDateFormat("d MMM", Locale.getDefault()).format(Date(millis)),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
                 }
             }

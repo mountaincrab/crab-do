@@ -25,9 +25,17 @@ class AuthRepository @Inject constructor(
     suspend fun ensureAuthenticated(): String {
         val user = auth.currentUser
         if (user != null) return user.uid
+        // TODO: re-enable Firebase anonymous sign-in once a real google-services.json
+        //       is wired up. Skipped during development so launches are instant and
+        //       don't touch the network.
+        @Suppress("KotlinConstantConditions")
         return try {
-            val result = withTimeout(5_000) { auth.signInAnonymously().await() }
-            result.user!!.uid
+            if (false) {
+                val result = withTimeout(800) { auth.signInAnonymously().await() }
+                result.user!!.uid
+            } else {
+                error("Firebase auth disabled in development")
+            }
         } catch (e: Exception) {
             // Firebase unreachable (no emulator, no real google-services.json).
             // Fall back to a stable local ID so the app is usable offline.

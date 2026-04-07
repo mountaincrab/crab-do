@@ -16,7 +16,7 @@ import com.mountaincrab.crabdo.data.model.SyncStatus
         SubtaskEntity::class,
         ReminderEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = true
 )
 @TypeConverters(Converters::class)

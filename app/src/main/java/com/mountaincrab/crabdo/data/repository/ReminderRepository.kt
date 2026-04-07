@@ -1,5 +1,9 @@
 package com.mountaincrab.crabdo.data.repository
 
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
 import androidx.work.*
 import com.mountaincrab.crabdo.alarm.AlarmScheduler
 import com.mountaincrab.crabdo.data.local.dao.ReminderDao
@@ -8,6 +12,7 @@ import com.mountaincrab.crabdo.data.model.RecurrenceRule
 import com.mountaincrab.crabdo.data.model.SyncStatus
 import com.mountaincrab.crabdo.data.remote.SyncWorker
 import com.mountaincrab.crabdo.domain.RecurrenceEngine
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -16,11 +21,21 @@ import javax.inject.Singleton
 class ReminderRepository @Inject constructor(
     private val reminderDao: ReminderDao,
     private val alarmScheduler: AlarmScheduler,
-    private val workManager: WorkManager
+    private val workManager: WorkManager,
+    @ApplicationContext private val context: Context
 ) {
     fun observeReminders(userId: String) = reminderDao.observeReminders(userId)
 
     suspend fun getReminderById(id: String): ReminderEntity? = reminderDao.getReminderById(id)
+
+    suspend fun setSnoozeUntil(reminderId: String, millis: Long) {
+        reminderDao.updateSnoozeUntil(reminderId, millis)
+        notifyWidgets()
+    }
+
+    suspend fun clearSnooze(reminderId: String) {
+        reminderDao.updateSnoozeUntil(reminderId, null)
+    }
 
     suspend fun createReminder(
         userId: String,
@@ -39,6 +54,7 @@ class ReminderRepository @Inject constructor(
         reminderDao.upsert(reminder)
         alarmScheduler.scheduleReminder(reminder)
         enqueueSyncWork()
+        notifyWidgets()
         return reminder
     }
 
@@ -50,16 +66,20 @@ class ReminderRepository @Inject constructor(
         alarmScheduler.cancelReminder(reminder.id)
         if (reminder.isEnabled) alarmScheduler.scheduleReminder(reminder)
         enqueueSyncWork()
+        notifyWidgets()
     }
 
     suspend fun deleteReminder(reminderId: String) {
         alarmScheduler.cancelReminder(reminderId)
         reminderDao.softDelete(reminderId)
         enqueueSyncWork()
+        notifyWidgets()
     }
 
     suspend fun onReminderFired(reminderId: String) {
         val reminder = reminderDao.getReminderById(reminderId) ?: return
+        // Guard against a race where a delete lands just before the alarm fires.
+        if (reminder.isDeleted) return
         val ruleJson = reminder.recurrenceRuleJson
         if (ruleJson != null) {
             val rule = RecurrenceRule.fromJson(ruleJson)
@@ -69,6 +89,7 @@ class ReminderRepository @Inject constructor(
                 alarmScheduler.scheduleReminder(reminder.copy(nextTriggerMillis = nextTrigger))
             }
         }
+        notifyWidgets()
     }
 
     suspend fun rescheduleAllReminders() {
@@ -87,6 +108,21 @@ class ReminderRepository @Inject constructor(
                 }
             }
         }
+    }
+
+    fun notifyWidgets() {
+        try {
+            val manager = AppWidgetManager.getInstance(context)
+            val ids = manager.getAppWidgetIds(
+                ComponentName(context, "com.mountaincrab.crabdo.widget.RemindersWidgetReceiver")
+            )
+            if (ids.isNotEmpty()) {
+                val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_UPDATE).apply {
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
+                }
+                context.sendBroadcast(intent)
+            }
+        } catch (_: Exception) {}
     }
 
     private fun enqueueSyncWork() {

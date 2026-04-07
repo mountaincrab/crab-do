@@ -43,8 +43,18 @@ class KanbanBoardViewModel @AssistedInject constructor(
             }) { pairs -> pairs.toMap() }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
-    fun createTask(columnId: String, title: String) {
-        viewModelScope.launch { taskRepository.createTask(boardId, columnId, title) }
+    fun createTask(
+        columnId: String,
+        title: String,
+        description: String = "",
+        reminderTimeMillis: Long? = null,
+        reminderStyle: TaskEntity.ReminderStyle = TaskEntity.ReminderStyle.ALARM
+    ) {
+        viewModelScope.launch {
+            taskRepository.createTask(
+                boardId, columnId, title, description, reminderTimeMillis, reminderStyle
+            )
+        }
     }
 
     fun moveTask(taskId: String, targetColumnId: String, orderBefore: Double, orderAfter: Double) {

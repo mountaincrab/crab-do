@@ -4,10 +4,12 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -20,6 +22,7 @@ import com.mountaincrab.crabdo.ui.boards.components.KanbanColumn
 fun KanbanBoardScreen(
     boardId: String,
     navController: NavController,
+    onBack: (() -> Unit)? = null,
     viewModel: KanbanBoardViewModel = hiltViewModel<KanbanBoardViewModel, KanbanBoardViewModel.Factory>(
         creationCallback = { factory -> factory.create(boardId) }
     )
@@ -34,7 +37,7 @@ fun KanbanBoardScreen(
             TopAppBar(
                 title = { Text(board?.title ?: "") },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = { if (onBack != null) onBack() else navController.popBackStack() }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 },
@@ -65,7 +68,9 @@ fun KanbanBoardScreen(
                             com.mountaincrab.crabdo.ui.navigation.Screen.TaskDetail.createRoute(taskId)
                         )
                     },
-                    onAddCard = { title -> viewModel.createTask(column.id, title) },
+                    onAddCard = { title, description, reminderAt, style ->
+                        viewModel.createTask(column.id, title, description, reminderAt, style)
+                    },
                     onReorder = { taskId, orderBefore, orderAfter ->
                         viewModel.moveTask(taskId, column.id, orderBefore, orderAfter)
                     }
@@ -93,17 +98,23 @@ private fun AddColumnButton(onAdd: (String) -> Unit) {
     var showDialog by remember { mutableStateOf(false) }
     var title by remember { mutableStateOf("") }
 
-    OutlinedCard(
-        onClick = { showDialog = true },
+    Box(
         modifier = Modifier
             .width(200.dp)
-            .fillMaxHeight(0.2f)
+            .padding(top = 48.dp),
+        contentAlignment = Alignment.TopStart
     ) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = androidx.compose.ui.Alignment.Center
+        TextButton(
+            onClick = { showDialog = true },
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Text("+ Add column", style = MaterialTheme.typography.labelLarge)
+            Icon(
+                Icons.Default.Add,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(Modifier.width(4.dp))
+            Text("Add column")
         }
     }
 

@@ -4,7 +4,62 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-  <path
-      android:fillColor="#FFFFFF"
-      android:pathData="M54,24 C36,24 22,38 22,56 C22,74 36,88 54,88 C65,88 75,83 81,74 L70,67 C66,72 60,75 54,75 C43,75 33,66 33,56 C33,46 43,37 54,37 C60,37 66,40 70,45 L81,38 C75,29 65,24 54,24 Z"/>
+
+    <!-- Legs: three per side, drawn first so body sits on top -->
+    <path android:strokeColor="#F97316" android:strokeWidth="4" android:strokeLineCap="round"
+        android:pathData="M40,66 L28,78" />
+    <path android:strokeColor="#F97316" android:strokeWidth="4" android:strokeLineCap="round"
+        android:pathData="M44,72 L36,86" />
+    <path android:strokeColor="#F97316" android:strokeWidth="4" android:strokeLineCap="round"
+        android:pathData="M50,74 L48,88" />
+    <path android:strokeColor="#F97316" android:strokeWidth="4" android:strokeLineCap="round"
+        android:pathData="M68,66 L80,78" />
+    <path android:strokeColor="#F97316" android:strokeWidth="4" android:strokeLineCap="round"
+        android:pathData="M64,72 L72,86" />
+    <path android:strokeColor="#F97316" android:strokeWidth="4" android:strokeLineCap="round"
+        android:pathData="M58,74 L60,88" />
+
+    <!-- Arms to the claws -->
+    <path android:strokeColor="#F97316" android:strokeWidth="5" android:strokeLineCap="round"
+        android:pathData="M38,58 L24,48" />
+    <path android:strokeColor="#F97316" android:strokeWidth="5" android:strokeLineCap="round"
+        android:pathData="M70,58 L84,48" />
+
+    <!-- Left pincer claw: teardrop with an open gap -->
+    <path android:fillColor="#F97316"
+        android:pathData="M24,48 m-11,0 a11,11 0 1,0 22,0 a11,11 0 1,0 -22,0 Z" />
+    <path android:fillColor="#0A1020"
+        android:pathData="M28,42 L18,48 L28,54 L22,48 Z" />
+
+    <!-- Right pincer claw -->
+    <path android:fillColor="#F97316"
+        android:pathData="M84,48 m-11,0 a11,11 0 1,0 22,0 a11,11 0 1,0 -22,0 Z" />
+    <path android:fillColor="#0A1020"
+        android:pathData="M80,42 L90,48 L80,54 L86,48 Z" />
+
+    <!-- Body: rounded oval -->
+    <path android:fillColor="#F97316"
+        android:pathData="M54,60 m-24,0 a24,15 0 1,0 48,0 a24,15 0 1,0 -48,0 Z" />
+
+    <!-- Eye stalks -->
+    <path android:strokeColor="#F97316" android:strokeWidth="3" android:strokeLineCap="round"
+        android:pathData="M46,48 L46,40" />
+    <path android:strokeColor="#F97316" android:strokeWidth="3" android:strokeLineCap="round"
+        android:pathData="M62,48 L62,40" />
+
+    <!-- Eyes (white with dark pupil) -->
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M46,38 m-4,0 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0 Z" />
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M62,38 m-4,0 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0 Z" />
+    <path android:fillColor="#0A1020"
+        android:pathData="M46,38 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0 Z" />
+    <path android:fillColor="#0A1020"
+        android:pathData="M62,38 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0 Z" />
+
+    <!-- Smile -->
+    <path android:strokeColor="#0A1020" android:strokeWidth="2" android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M48,62 Q54,68 60,62" />
+
 </vector>

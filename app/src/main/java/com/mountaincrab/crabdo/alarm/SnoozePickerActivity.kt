@@ -1,6 +1,7 @@
 package com.mountaincrab.crabdo.alarm
 
 import android.app.NotificationManager
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -12,15 +13,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.lifecycleScope
 import com.mountaincrab.crabdo.data.local.entity.ReminderEntity
+import com.mountaincrab.crabdo.data.repository.ReminderRepository
 import com.mountaincrab.crabdo.ui.theme.CrabbanTheme
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @AndroidEntryPoint
 class SnoozePickerActivity : ComponentActivity() {
 
     @Inject lateinit var alarmScheduler: AlarmScheduler
+    @Inject lateinit var reminderRepository: ReminderRepository
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -35,15 +40,18 @@ class SnoozePickerActivity : ComponentActivity() {
         if (notificationId != -1) {
             getSystemService(NotificationManager::class.java)?.cancel(notificationId)
         }
+        // Stop the looping ringer — user is now choosing snooze duration or dismissing
+        stopService(Intent(this, AlarmRingerService::class.java))
 
         setContent {
             CrabbanTheme {
                 SnoozePickerDialog(
                     onSnooze = { minutes ->
-                        alarmScheduler.scheduleSnooze(
-                            reminderId, title, style,
-                            System.currentTimeMillis() + minutes * 60_000L
-                        )
+                        val snoozeMillis = System.currentTimeMillis() + minutes * 60_000L
+                        alarmScheduler.scheduleSnooze(reminderId, title, style, snoozeMillis)
+                        lifecycleScope.launch {
+                            reminderRepository.setSnoozeUntil(reminderId, snoozeMillis)
+                        }
                         finish()
                     },
                     onDismiss = { finish() }

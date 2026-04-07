@@ -10,7 +10,9 @@ import com.mountaincrab.crabdo.auth.AuthRepository
 import com.mountaincrab.crabdo.data.local.entity.ReminderEntity
 import com.mountaincrab.crabdo.data.model.RecurrenceRule
 import com.mountaincrab.crabdo.data.repository.ReminderRepository
+import com.mountaincrab.crabdo.preferences.UserPreferencesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -18,6 +20,7 @@ import javax.inject.Inject
 class AddEditReminderViewModel @Inject constructor(
     private val reminderRepository: ReminderRepository,
     private val authRepository: AuthRepository,
+    private val userPrefsRepository: UserPreferencesRepository,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -29,8 +32,12 @@ class AddEditReminderViewModel @Inject constructor(
     var selectedStyle by mutableStateOf(ReminderEntity.ReminderStyle.ALARM)
     var recurrenceRule by mutableStateOf<RecurrenceRule?>(null)
     var isRecurring by mutableStateOf(false)
+    var isTimeInputKeyboard by mutableStateOf(false)
 
     init {
+        viewModelScope.launch {
+            isTimeInputKeyboard = userPrefsRepository.timeInputKeyboard.first()
+        }
         if (existingReminderId != null) {
             viewModelScope.launch {
                 val reminder = reminderRepository.getReminderById(existingReminderId) ?: return@launch
@@ -41,6 +48,11 @@ class AddEditReminderViewModel @Inject constructor(
                 isRecurring = recurrenceRule != null
             }
         }
+    }
+
+    fun updateTimeInputKeyboard(value: Boolean) {
+        isTimeInputKeyboard = value
+        viewModelScope.launch { userPrefsRepository.setTimeInputKeyboard(value) }
     }
 
     fun delete(onSuccess: () -> Unit) {
