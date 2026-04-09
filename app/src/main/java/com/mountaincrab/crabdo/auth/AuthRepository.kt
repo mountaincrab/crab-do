@@ -12,6 +12,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
 import com.mountaincrab.crabdo.data.local.AppDatabase
+import com.mountaincrab.crabdo.preferences.UserPreferencesRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -24,7 +25,8 @@ import javax.inject.Singleton
 @Singleton
 class AuthRepository @Inject constructor(
     private val auth: FirebaseAuth,
-    private val database: AppDatabase
+    private val database: AppDatabase,
+    private val userPreferences: UserPreferencesRepository
 ) {
     val currentUser: FirebaseUser? get() = auth.currentUser
     val currentUserId: String? get() = auth.currentUser?.uid
@@ -77,6 +79,8 @@ class AuthRepository @Inject constructor(
         auth.signOut()
         // Clear local data so the next user doesn't see stale rows from this account.
         withContext(Dispatchers.IO) { database.clearAllTables() }
+        // Reset sync state so the next login triggers a full pull from Firestore.
+        userPreferences.clearSyncState()
         // Also clear Credential Manager state so the user isn't silently re-signed in
         // on the next getCredential() call.
         runCatching {

@@ -90,6 +90,8 @@ class BoardRepository @Inject constructor(
         enqueueSyncWork()
     }
 
+    fun triggerSync() = enqueueSyncWork()
+
     private fun parseColumnOrder(json: String): List<String> =
         try { Gson().fromJson(json, Array<String>::class.java).toList() }
         catch (e: Exception) { emptyList() }

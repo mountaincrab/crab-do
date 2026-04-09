@@ -2,6 +2,8 @@ package com.mountaincrab.crabdo.ui.boards
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
 import com.mountaincrab.crabdo.auth.AuthRepository
 import com.mountaincrab.crabdo.data.local.entity.BoardEntity
 import com.mountaincrab.crabdo.data.repository.BoardRepository
@@ -9,6 +11,7 @@ import com.mountaincrab.crabdo.preferences.UserPreferencesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -17,7 +20,8 @@ import javax.inject.Inject
 class BoardListViewModel @Inject constructor(
     private val boardRepository: BoardRepository,
     private val authRepository: AuthRepository,
-    private val prefsRepository: UserPreferencesRepository
+    private val prefsRepository: UserPreferencesRepository,
+    private val workManager: WorkManager
 ) : ViewModel() {
 
     private val userId = authRepository.currentUserId ?: ""
@@ -29,6 +33,11 @@ class BoardListViewModel @Inject constructor(
     val pinnedBoardId: StateFlow<String?> =
         prefsRepository.pinnedBoardId
             .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    val isSyncing: StateFlow<Boolean> =
+        workManager.getWorkInfosForUniqueWorkFlow("sync")
+            .map { infos -> infos.any { it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.ENQUEUED } }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     fun createBoard(title: String) {
         viewModelScope.launch { boardRepository.createBoard(userId, title) }
@@ -48,5 +57,9 @@ class BoardListViewModel @Inject constructor(
 
     fun unpinBoard() {
         viewModelScope.launch { prefsRepository.setPinnedBoardId(null) }
+    }
+
+    fun sync() {
+        boardRepository.triggerSync()
     }
 }

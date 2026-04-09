@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mountaincrab.crabdo.R
 import com.mountaincrab.crabdo.auth.AuthRepository
+import com.mountaincrab.crabdo.data.repository.BoardRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,7 +15,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class LoginViewModel @Inject constructor(
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val boardRepository: BoardRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<LoginUiState>(LoginUiState.Idle)
@@ -27,6 +29,7 @@ class LoginViewModel @Inject constructor(
             val result = authRepository.signInWithGoogle(context, clientId)
             _uiState.value = result.fold(
                 onSuccess = {
+                    boardRepository.triggerSync()
                     onSuccess()
                     LoginUiState.Idle
                 },

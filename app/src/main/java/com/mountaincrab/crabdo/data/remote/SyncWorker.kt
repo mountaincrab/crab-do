@@ -91,9 +91,8 @@ class SyncWorker @AssistedInject constructor(
     }
 
     private suspend fun pullRemoteChanges(userId: String) {
-        val lastSync = prefs.getLastSyncTimestamp()
+        val sinceTimestamp = Timestamp(prefs.getLastSyncTimestamp() / 1000, 0)
         val userRef = firestore.collection("users").document(userId)
-        val sinceTimestamp = Timestamp(lastSync / 1000, 0)
 
         userRef.collection("boards")
             .whereGreaterThan("updatedAt", sinceTimestamp)

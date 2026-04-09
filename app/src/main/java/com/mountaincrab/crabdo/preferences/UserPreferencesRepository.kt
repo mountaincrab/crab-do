@@ -51,4 +51,8 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setLastSyncTimestamp(timestamp: Long) {
         context.dataStore.edit { it[Keys.LAST_SYNC_TIMESTAMP] = timestamp }
     }
+
+    suspend fun clearSyncState() {
+        context.dataStore.edit { it[Keys.LAST_SYNC_TIMESTAMP] = 0L }
+    }
 }

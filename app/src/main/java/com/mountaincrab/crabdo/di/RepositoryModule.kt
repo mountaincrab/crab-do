@@ -7,6 +7,7 @@ import com.mountaincrab.crabdo.auth.AuthRepository
 import com.mountaincrab.crabdo.data.local.AppDatabase
 import com.mountaincrab.crabdo.data.local.dao.*
 import com.mountaincrab.crabdo.data.repository.*
+import com.mountaincrab.crabdo.preferences.UserPreferencesRepository
 import com.google.firebase.auth.FirebaseAuth
 import dagger.Module
 import dagger.Provides
@@ -54,5 +55,5 @@ object RepositoryModule {
 
     @Provides
     @Singleton
-    fun provideAuthRepository(auth: FirebaseAuth, database: AppDatabase): AuthRepository = AuthRepository(auth, database)
+    fun provideAuthRepository(auth: FirebaseAuth, database: AppDatabase, userPreferences: UserPreferencesRepository): AuthRepository = AuthRepository(auth, database, userPreferences)
 }

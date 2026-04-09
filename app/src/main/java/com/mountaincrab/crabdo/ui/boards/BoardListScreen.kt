@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,6 +33,7 @@ fun BoardListScreen(
 ) {
     val boards by viewModel.boards.collectAsStateWithLifecycle()
     val pinnedBoardId by viewModel.pinnedBoardId.collectAsStateWithLifecycle()
+    val isSyncing by viewModel.isSyncing.collectAsStateWithLifecycle()
     var showCreateDialog by remember { mutableStateOf(false) }
     var newBoardTitle by remember { mutableStateOf("") }
 
@@ -49,41 +51,45 @@ fun BoardListScreen(
             }
         }
     ) { scaffoldPadding ->
-        if (boards.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize().padding(scaffoldPadding),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "No boards yet",
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = "Tap + to create your first board",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+        PullToRefreshBox(
+            isRefreshing = isSyncing,
+            onRefresh = { viewModel.sync() },
+            modifier = Modifier.fillMaxSize().padding(scaffoldPadding)
+        ) {
+            if (boards.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "No boards yet",
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = "Tap + to create your first board",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(scaffoldPadding)
-            ) {
-                items(boards, key = { it.id }) { board ->
-                    BoardRow(
-                        board = board,
-                        isPinned = board.id == pinnedBoardId,
-                        onTap = { navController.navigate(Screen.KanbanBoard.createRoute(board.id)) },
-                        onPin = {
-                            if (board.id == pinnedBoardId) viewModel.unpinBoard()
-                            else viewModel.pinBoard(board.id)
-                        },
-                        onDelete = { viewModel.deleteBoard(board.id) },
-                        onRename = { viewModel.renameBoard(board, it) }
-                    )
+            } else {
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    items(boards, key = { it.id }) { board ->
+                        BoardRow(
+                            board = board,
+                            isPinned = board.id == pinnedBoardId,
+                            onTap = { navController.navigate(Screen.KanbanBoard.createRoute(board.id)) },
+                            onPin = {
+                                if (board.id == pinnedBoardId) viewModel.unpinBoard()
+                                else viewModel.pinBoard(board.id)
+                            },
+                            onDelete = { viewModel.deleteBoard(board.id) },
+                            onRename = { viewModel.renameBoard(board, it) }
+                        )
+                    }
                 }
             }
         }
