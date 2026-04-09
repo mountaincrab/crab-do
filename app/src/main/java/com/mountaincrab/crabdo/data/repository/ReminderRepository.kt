@@ -1,10 +1,10 @@
 package com.mountaincrab.crabdo.data.repository
 
-import android.appwidget.AppWidgetManager
-import android.content.ComponentName
 import android.content.Context
-import android.content.Intent
 import androidx.work.*
+import com.mountaincrab.crabdo.widget.RemindersWidget
+import androidx.glance.appwidget.updateAll
+import com.google.firebase.auth.FirebaseAuth
 import com.mountaincrab.crabdo.alarm.AlarmScheduler
 import com.mountaincrab.crabdo.data.local.dao.ReminderDao
 import com.mountaincrab.crabdo.data.local.entity.ReminderEntity
@@ -22,6 +22,7 @@ class ReminderRepository @Inject constructor(
     private val reminderDao: ReminderDao,
     private val alarmScheduler: AlarmScheduler,
     private val workManager: WorkManager,
+    private val firebaseAuth: FirebaseAuth,
     @ApplicationContext private val context: Context
 ) {
     fun observeReminders(userId: String) = reminderDao.observeReminders(userId)
@@ -30,7 +31,10 @@ class ReminderRepository @Inject constructor(
     suspend fun getReminderById(id: String): ReminderEntity? = reminderDao.getReminderById(id)
 
     suspend fun setSnoozeUntil(reminderId: String, millis: Long) {
-        reminderDao.updateSnoozeUntil(reminderId, millis)
+        // snoozeAndReactivate also clears isCompleted, so a reminder that was auto-marked
+        // completed when it fired gets put back into the active list when the user snoozes.
+        reminderDao.snoozeAndReactivate(reminderId, millis)
+        enqueueSyncWork()
         notifyWidgets()
     }
 
@@ -101,7 +105,8 @@ class ReminderRepository @Inject constructor(
     }
 
     suspend fun rescheduleAllReminders() {
-        reminderDao.getAllActiveReminders().forEach { reminder ->
+        val userId = firebaseAuth.currentUser?.uid ?: return
+        reminderDao.getAllActiveReminders(userId).forEach { reminder ->
             if (reminder.nextTriggerMillis > System.currentTimeMillis()) {
                 alarmScheduler.scheduleReminder(reminder)
             } else {
@@ -118,18 +123,12 @@ class ReminderRepository @Inject constructor(
         }
     }
 
-    fun notifyWidgets() {
+    suspend fun notifyWidgets() {
+        // Call updateAll directly instead of round-tripping through a broadcast +
+        // fire-and-forget coroutine in the receiver, which was racy and intermittently
+        // dropped updates when the receiver process exited before MainScope ran.
         try {
-            val manager = AppWidgetManager.getInstance(context)
-            val ids = manager.getAppWidgetIds(
-                ComponentName(context, "com.mountaincrab.crabdo.widget.RemindersWidgetReceiver")
-            )
-            if (ids.isNotEmpty()) {
-                val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_UPDATE).apply {
-                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
-                }
-                context.sendBroadcast(intent)
-            }
+            RemindersWidget().updateAll(context)
         } catch (_: Exception) {}
     }
 

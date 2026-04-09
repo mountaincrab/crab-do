@@ -60,13 +60,22 @@ class ReminderReceiver : BroadcastReceiver() {
             NotificationHelper.showAlarmNotification(context, reminderId, title, notificationId, style)
         }
 
+        // goAsync() keeps the receiver process alive until we call pendingResult.finish().
+        // Without this, Android may kill the process as soon as onReceive returns, before
+        // the coroutine has had a chance to run — which would leave the reminder un-marked
+        // as completed and the widget never refreshed.
+        val pendingResult = goAsync()
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         scope.launch {
-            val entryPoint = EntryPointAccessors.fromApplication(
-                context.applicationContext, ReceiverEntryPoint::class.java)
-            val repo = entryPoint.reminderRepository()
-            repo.clearSnooze(reminderId)
-            repo.onReminderFired(reminderId)
+            try {
+                val entryPoint = EntryPointAccessors.fromApplication(
+                    context.applicationContext, ReceiverEntryPoint::class.java)
+                val repo = entryPoint.reminderRepository()
+                repo.clearSnooze(reminderId)
+                repo.onReminderFired(reminderId)
+            } finally {
+                pendingResult.finish()
+            }
         }
     }
 

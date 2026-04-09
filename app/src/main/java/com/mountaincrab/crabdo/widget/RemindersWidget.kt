@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -19,6 +21,7 @@ import androidx.glance.layout.*
 import androidx.glance.text.*
 import androidx.glance.unit.ColorProvider
 import com.mountaincrab.crabdo.MainActivity
+import com.google.firebase.auth.FirebaseAuth
 import com.mountaincrab.crabdo.data.local.dao.ReminderDao
 import com.mountaincrab.crabdo.data.local.entity.ReminderEntity
 import dagger.hilt.EntryPoint
@@ -32,28 +35,35 @@ import java.util.*
 @InstallIn(SingletonComponent::class)
 interface WidgetEntryPoint {
     fun reminderDao(): ReminderDao
+    fun firebaseAuth(): FirebaseAuth
 }
 
 class RemindersWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val dao = EntryPointAccessors.fromApplication(
+        val entryPoint = EntryPointAccessors.fromApplication(
             context.applicationContext, WidgetEntryPoint::class.java
-        ).reminderDao()
+        )
+        val dao = entryPoint.reminderDao()
+        val userId = entryPoint.firebaseAuth().currentUser?.uid ?: ""
 
         val isNight = (context.resources.configuration.uiMode and
                 Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
 
-        val now = System.currentTimeMillis()
-        val reminders = dao.getAllActiveReminders()
-            .filter { !it.isDeleted && it.isEnabled }
-            .sortedWith(compareBy(
-                { it.snoozedUntilMillis != null && it.snoozedUntilMillis > now },
-                { it.nextTriggerMillis }
-            ))
-            .take(6)
+        // IMPORTANT: provideGlance only runs when no Glance session is active. Subsequent
+        // updateAll() calls don't re-invoke it, so we can't just read a one-shot here —
+        // we must collect the Room Flow inside the composition so it reactively updates.
+        val remindersFlow = dao.observeAllActiveReminders(userId)
 
         provideContent {
+            val all by remindersFlow.collectAsState(initial = emptyList())
+            val now = System.currentTimeMillis()
+            val reminders = all
+                .sortedWith(compareBy(
+                    { it.snoozedUntilMillis != null && it.snoozedUntilMillis!! > now },
+                    { it.nextTriggerMillis }
+                ))
+                .take(6)
             WidgetContent(context, reminders, isNight)
         }
     }

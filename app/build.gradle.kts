@@ -21,7 +21,8 @@ android {
 
     buildTypes {
         debug {
-            buildConfigField("Boolean", "USE_EMULATOR", "true")
+            // Flip to true only when running the local Firebase emulator suite.
+            buildConfigField("Boolean", "USE_EMULATOR", "false")
         }
         release {
             buildConfigField("Boolean", "USE_EMULATOR", "false")
@@ -69,6 +70,10 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
     implementation(libs.firebase.firestore)
+    // Credential Manager for Google Sign-In
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.googleid)
     // DataStore
     implementation(libs.datastore.preferences)
     // Gson (for serializing RecurrenceRule)

@@ -4,8 +4,8 @@ import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
 import androidx.glance.appwidget.GlanceAppWidget
-import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
+import androidx.glance.appwidget.updateAll
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 
@@ -32,11 +32,11 @@ class RemindersWidgetReceiver : GlanceAppWidgetReceiver() {
     companion object {
         fun refreshWidgets(context: Context) {
             MainScope().launch {
-                val manager = GlanceAppWidgetManager(context)
-                val ids = manager.getGlanceIds(RemindersWidget::class.java)
-                ids.forEach { id ->
-                    RemindersWidget().update(context, id)
-                }
+                // updateAll() re-invokes provideGlance() for every placed instance of this
+                // widget, which re-reads Room and re-renders. Using update(context, id)
+                // individually doesn't reliably re-run provideGlance when the backing data
+                // lives outside Glance's own state system.
+                RemindersWidget().updateAll(context)
             }
         }
     }

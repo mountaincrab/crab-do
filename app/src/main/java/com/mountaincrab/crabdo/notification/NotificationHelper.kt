@@ -17,15 +17,17 @@ import com.mountaincrab.crabdo.alarm.SnoozePickerActivity
 import com.mountaincrab.crabdo.data.local.entity.ReminderEntity
 
 object NotificationHelper {
-    const val CHANNEL_ALARM = "channel_alarm"
+    // v2 — fresh id because Android won't let us change an existing channel's sound,
+    // and delete+recreate isn't reliable on all OEMs. The old "channel_alarm" id had a
+    // ringtone attached, so we switched to a brand-new silent channel.
+    const val CHANNEL_ALARM = "channel_alarm_v2"
     const val CHANNEL_NOTIFICATION = "channel_notification"
 
     fun createChannels(context: Context) {
         val manager = context.getSystemService<NotificationManager>() ?: return
 
-        // Channel sound can't be changed after creation, so drop the old alarm channel
-        // (which had a ringtone attached) before re-registering it as silent.
-        manager.deleteNotificationChannel(CHANNEL_ALARM)
+        // Drop the legacy noisy channel so it disappears from app settings.
+        manager.deleteNotificationChannel("channel_alarm")
 
         val alarmChannel = NotificationChannel(
             CHANNEL_ALARM, "Alarms", NotificationManager.IMPORTANCE_HIGH

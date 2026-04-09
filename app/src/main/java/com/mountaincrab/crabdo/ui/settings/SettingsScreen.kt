@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.mountaincrab.crabdo.ui.navigation.Screen
 import com.mountaincrab.crabdo.ui.theme.AppTheme
 import com.mountaincrab.crabdo.ui.theme.GradientIconBlock
 import com.mountaincrab.crabdo.ui.theme.ThemeViewModel
@@ -77,22 +78,24 @@ fun SettingsScreen(
                 ListItem(
                     headlineContent = {
                         Text(
-                            if (viewModel.isAnonymous) "Anonymous user" else viewModel.userEmail ?: "",
+                            viewModel.userDisplayName ?: viewModel.userEmail ?: "Signed in",
                             fontWeight = FontWeight.Bold
                         )
                     },
                     supportingContent = {
-                        Text(
-                            if (viewModel.isAnonymous) "Link a Google account to back up your data"
-                            else "Signed in with Google"
-                        )
+                        Text(viewModel.userEmail ?: "Signed in with Google")
                     },
                     trailingContent = {
-                        if (viewModel.isAnonymous) {
-                            TextButton(onClick = { /* TODO: trigger Google Sign-In */ }) {
-                                Text("Link")
+                        TextButton(onClick = {
+                            viewModel.signOut {
+                                navController.navigate(Screen.Login.route) {
+                                    popUpTo(navController.graph.startDestinationId) {
+                                        inclusive = true
+                                    }
+                                    launchSingleTop = true
+                                }
                             }
-                        }
+                        }) { Text("Sign out") }
                     },
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                 )

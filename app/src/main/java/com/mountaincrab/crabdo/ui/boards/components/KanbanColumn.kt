@@ -1,6 +1,7 @@
 package com.mountaincrab.crabdo.ui.boards.components
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.draganddrop.dragAndDropSource
 import androidx.compose.foundation.draganddrop.dragAndDropTarget
@@ -28,14 +29,27 @@ import com.mountaincrab.crabdo.data.local.entity.TaskEntity
 fun KanbanColumn(
     column: ColumnEntity,
     tasks: List<TaskEntity>,
+    draggedTaskId: String?,
+    onDragStart: (taskId: String) -> Unit,
+    onDragEnd: () -> Unit,
     onCardDropped: (taskId: String, targetColumnId: String, orderBefore: Double, orderAfter: Double) -> Unit,
     onCardTapped: (taskId: String) -> Unit,
     onAddCard: (title: String, description: String, reminderTimeMillis: Long?, reminderStyle: TaskEntity.ReminderStyle) -> Unit,
     @Suppress("UNUSED_PARAMETER") onReorder: (taskId: String, orderBefore: Double, orderAfter: Double) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var isDropTarget by remember { mutableStateOf(false) }
     var showAddCardDialog by remember { mutableStateOf(false) }
+
+    // Hide the card currently being dragged so the column visually collapses around it,
+    // and compute the order of the remaining (visible) tasks so insert-indices align
+    // with what the user sees.
+    val visibleTasks = remember(tasks, draggedTaskId) {
+        tasks.filter { it.id != draggedTaskId }
+    }
+
+    // null = no hover in this column; otherwise the index (in visibleTasks) *before which*
+    // the card would be inserted. visibleTasks.size means "drop at the end".
+    var hoverIndex by remember { mutableStateOf<Int?>(null) }
 
     // Drop at the end of this column (or into an empty column).
     val appendDropTarget = remember(column.id, tasks) {
@@ -43,14 +57,18 @@ fun KanbanColumn(
             override fun onDrop(event: DragAndDropEvent): Boolean {
                 val taskId = event.toAndroidDragEvent().clipData?.getItemAt(0)?.text?.toString()
                     ?: return false
-                val maxOrder = tasks.maxOfOrNull { it.order } ?: 0.0
+                val maxOrder = tasks.filter { it.id != taskId }.maxOfOrNull { it.order } ?: 0.0
                 onCardDropped(taskId, column.id, maxOrder, maxOrder + 2.0)
-                isDropTarget = false
+                hoverIndex = null
+                onDragEnd()
                 return true
             }
-            override fun onEntered(event: DragAndDropEvent) { isDropTarget = true }
-            override fun onExited(event: DragAndDropEvent) { isDropTarget = false }
-            override fun onEnded(event: DragAndDropEvent) { isDropTarget = false }
+            // Only the "last" onEntered wins. Don't clear on onExited — the event order
+            // when moving from the column background onto a child card is ambiguous and
+            // can cause the child's onEntered to be clobbered by the parent's onExited.
+            // hoverIndex is reset on drop or on drag end.
+            override fun onEntered(event: DragAndDropEvent) { hoverIndex = visibleTasks.size }
+            override fun onEnded(event: DragAndDropEvent) { hoverIndex = null }
         }
     }
 
@@ -89,38 +107,51 @@ fun KanbanColumn(
             contentPadding = PaddingValues(horizontal = 4.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            itemsIndexed(tasks, key = { _, it -> it.id }) { index, task ->
-                val insertBeforeTarget = remember(column.id, tasks, task.id) {
+            itemsIndexed(visibleTasks, key = { _, it -> it.id }) { index, task ->
+                val insertBeforeTarget = remember(column.id, visibleTasks, task.id, index) {
                     object : DragAndDropTarget {
                         override fun onDrop(event: DragAndDropEvent): Boolean {
                             val draggedId = event.toAndroidDragEvent().clipData?.getItemAt(0)?.text?.toString()
                                 ?: return false
                             if (draggedId == task.id) return false
-                            val prevOrder = tasks.getOrNull(index - 1)?.order ?: (task.order - 2.0)
+                            val prevOrder = visibleTasks.getOrNull(index - 1)?.order ?: (task.order - 2.0)
                             onCardDropped(draggedId, column.id, prevOrder, task.order)
+                            hoverIndex = null
+                            onDragEnd()
                             return true
                         }
+                        override fun onEntered(event: DragAndDropEvent) { hoverIndex = index }
+                        override fun onEnded(event: DragAndDropEvent) { hoverIndex = null }
                     }
                 }
-                TaskCard(
-                    task = task,
-                    isDragging = false,
-                    modifier = Modifier
-                        .dragAndDropTarget(shouldStartDragAndDrop = { true }, target = insertBeforeTarget)
-                        .dragAndDropSource {
-                            detectTapGestures(
-                                onTap = { onCardTapped(task.id) },
-                                onLongPress = {
-                                    startTransfer(
-                                        DragAndDropTransferData(
-                                            clipData = android.content.ClipData.newPlainText("taskId", task.id)
+                Column {
+                    // Insert indicator above this card
+                    DropIndicator(visible = hoverIndex == index)
+                    TaskCard(
+                        task = task,
+                        isDragging = false,
+                        modifier = Modifier
+                            .dragAndDropTarget(shouldStartDragAndDrop = { true }, target = insertBeforeTarget)
+                            .dragAndDropSource {
+                                detectTapGestures(
+                                    onTap = { onCardTapped(task.id) },
+                                    onLongPress = {
+                                        onDragStart(task.id)
+                                        startTransfer(
+                                            DragAndDropTransferData(
+                                                clipData = android.content.ClipData.newPlainText("taskId", task.id)
+                                            )
                                         )
-                                    )
-                                }
-                            )
-                        },
-                    onTap = { onCardTapped(task.id) }
-                )
+                                    }
+                                )
+                            },
+                        onTap = { onCardTapped(task.id) }
+                    )
+                }
+            }
+            // Trailing indicator for drop-at-end.
+            item {
+                DropIndicator(visible = hoverIndex == visibleTasks.size && draggedTaskId != null)
             }
             item {
                 TextButton(
@@ -146,6 +177,19 @@ fun KanbanColumn(
                 showAddCardDialog = false
             },
             onDismiss = { showAddCardDialog = false }
+        )
+    }
+}
+
+@Composable
+private fun DropIndicator(visible: Boolean) {
+    if (visible) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 2.dp)
+                .height(3.dp)
+                .background(MaterialTheme.colorScheme.primary)
         )
     }
 }

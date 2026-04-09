@@ -6,6 +6,7 @@ import android.os.Build
 import androidx.core.content.getSystemService
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
 import com.mountaincrab.crabdo.auth.AuthRepository
 import com.mountaincrab.crabdo.data.local.entity.BoardEntity
 import com.mountaincrab.crabdo.data.repository.BoardRepository
@@ -36,8 +37,15 @@ class SettingsViewModel @Inject constructor(
         prefsRepository.pinnedBoardId
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    val isAnonymous: Boolean get() = authRepository.isAnonymous()
     val userEmail: String? get() = authRepository.currentUser?.email
+    val userDisplayName: String? get() = authRepository.currentUser?.displayName
+
+    fun signOut(onDone: () -> Unit) {
+        viewModelScope.launch(Dispatchers.Main) {
+            authRepository.signOut(context)
+            onDone()
+        }
+    }
 
     val canScheduleExactAlarms: Boolean
         get() = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {

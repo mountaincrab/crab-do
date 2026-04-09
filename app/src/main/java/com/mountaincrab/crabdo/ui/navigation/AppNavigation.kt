@@ -10,6 +10,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.mountaincrab.crabdo.ui.boards.BoardListViewModel
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.*
@@ -17,6 +20,7 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
+import com.mountaincrab.crabdo.ui.auth.LoginScreen
 import com.mountaincrab.crabdo.ui.boards.*
 import com.mountaincrab.crabdo.ui.reminders.AddEditReminderScreen
 import com.mountaincrab.crabdo.ui.reminders.RemindersScreen
@@ -39,7 +43,15 @@ fun AppNavigation(
     )
     // Show the bottom bar on tabs AND on drill-in destinations where the user
     // still benefits from keeping the tab context (e.g. viewing a board).
-    val showBottomBar = currentRoute in tabRoutes || currentRoute == Screen.KanbanBoard.route
+    val showBottomBar = (currentRoute in tabRoutes || currentRoute == Screen.KanbanBoard.route) &&
+            currentRoute != Screen.Login.route
+
+    // Shared with PinnedBoardScreen (same @HiltViewModel singleton scope, so reusing is cheap)
+    // solely to label the pinned-board bottom-nav tab with the actual board name.
+    val boardListViewModel: BoardListViewModel = hiltViewModel()
+    val pinnedBoardId by boardListViewModel.pinnedBoardId.collectAsStateWithLifecycle()
+    val boards by boardListViewModel.boards.collectAsStateWithLifecycle()
+    val pinnedBoardTitle = boards.firstOrNull { it.id == pinnedBoardId }?.title ?: "Board"
 
     // Handle deep-link from widget
     LaunchedEffect(openAddReminder) {
@@ -71,7 +83,7 @@ fun AppNavigation(
                             }
                         },
                         icon = { Icon(Icons.Default.Star, contentDescription = "Pinned Board") },
-                        label = { Text("Board") }
+                        label = { Text(pinnedBoardTitle, maxLines = 1) }
                     )
                     NavigationBarItem(
                         selected = currentRoute == Screen.BoardList.route,
@@ -164,6 +176,16 @@ fun AppNavigation(
             }
             composable(Screen.Settings.route) {
                 SettingsScreen(navController = navController)
+            }
+            composable(Screen.Login.route) {
+                LoginScreen(
+                    onSignedIn = {
+                        navController.navigate(Screen.PinnedBoard.route) {
+                            popUpTo(Screen.Login.route) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                )
             }
         }
     }

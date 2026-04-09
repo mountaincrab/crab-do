@@ -31,6 +31,9 @@ fun KanbanBoardScreen(
     val columns by viewModel.columns.collectAsStateWithLifecycle()
     val tasksByColumn by viewModel.tasksByColumn.collectAsStateWithLifecycle()
     var showColumnConfig by remember { mutableStateOf(false) }
+    // Lifted drag state so every column can hide the card being dragged, and so the
+    // "state" survives cross-column drags.
+    var draggedTaskId by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
         topBar = {
@@ -60,8 +63,12 @@ fun KanbanBoardScreen(
                 KanbanColumn(
                     column = column,
                     tasks = tasksByColumn[column.id] ?: emptyList(),
+                    draggedTaskId = draggedTaskId,
+                    onDragStart = { draggedTaskId = it },
+                    onDragEnd = { draggedTaskId = null },
                     onCardDropped = { taskId, targetColumnId, orderBefore, orderAfter ->
                         viewModel.moveTask(taskId, targetColumnId, orderBefore, orderAfter)
+                        draggedTaskId = null
                     },
                     onCardTapped = { taskId ->
                         navController.navigate(

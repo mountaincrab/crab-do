@@ -75,7 +75,9 @@ fun AddEditReminderScreen(
             TopAppBar(
                 title = { Text(if (isEditing) "Edit Reminder" else "New Reminder") },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = {
+                        if (fromWidget) activity?.finish() else navController.popBackStack()
+                    }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 },
@@ -229,7 +231,9 @@ fun AddEditReminderScreen(
             text = { Text("Are you sure you want to delete this reminder?") },
             confirmButton = {
                 TextButton(onClick = {
-                    viewModel.delete { navController.popBackStack() }
+                    viewModel.delete {
+                        if (fromWidget) activity?.finish() else navController.popBackStack()
+                    }
                     showDeleteConfirm = false
                 }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
             },

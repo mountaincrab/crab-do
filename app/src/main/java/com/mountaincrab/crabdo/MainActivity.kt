@@ -8,13 +8,10 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.navigation.compose.rememberNavController
@@ -60,41 +57,27 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    var isAuthReady by remember { mutableStateOf(false) }
+                    // Observe Firebase auth state — emits the cached user immediately on
+                    // subscription, so offline launches resolve without a network call.
+                    val authUser by authRepository.observeAuthState()
+                        .collectAsStateWithLifecycle(initialValue = authRepository.currentUser)
+                    val isSignedIn = authUser != null
 
-                    LaunchedEffect(Unit) {
-                        runCatching { authRepository.ensureAuthenticated() }
-                        isAuthReady = true
+                    val navController = rememberNavController()
+                    val shouldOpenAddReminder = openAddReminder
+                    val shouldOpenReminderId = openReminderId
+                    LaunchedEffect(shouldOpenAddReminder) {
+                        if (shouldOpenAddReminder) openAddReminder = false
                     }
-
-                    if (!isAuthReady) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator()
-                        }
-                    } else {
-                        val navController = rememberNavController()
-                        val shouldOpenAddReminder = openAddReminder
-                        val shouldOpenReminderId = openReminderId
-                        LaunchedEffect(shouldOpenAddReminder) {
-                            if (shouldOpenAddReminder) {
-                                openAddReminder = false
-                            }
-                        }
-                        LaunchedEffect(shouldOpenReminderId) {
-                            if (shouldOpenReminderId != null) {
-                                openReminderId = null
-                            }
-                        }
-                        AppNavigation(
-                            navController = navController,
-                            startDestination = Screen.PinnedBoard.route,
-                            openAddReminder = shouldOpenAddReminder,
-                            openReminderId = shouldOpenReminderId
-                        )
+                    LaunchedEffect(shouldOpenReminderId) {
+                        if (shouldOpenReminderId != null) openReminderId = null
                     }
+                    AppNavigation(
+                        navController = navController,
+                        startDestination = if (isSignedIn) Screen.PinnedBoard.route else Screen.Login.route,
+                        openAddReminder = shouldOpenAddReminder,
+                        openReminderId = shouldOpenReminderId
+                    )
                 }
             }
         }
