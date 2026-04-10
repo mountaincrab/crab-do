@@ -56,8 +56,8 @@ class InvitationRepository @Inject constructor(
                         boardTitle = doc.getString("boardTitle") ?: "",
                         inviteeEmail = doc.getString("inviteeEmail") ?: "",
                         status = doc.getString("status") ?: "pending",
-                        createdAt = doc.getLong("createdAt") ?: 0L,
-                        updatedAt = doc.getLong("updatedAt") ?: 0L
+                        createdAt = doc.getTimestamp("createdAt")?.toDate()?.time ?: 0L,
+                        updatedAt = doc.getTimestamp("updatedAt")?.toDate()?.time ?: 0L
                     )
                 }
                 trySend(invitations)
