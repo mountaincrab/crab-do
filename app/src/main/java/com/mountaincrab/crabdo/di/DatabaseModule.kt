@@ -26,4 +26,5 @@ object DatabaseModule {
     @Provides fun provideTaskDao(db: AppDatabase) = db.taskDao()
     @Provides fun provideSubtaskDao(db: AppDatabase) = db.subtaskDao()
     @Provides fun provideReminderDao(db: AppDatabase) = db.reminderDao()
+    @Provides fun provideBoardAccessDao(db: AppDatabase) = db.boardAccessDao()
 }

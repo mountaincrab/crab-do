@@ -13,6 +13,7 @@ import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import android.util.Log
 
 @HiltViewModel(assistedFactory = KanbanBoardViewModel.Factory::class)
 class KanbanBoardViewModel @AssistedInject constructor(
@@ -25,6 +26,9 @@ class KanbanBoardViewModel @AssistedInject constructor(
     interface Factory {
         fun create(boardId: String): KanbanBoardViewModel
     }
+
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing
 
     val board: StateFlow<BoardEntity?> =
         boardRepository.observeBoard(boardId)
@@ -77,5 +81,18 @@ class KanbanBoardViewModel @AssistedInject constructor(
 
     fun reorderColumns(newOrderedIds: List<String>) {
         viewModelScope.launch { boardRepository.reorderColumns(boardId, newOrderedIds) }
+    }
+
+    fun refresh() {
+        viewModelScope.launch {
+            _isRefreshing.value = true
+            try {
+                boardRepository.refreshBoard(boardId)
+            } catch (e: Exception) {
+                Log.e("KanbanBoardVM", "Failed to refresh board", e)
+            } finally {
+                _isRefreshing.value = false
+            }
+        }
     }
 }

@@ -8,6 +8,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,6 +31,7 @@ fun KanbanBoardScreen(
     val board by viewModel.board.collectAsStateWithLifecycle()
     val columns by viewModel.columns.collectAsStateWithLifecycle()
     val tasksByColumn by viewModel.tasksByColumn.collectAsStateWithLifecycle()
+    val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     var showColumnConfig by remember { mutableStateOf(false) }
     // Lifted drag state so every column can hide the card being dragged, and so the
     // "state" survives cross-column drags.
@@ -52,10 +54,15 @@ fun KanbanBoardScreen(
             )
         }
     ) { padding ->
-        LazyRow(
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = { viewModel.refresh() },
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding),
+                .padding(padding)
+        ) {
+        LazyRow(
+            modifier = Modifier.fillMaxSize(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
         ) {
@@ -86,6 +93,7 @@ fun KanbanBoardScreen(
             item {
                 AddColumnButton { viewModel.addColumn(it) }
             }
+        }
         }
     }
 

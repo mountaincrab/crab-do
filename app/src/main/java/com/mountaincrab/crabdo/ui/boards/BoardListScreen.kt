@@ -6,8 +6,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.filled.Tag
@@ -22,6 +26,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.mountaincrab.crabdo.data.local.entity.BoardEntity
+import com.mountaincrab.crabdo.data.model.Invitation
 import com.mountaincrab.crabdo.ui.navigation.Screen
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -34,8 +39,10 @@ fun BoardListScreen(
     val boards by viewModel.boards.collectAsStateWithLifecycle()
     val pinnedBoardId by viewModel.pinnedBoardId.collectAsStateWithLifecycle()
     val isSyncing by viewModel.isSyncing.collectAsStateWithLifecycle()
+    val pendingInvitations by viewModel.pendingInvitations.collectAsStateWithLifecycle()
     var showCreateDialog by remember { mutableStateOf(false) }
     var newBoardTitle by remember { mutableStateOf("") }
+    var shareBoardTarget by remember { mutableStateOf<BoardEntity?>(null) }
 
     Scaffold(
         topBar = {
@@ -56,7 +63,7 @@ fun BoardListScreen(
             onRefresh = { viewModel.sync() },
             modifier = Modifier.fillMaxSize().padding(scaffoldPadding)
         ) {
-            if (boards.isEmpty()) {
+            if (boards.isEmpty() && pendingInvitations.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
@@ -77,6 +84,26 @@ fun BoardListScreen(
                 }
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    if (pendingInvitations.isNotEmpty()) {
+                        item(key = "invitations_header") {
+                            Text(
+                                text = "Invitations",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
+                        }
+                        items(pendingInvitations, key = { "inv_${it.id}" }) { invitation ->
+                            InvitationRow(
+                                invitation = invitation,
+                                onAccept = { viewModel.acceptInvitation(invitation) },
+                                onDecline = { viewModel.declineInvitation(invitation) }
+                            )
+                        }
+                        item(key = "invitations_divider") {
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                        }
+                    }
                     items(boards, key = { it.id }) { board ->
                         BoardRow(
                             board = board,
@@ -87,7 +114,8 @@ fun BoardListScreen(
                                 else viewModel.pinBoard(board.id)
                             },
                             onDelete = { viewModel.deleteBoard(board.id) },
-                            onRename = { viewModel.renameBoard(board, it) }
+                            onRename = { viewModel.renameBoard(board, it) },
+                            onShare = { shareBoardTarget = board }
                         )
                     }
                 }
@@ -125,6 +153,17 @@ fun BoardListScreen(
             }
         )
     }
+
+    shareBoardTarget?.let { board ->
+        ShareBoardDialog(
+            boardTitle = board.title,
+            onShare = { email ->
+                viewModel.shareBoard(board.id, board.title, email)
+                shareBoardTarget = null
+            },
+            onDismiss = { shareBoardTarget = null }
+        )
+    }
 }
 
 @Composable
@@ -134,7 +173,8 @@ private fun BoardRow(
     onTap: () -> Unit,
     onPin: () -> Unit,
     onDelete: () -> Unit,
-    onRename: (String) -> Unit
+    onRename: (String) -> Unit,
+    onShare: () -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
@@ -159,6 +199,15 @@ private fun BoardRow(
             style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier.weight(1f)
         )
+        if (board.isShared) {
+            Icon(
+                imageVector = Icons.Filled.People,
+                contentDescription = "Shared",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(Modifier.width(4.dp))
+        }
         if (isPinned) {
             Icon(
                 imageVector = Icons.Filled.Star,
@@ -181,6 +230,10 @@ private fun BoardRow(
                 DropdownMenuItem(
                     text = { Text(if (isPinned) "Unpin" else "Pin") },
                     onClick = { showMenu = false; onPin() }
+                )
+                DropdownMenuItem(
+                    text = { Text("Share") },
+                    onClick = { showMenu = false; onShare() }
                 )
                 DropdownMenuItem(
                     text = { Text("Rename") },
@@ -220,4 +273,82 @@ private fun BoardRow(
             }
         )
     }
+}
+
+@Composable
+private fun InvitationRow(
+    invitation: Invitation,
+    onAccept: () -> Unit,
+    onDecline: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Default.Share,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(22.dp)
+        )
+        Spacer(Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = invitation.boardTitle,
+                style = MaterialTheme.typography.bodyLarge
+            )
+            Text(
+                text = "from ${invitation.ownerDisplayName.ifEmpty { "someone" }}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        IconButton(onClick = onAccept, modifier = Modifier.size(36.dp)) {
+            Icon(
+                Icons.Default.Check,
+                contentDescription = "Accept",
+                tint = MaterialTheme.colorScheme.primary
+            )
+        }
+        IconButton(onClick = onDecline, modifier = Modifier.size(36.dp)) {
+            Icon(
+                Icons.Default.Close,
+                contentDescription = "Decline",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun ShareBoardDialog(
+    boardTitle: String,
+    onShare: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var email by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Share \"$boardTitle\"") },
+        text = {
+            OutlinedTextField(
+                value = email,
+                onValueChange = { email = it },
+                label = { Text("Email address") },
+                singleLine = true
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { if (email.isNotBlank()) onShare(email.trim()) },
+                enabled = email.isNotBlank()
+            ) { Text("Invite") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }

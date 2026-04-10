@@ -13,6 +13,7 @@ data class BoardEntity(
     val columnOrder: String = "[]",
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
+    val isShared: Boolean = false,
     val syncStatus: SyncStatus = SyncStatus.PENDING,
     val isDeleted: Boolean = false
 )

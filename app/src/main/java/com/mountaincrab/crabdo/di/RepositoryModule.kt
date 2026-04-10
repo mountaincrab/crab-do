@@ -9,6 +9,7 @@ import com.mountaincrab.crabdo.data.local.dao.*
 import com.mountaincrab.crabdo.data.repository.*
 import com.mountaincrab.crabdo.preferences.UserPreferencesRepository
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -25,8 +26,12 @@ object RepositoryModule {
     fun provideBoardRepository(
         boardDao: BoardDao,
         columnDao: ColumnDao,
+        taskDao: TaskDao,
+        subtaskDao: SubtaskDao,
+        firestore: FirebaseFirestore,
+        auth: FirebaseAuth,
         workManager: WorkManager
-    ): BoardRepository = BoardRepository(boardDao, columnDao, workManager)
+    ): BoardRepository = BoardRepository(boardDao, columnDao, taskDao, subtaskDao, firestore, auth, workManager)
 
     @Provides
     @Singleton
