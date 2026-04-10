@@ -32,6 +32,9 @@ interface BoardDao {
     @Query("UPDATE boards SET syncStatus = 'SYNCED' WHERE id = :boardId")
     suspend fun markSynced(boardId: String)
 
+    @Query("SELECT id FROM boards WHERE userId = :userId AND isDeleted = 0")
+    suspend fun getBoardIdsForUser(userId: String): List<String>
+
     @Query("UPDATE boards SET columnOrder = :columnOrder, updatedAt = :updatedAt, syncStatus = 'PENDING' WHERE id = :boardId")
     suspend fun updateColumnOrder(boardId: String, columnOrder: String, updatedAt: Long = System.currentTimeMillis())
 }

@@ -117,6 +117,27 @@ class SyncWorker @AssistedInject constructor(
                 boardDao.upsert(doc.toBoardEntity(userId).copy(syncStatus = SyncStatus.SYNCED))
             }
 
+        // Pull columns, tasks, and subtasks for own boards
+        boardDao.getBoardIdsForUser(userId).forEach { boardId ->
+            val boardRef = userRef.collection("boards").document(boardId)
+            boardRef.collection("columns")
+                .whereGreaterThan("updatedAt", sinceTimestamp)
+                .get().await().documents.forEach { doc ->
+                    columnDao.upsert(doc.toColumnEntity().copy(syncStatus = SyncStatus.SYNCED))
+                }
+            boardRef.collection("tasks")
+                .whereGreaterThan("updatedAt", sinceTimestamp)
+                .get().await().documents.forEach { taskDoc ->
+                    taskDao.upsert(taskDoc.toTaskEntity().copy(syncStatus = SyncStatus.SYNCED))
+                    boardRef.collection("tasks").document(taskDoc.id)
+                        .collection("subtasks")
+                        .whereGreaterThan("updatedAt", sinceTimestamp)
+                        .get().await().documents.forEach { subDoc ->
+                            subtaskDao.upsert(subDoc.toSubtaskEntity().copy(syncStatus = SyncStatus.SYNCED))
+                        }
+                }
+        }
+
         // Pull shared boards the user collaborates on
         boardAccessDao.getSharedBoardAccess(userId).forEach { access ->
             val ownerRef = firestore.collection("users").document(access.ownerUserId)
