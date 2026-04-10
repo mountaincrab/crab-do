@@ -72,20 +72,32 @@ class BoardListViewModel @Inject constructor(
 
     fun acceptInvitation(invitation: Invitation) {
         viewModelScope.launch {
-            invitationRepository.acceptInvitation(invitation)
-            boardRepository.triggerSync()
+            try {
+                invitationRepository.acceptInvitation(invitation)
+                boardRepository.triggerSync()
+            } catch (e: Exception) {
+                android.util.Log.e("BoardListVM", "Failed to accept invitation", e)
+            }
         }
     }
 
     fun declineInvitation(invitation: Invitation) {
         viewModelScope.launch {
-            invitationRepository.declineInvitation(invitation.id)
+            try {
+                invitationRepository.declineInvitation(invitation.id)
+            } catch (e: Exception) {
+                android.util.Log.e("BoardListVM", "Failed to decline invitation", e)
+            }
         }
     }
 
     fun shareBoard(boardId: String, boardTitle: String, email: String) {
         viewModelScope.launch {
-            invitationRepository.sendInvitation(boardId, boardTitle, email)
+            try {
+                invitationRepository.sendInvitation(boardId, boardTitle, email)
+            } catch (e: Exception) {
+                android.util.Log.e("BoardListVM", "Failed to send invitation", e)
+            }
         }
     }
 }
