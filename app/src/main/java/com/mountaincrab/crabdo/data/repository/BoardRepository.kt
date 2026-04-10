@@ -1,13 +1,18 @@
 package com.mountaincrab.crabdo.data.repository
 
 import androidx.work.*
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import com.google.gson.Gson
 import com.mountaincrab.crabdo.data.local.dao.BoardDao
 import com.mountaincrab.crabdo.data.local.dao.ColumnDao
+import com.mountaincrab.crabdo.data.local.dao.SubtaskDao
+import com.mountaincrab.crabdo.data.local.dao.TaskDao
 import com.mountaincrab.crabdo.data.local.entity.BoardEntity
 import com.mountaincrab.crabdo.data.local.entity.ColumnEntity
 import com.mountaincrab.crabdo.data.model.SyncStatus
-import com.mountaincrab.crabdo.data.remote.SyncWorker
+import com.mountaincrab.crabdo.data.remote.*
+import kotlinx.coroutines.tasks.await
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -16,6 +21,10 @@ import javax.inject.Singleton
 class BoardRepository @Inject constructor(
     private val boardDao: BoardDao,
     private val columnDao: ColumnDao,
+    private val taskDao: TaskDao,
+    private val subtaskDao: SubtaskDao,
+    private val firestore: FirebaseFirestore,
+    private val auth: FirebaseAuth,
     private val workManager: WorkManager
 ) {
     fun observeBoards(userId: String) = boardDao.observeBoards(userId)
@@ -91,6 +100,38 @@ class BoardRepository @Inject constructor(
     }
 
     fun triggerSync() = enqueueSyncWork()
+
+    suspend fun refreshBoard(boardId: String) {
+        val board = boardDao.getBoardById(boardId) ?: return
+        val ownerUid = board.userId
+        val boardRef = firestore.collection("users").document(ownerUid)
+            .collection("boards").document(boardId)
+
+        // Pull board doc
+        val boardDoc = boardRef.get().await()
+        if (boardDoc.exists()) {
+            boardDao.upsert(
+                boardDoc.toBoardEntity(ownerUid).copy(
+                    syncStatus = SyncStatus.SYNCED,
+                    isShared = board.isShared
+                )
+            )
+        }
+
+        // Pull columns
+        boardRef.collection("columns").get().await().documents.forEach { doc ->
+            columnDao.upsert(doc.toColumnEntity().copy(syncStatus = SyncStatus.SYNCED))
+        }
+
+        // Pull tasks and subtasks
+        boardRef.collection("tasks").get().await().documents.forEach { taskDoc ->
+            taskDao.upsert(taskDoc.toTaskEntity().copy(syncStatus = SyncStatus.SYNCED))
+            boardRef.collection("tasks").document(taskDoc.id)
+                .collection("subtasks").get().await().documents.forEach { subDoc ->
+                    subtaskDao.upsert(subDoc.toSubtaskEntity().copy(syncStatus = SyncStatus.SYNCED))
+                }
+        }
+    }
 
     private fun parseColumnOrder(json: String): List<String> =
         try { Gson().fromJson(json, Array<String>::class.java).toList() }
