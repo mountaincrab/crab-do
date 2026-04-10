@@ -6,7 +6,9 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import com.mountaincrab.crabdo.auth.AuthRepository
 import com.mountaincrab.crabdo.data.local.entity.BoardEntity
+import com.mountaincrab.crabdo.data.model.Invitation
 import com.mountaincrab.crabdo.data.repository.BoardRepository
+import com.mountaincrab.crabdo.data.repository.InvitationRepository
 import com.mountaincrab.crabdo.preferences.UserPreferencesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
@@ -21,6 +23,7 @@ class BoardListViewModel @Inject constructor(
     private val boardRepository: BoardRepository,
     private val authRepository: AuthRepository,
     private val prefsRepository: UserPreferencesRepository,
+    private val invitationRepository: InvitationRepository,
     private val workManager: WorkManager
 ) : ViewModel() {
 
@@ -33,6 +36,10 @@ class BoardListViewModel @Inject constructor(
     val pinnedBoardId: StateFlow<String?> =
         prefsRepository.pinnedBoardId
             .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    val pendingInvitations: StateFlow<List<Invitation>> =
+        invitationRepository.observePendingInvitations()
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val isSyncing: StateFlow<Boolean> =
         workManager.getWorkInfosForUniqueWorkFlow("sync")
@@ -61,5 +68,24 @@ class BoardListViewModel @Inject constructor(
 
     fun sync() {
         boardRepository.triggerSync()
+    }
+
+    fun acceptInvitation(invitation: Invitation) {
+        viewModelScope.launch {
+            invitationRepository.acceptInvitation(invitation)
+            boardRepository.triggerSync()
+        }
+    }
+
+    fun declineInvitation(invitation: Invitation) {
+        viewModelScope.launch {
+            invitationRepository.declineInvitation(invitation.id)
+        }
+    }
+
+    fun shareBoard(boardId: String, boardTitle: String, email: String) {
+        viewModelScope.launch {
+            invitationRepository.sendInvitation(boardId, boardTitle, email)
+        }
     }
 }

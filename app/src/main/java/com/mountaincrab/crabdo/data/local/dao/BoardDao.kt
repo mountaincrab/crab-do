@@ -6,7 +6,12 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface BoardDao {
-    @Query("SELECT * FROM boards WHERE userId = :userId AND isDeleted = 0 ORDER BY createdAt")
+    @Query("""
+        SELECT * FROM boards
+        WHERE (userId = :userId OR id IN (SELECT boardId FROM board_access WHERE userId = :userId))
+          AND isDeleted = 0
+        ORDER BY createdAt
+    """)
     fun observeBoards(userId: String): Flow<List<BoardEntity>>
 
     @Query("SELECT * FROM boards WHERE id = :boardId AND isDeleted = 0")

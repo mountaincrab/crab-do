@@ -1,0 +1,97 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- Invitations ----------
+    match /invitations/{invitationId} {
+      // Anyone authenticated can read invitations addressed to them
+      allow read: if request.auth != null
+        && resource.data.inviteeEmail == request.auth.token.email;
+
+      // Owner can also read invitations they created
+      allow read: if request.auth != null
+        && resource.data.ownerUid == request.auth.uid;
+
+      // Owner can create invitations for their own boards
+      allow create: if request.auth != null
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.status == "pending";
+
+      // Owner can update (revoke). Invitee can update (accept/decline).
+      allow update: if request.auth != null
+        && (resource.data.ownerUid == request.auth.uid
+            || resource.data.inviteeEmail == request.auth.token.email);
+
+      // Owner can delete
+      allow delete: if request.auth != null
+        && resource.data.ownerUid == request.auth.uid;
+    }
+
+    // ---------- User data ----------
+    match /users/{uid} {
+
+      // ---------- Boards ----------
+      match /boards/{boardId} {
+
+        // Owner can always read/write
+        // Collaborator can read; accepted invitee can read
+        allow read: if isOwner(uid) || isCollaborator(uid, boardId) || isAcceptedInvitee(uid, boardId);
+
+        allow create: if isOwner(uid);
+
+        // Owner can update anything.
+        // Collaborator can update everything EXCEPT title.
+        // Accepted invitee can update (to add themselves to collaborators map).
+        allow update: if isOwner(uid)
+          || (isCollaborator(uid, boardId)
+              && !titleChanged())
+          || isAcceptedInvitee(uid, boardId);
+
+        allow delete: if isOwner(uid);
+
+        // ---------- Columns under a board ----------
+        match /columns/{columnId} {
+          allow read, write: if isOwner(uid) || isCollaborator(uid, boardId);
+        }
+
+        // ---------- Tasks under a board ----------
+        match /tasks/{taskId} {
+          allow read, write: if isOwner(uid) || isCollaborator(uid, boardId);
+
+          // ---------- Subtasks under a task ----------
+          match /subtasks/{subtaskId} {
+            allow read, write: if isOwner(uid) || isCollaborator(uid, boardId);
+          }
+        }
+      }
+
+      // ---------- Reminders (owner-only, no sharing) ----------
+      match /reminders/{reminderId} {
+        allow read, write: if isOwner(uid);
+      }
+    }
+
+    // ---------- Helper functions ----------
+    function isOwner(uid) {
+      return request.auth.uid == uid;
+    }
+
+    function isCollaborator(uid, boardId) {
+      return request.auth.uid in
+        get(/databases/$(database)/documents/users/$(uid)/boards/$(boardId))
+          .data.collaborators;
+    }
+
+    function isAcceptedInvitee(ownerUid, boardId) {
+      let inviteId = boardId + '_' + request.auth.token.email;
+      return exists(/databases/$(database)/documents/invitations/$(inviteId))
+        && get(/databases/$(database)/documents/invitations/$(inviteId)).data.status == 'accepted'
+        && get(/databases/$(database)/documents/invitations/$(inviteId)).data.ownerUid == ownerUid;
+    }
+
+    function titleChanged() {
+      return 'title' in request.resource.data
+        && request.resource.data.title != resource.data.title;
+    }
+  }
+}

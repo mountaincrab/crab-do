@@ -17,16 +17,21 @@ fun BoardEntity.toFirestoreMap(): Map<String, Any?> = mapOf(
     "isDeleted" to isDeleted
 )
 
-fun DocumentSnapshot.toBoardEntity(userId: String): BoardEntity = BoardEntity(
-    id = id,
-    userId = userId,
-    title = getString("title") ?: "",
-    columnOrder = getString("columnOrder") ?: "[]",
-    createdAt = getLong("createdAt") ?: 0L,
-    updatedAt = getTimestamp("updatedAt")?.toDate()?.time ?: System.currentTimeMillis(),
-    syncStatus = SyncStatus.SYNCED,
-    isDeleted = getBoolean("isDeleted") ?: false
-)
+@Suppress("UNCHECKED_CAST")
+fun DocumentSnapshot.toBoardEntity(userId: String): BoardEntity {
+    val collaborators = get("collaborators") as? Map<String, Any>
+    return BoardEntity(
+        id = id,
+        userId = userId,
+        title = getString("title") ?: "",
+        columnOrder = getString("columnOrder") ?: "[]",
+        createdAt = getLong("createdAt") ?: 0L,
+        isShared = !collaborators.isNullOrEmpty(),
+        updatedAt = getTimestamp("updatedAt")?.toDate()?.time ?: System.currentTimeMillis(),
+        syncStatus = SyncStatus.SYNCED,
+        isDeleted = getBoolean("isDeleted") ?: false
+    )
+}
 
 // ─── ColumnEntity ─────────────────────────────────────────────────────────────
 

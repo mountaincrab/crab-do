@@ -14,9 +14,10 @@ import com.mountaincrab.crabdo.data.model.SyncStatus
         ColumnEntity::class,
         TaskEntity::class,
         SubtaskEntity::class,
-        ReminderEntity::class
+        ReminderEntity::class,
+        BoardAccessEntity::class
     ],
-    version = 3,
+    version = 1,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -26,6 +27,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun taskDao(): TaskDao
     abstract fun subtaskDao(): SubtaskDao
     abstract fun reminderDao(): ReminderDao
+    abstract fun boardAccessDao(): BoardAccessDao
 }
 
 class Converters {
