@@ -91,18 +91,6 @@
                 android:resource="@xml/reminders_widget_info" />
         </receiver>
 
-        <!-- Disable default WorkManager auto-init so Hilt can configure it via Configuration.Provider -->
-        <provider
-            android:name="androidx.startup.InitializationProvider"
-            android:authorities="${applicationId}.androidx-startup"
-            android:exported="false"
-            tools:node="merge">
-            <meta-data
-                android:name="androidx.work.WorkManagerInitializer"
-                android:value="androidx.startup"
-                tools:node="remove" />
-        </provider>
-
     </application>
 
 </manifest>
