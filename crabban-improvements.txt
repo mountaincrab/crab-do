@@ -1,0 +1,13 @@
+1 - When you add a new standalone reminder, the title field should be auto-selected and the keyboard should pop up
+
+2 - When you set the time for a reminder (both standalone and task-based), there should be the option to enter the time via typing numbers. There should be a button to toggle this when setting the time (i.e. button in dialog that appears when you click on the time field). The setting should be remembered across setting reminders. e.g. if I toggle it when setting a reminder to allow me to type in numbers, then when I add another reminder, it should still be set to that setting. When typing in, the keyboard should be a keypad with only numbers. 
+
+3 - When adding a task, it should show a new dialog when you tap add. Basically the same dialog that you get now when editing a task. Like number 2, the title should be autoselected and the keyboard should pop up.
+
+4 - On the kanban board, what's the number on the right in the heading bar? Doesn't seem to help with anything, I would remove it.
+
+5 - For standalone reminders that you've snoozed, in the reminder view list, it should say something like "snoozing until 0930".
+
+6 - I want a widget that I can add to my home screen that allows you to quickly add a reminder. It should have a plus icon, which should take you to the new reminder dialog. When you click save, it should take you back to the home screen (where you clicked the widget). It should also show a popup message/toast with a message like "Reminder <title> set for <hours> hours <minutes> minutes from now". This should also happen when adding a reminder from the app. The widget on the homescreen should also show a list of upcoming reminders. Its size should be adjustable. The list of reminders should be very compact.
+
+7 - Update the styling etc. of the app to make it more modern and not look like a stock android app. See the design_guidance.pdf for guidance.
