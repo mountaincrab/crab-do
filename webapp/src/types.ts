@@ -38,3 +38,18 @@ export interface Subtask {
   updatedAt: number
   isDeleted: boolean
 }
+
+export interface Reminder {
+  id: string
+  userId: string
+  title: string
+  nextTriggerMillis: number
+  reminderStyle: 'ALARM' | 'NOTIFICATION'
+  recurrenceRuleJson: string | null
+  isEnabled: boolean
+  isCompleted: boolean
+  completedAt: number | null
+  createdAt: number
+  updatedAt: number
+  isDeleted: boolean
+}

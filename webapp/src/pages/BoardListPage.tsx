@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useBoards } from '../hooks/useBoards'
 
@@ -24,9 +24,22 @@ export default function BoardListPage() {
     <div className="min-h-screen bg-surface text-white">
       {/* Header */}
       <header className="border-b border-white/10 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-xl">🦀</span>
-          <span className="font-semibold text-lg">Crab Do</span>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">🦀</span>
+            <span className="font-semibold text-lg">Crab Do</span>
+          </div>
+          <nav className="flex items-center gap-1 ml-2">
+            <span className="text-sm text-white font-medium px-3 py-1.5 rounded-lg bg-surface-high">
+              Boards
+            </span>
+            <Link
+              to="/reminders"
+              className="text-sm text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-surface-high"
+            >
+              Reminders
+            </Link>
+          </nav>
         </div>
         <div className="flex items-center gap-4">
           <span className="text-slate-400 text-sm">{user?.email}</span>

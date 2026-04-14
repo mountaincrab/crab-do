@@ -9,6 +9,7 @@ import com.mountaincrab.crabdo.data.local.entity.BoardEntity
 import com.mountaincrab.crabdo.data.model.Invitation
 import com.mountaincrab.crabdo.data.repository.BoardRepository
 import com.mountaincrab.crabdo.data.repository.InvitationRepository
+import com.mountaincrab.crabdo.data.repository.ReminderRepository
 import com.mountaincrab.crabdo.preferences.UserPreferencesRepository
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -21,10 +22,15 @@ class BoardListViewModel(
     private val authRepository: AuthRepository,
     private val prefsRepository: UserPreferencesRepository,
     private val invitationRepository: InvitationRepository,
-    private val workManager: WorkManager
+    private val workManager: WorkManager,
+    private val reminderRepository: ReminderRepository,
 ) : ViewModel() {
 
     private val userId = authRepository.currentUserId ?: ""
+
+    init {
+        if (userId.isNotEmpty()) reminderRepository.startFirestoreListener(userId)
+    }
 
     val boards: StateFlow<List<BoardEntity>> =
         boardRepository.observeBoards(userId)
@@ -96,5 +102,10 @@ class BoardListViewModel(
                 android.util.Log.e("BoardListVM", "Failed to send invitation", e)
             }
         }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        reminderRepository.stopFirestoreListener()
     }
 }

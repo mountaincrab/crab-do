@@ -4,6 +4,7 @@ import LoginPage from './pages/LoginPage'
 import BoardListPage from './pages/BoardListPage'
 import KanbanBoardPage from './pages/KanbanBoardPage'
 import TaskDetailPage from './pages/TaskDetailPage'
+import RemindersPage from './pages/RemindersPage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -22,6 +23,7 @@ function AppRoutes() {
       <Route path="/" element={<ProtectedRoute><BoardListPage /></ProtectedRoute>} />
       <Route path="/board/:boardId" element={<ProtectedRoute><KanbanBoardPage /></ProtectedRoute>} />
       <Route path="/board/:boardId/task/:taskId" element={<ProtectedRoute><TaskDetailPage /></ProtectedRoute>} />
+      <Route path="/reminders" element={<ProtectedRoute><RemindersPage /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

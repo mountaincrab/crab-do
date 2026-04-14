@@ -7,6 +7,7 @@ import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
+import com.mountaincrab.crabdo.alarm.AlarmScheduler
 import com.mountaincrab.crabdo.data.local.dao.*
 import com.mountaincrab.crabdo.data.local.entity.BoardAccessEntity
 import com.mountaincrab.crabdo.data.model.SyncStatus
@@ -25,6 +26,7 @@ class SyncWorker(
     private val taskDao: TaskDao by inject()
     private val subtaskDao: SubtaskDao by inject()
     private val reminderDao: ReminderDao by inject()
+    private val alarmScheduler: AlarmScheduler by inject()
     private val boardAccessDao: BoardAccessDao by inject()
     private val firestore: FirebaseFirestore by inject()
     private val auth: FirebaseAuth by inject()
@@ -160,7 +162,14 @@ class SyncWorker(
         userRef.collection("reminders")
             .whereGreaterThan("updatedAt", sinceTimestamp)
             .get().await().documents.forEach { doc ->
-                reminderDao.upsert(doc.toReminderEntity(userId).copy(syncStatus = SyncStatus.SYNCED))
+                val reminder = doc.toReminderEntity(userId).copy(syncStatus = SyncStatus.SYNCED)
+                reminderDao.upsert(reminder)
+                // Schedule alarm for active reminders pulled from remote (e.g. created on web app)
+                if (reminder.isEnabled && !reminder.isCompleted && !reminder.isDeleted &&
+                    reminder.nextTriggerMillis > System.currentTimeMillis()
+                ) {
+                    alarmScheduler.scheduleReminder(reminder)
+                }
             }
 
         prefs.setLastSyncTimestamp(System.currentTimeMillis())

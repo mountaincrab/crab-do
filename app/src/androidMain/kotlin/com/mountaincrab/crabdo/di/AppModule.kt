@@ -68,7 +68,7 @@ val appModule = module {
     single {
         ReminderRepository(
             reminderDao = get(), alarmScheduler = get(), workManager = get(),
-            firebaseAuth = get(), context = androidContext()
+            firebaseAuth = get(), firestore = get(), context = androidContext()
         )
     }
     single { AuthRepository(auth = get(), database = get(), userPreferences = get()) }
@@ -85,7 +85,8 @@ val appModule = module {
     viewModel {
         BoardListViewModel(
             boardRepository = get(), authRepository = get(),
-            prefsRepository = get(), invitationRepository = get(), workManager = get()
+            prefsRepository = get(), invitationRepository = get(),
+            workManager = get(), reminderRepository = get()
         )
     }
     viewModel { (boardId: String) ->
