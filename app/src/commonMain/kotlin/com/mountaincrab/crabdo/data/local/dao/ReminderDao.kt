@@ -28,6 +28,9 @@ interface ReminderDao {
     @Query("SELECT * FROM reminders WHERE syncStatus != 'SYNCED' AND isDeleted = 0")
     suspend fun getUnsyncedReminders(): List<ReminderEntity>
 
+    @Query("SELECT * FROM reminders WHERE syncStatus != 'SYNCED' AND isDeleted = 1")
+    suspend fun getDeletedUnsyncedReminders(): List<ReminderEntity>
+
     @Query("UPDATE reminders SET syncStatus = 'SYNCED' WHERE id = :reminderId")
     suspend fun markSynced(reminderId: String)
 

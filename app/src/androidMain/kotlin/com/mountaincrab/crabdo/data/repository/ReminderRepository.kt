@@ -146,6 +146,14 @@ class ReminderRepository(
                             DocumentChange.Type.ADDED, DocumentChange.Type.MODIFIED -> {
                                 val reminder = change.document.toReminderEntity(userId)
                                     .copy(syncStatus = SyncStatus.SYNCED)
+                                // Don't overwrite local pending changes — the local version is
+                                // authoritative until WorkManager pushes it to Firestore.
+                                // This prevents a pending local deletion from being resurrected
+                                // by a stale Firestore snapshot on app restart.
+                                val existing = reminderDao.getReminderById(reminder.id)
+                                if (existing != null && existing.syncStatus == SyncStatus.PENDING) {
+                                    continue
+                                }
                                 reminderDao.upsert(reminder)
                                 if (reminder.isEnabled && !reminder.isCompleted &&
                                     reminder.nextTriggerMillis > System.currentTimeMillis()
@@ -156,8 +164,10 @@ class ReminderRepository(
                                 }
                             }
                             DocumentChange.Type.REMOVED -> {
-                                // Soft-delete means we won't see true removals, but cancel the alarm
+                                // Doc left the isDeleted==false query — deleted remotely (e.g. web app).
+                                // Cancel the alarm and mark deleted locally too.
                                 alarmScheduler.cancelReminder(change.document.id)
+                                reminderDao.softDelete(change.document.id)
                             }
                         }
                     }

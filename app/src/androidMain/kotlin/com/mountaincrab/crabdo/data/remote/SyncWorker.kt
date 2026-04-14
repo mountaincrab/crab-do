@@ -101,6 +101,11 @@ class SyncWorker(
                 .set(reminder.toFirestoreMap(), SetOptions.merge()).await()
             reminderDao.markSynced(reminder.id)
         }
+        reminderDao.getDeletedUnsyncedReminders().forEach { reminder ->
+            userRef.collection("reminders").document(reminder.id)
+                .set(reminder.toFirestoreMap(), SetOptions.merge()).await()
+            reminderDao.markSynced(reminder.id)
+        }
     }
 
     private suspend fun pullRemoteChanges(userId: String) {
@@ -169,6 +174,8 @@ class SyncWorker(
                     reminder.nextTriggerMillis > System.currentTimeMillis()
                 ) {
                     alarmScheduler.scheduleReminder(reminder)
+                } else {
+                    alarmScheduler.cancelReminder(reminder.id)
                 }
             }
 
