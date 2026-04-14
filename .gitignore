@@ -9,6 +9,7 @@
 .externalNativeBuild
 .cxx
 local.properties
+google-services.json
 
 # Gradle wrapper jar (regenerate with: gradle wrapper --gradle-version 8.9)
 gradle/wrapper/gradle-wrapper.jar
