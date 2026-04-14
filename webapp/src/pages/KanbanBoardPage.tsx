@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useBoard } from '../hooks/useBoard'
@@ -18,6 +18,7 @@ export default function KanbanBoardPage() {
   const [newColTitle, setNewColTitle] = useState('')
   const [renamingCol, setRenamingCol] = useState<Column | null>(null)
   const [renameValue, setRenameValue] = useState('')
+  const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null)
 
   if (loading) {
     return (
@@ -63,6 +64,9 @@ export default function KanbanBoardPage() {
               column={col}
               tasks={tasksByColumn[col.id] ?? []}
               allColumns={columns}
+              draggingTaskId={draggingTaskId}
+              onDragStart={(taskId) => setDraggingTaskId(taskId)}
+              onDragEnd={() => setDraggingTaskId(null)}
               onAddTask={(title, desc) => addTask(col.id, title, desc)}
               onMoveTask={moveTask}
               onDeleteTask={deleteTask}
@@ -137,14 +141,39 @@ export default function KanbanBoardPage() {
   )
 }
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Compute a new order value for inserting at gap index `gap` in `tasks`. */
+function orderForGap(gap: number, tasks: Task[]): number {
+  const prev = tasks[gap - 1]
+  const next = tasks[gap]
+  if (!prev && !next) return 1
+  if (!prev) return next.order - 1
+  if (!next) return prev.order + 1
+  return (prev.order + next.order) / 2
+}
+
+// ─── Drop indicator ──────────────────────────────────────────────────────────
+
+function DropIndicator() {
+  return (
+    <div className="py-0.5 pointer-events-none">
+      <div className="h-[3px] w-full rounded-full bg-[#4F7CFF]" />
+    </div>
+  )
+}
+
 // ─── Column component ────────────────────────────────────────────────────────
 
 interface ColumnViewProps {
   column: Column
   tasks: Task[]
   allColumns: Column[]
+  draggingTaskId: string | null
+  onDragStart: (taskId: string) => void
+  onDragEnd: () => void
   onAddTask: (title: string, description: string) => void
-  onMoveTask: (taskId: string, targetColumnId: string) => void
+  onMoveTask: (taskId: string, targetColumnId: string, newOrder: number) => void
   onDeleteTask: (taskId: string) => void
   onRename: () => void
   onDelete: () => void
@@ -153,6 +182,8 @@ interface ColumnViewProps {
 
 function KanbanColumnView({
   column, tasks, allColumns,
+  draggingTaskId,
+  onDragStart, onDragEnd,
   onAddTask, onMoveTask, onDeleteTask,
   onRename, onDelete, onTaskClick,
 }: ColumnViewProps) {
@@ -160,6 +191,48 @@ function KanbanColumnView({
   const [newTaskTitle, setNewTaskTitle] = useState('')
   const [newTaskDesc, setNewTaskDesc] = useState('')
   const [showColMenu, setShowColMenu] = useState(false)
+  const [hoverGap, setHoverGap] = useState<number | null>(null)
+  const tasksRef = useRef<HTMLDivElement>(null)
+
+  // Hide the dragged card from this column's visible list so gaps close around it
+  const visibleTasks = draggingTaskId
+    ? tasks.filter((t) => t.id !== draggingTaskId)
+    : tasks
+
+  const isDragging = draggingTaskId !== null
+
+  const getGapFromEvent = (e: React.DragEvent): number => {
+    const cards = tasksRef.current?.querySelectorAll('[data-task-card]') ?? []
+    for (let i = 0; i < cards.length; i++) {
+      const rect = cards[i].getBoundingClientRect()
+      if (e.clientY < rect.top + rect.height / 2) return i
+    }
+    return cards.length
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    if (!isDragging) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setHoverGap(getGapFromEvent(e))
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setHoverGap(null)
+    }
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    const taskId = e.dataTransfer.getData('taskId')
+    const gap = getGapFromEvent(e)
+    setHoverGap(null)
+    if (taskId) {
+      onMoveTask(taskId, column.id, orderForGap(gap, visibleTasks))
+    }
+    onDragEnd()
+  }
 
   const handleAddTask = async () => {
     if (!newTaskTitle.trim()) return
@@ -170,7 +243,14 @@ function KanbanColumnView({
   }
 
   return (
-    <div className="shrink-0 w-64 flex flex-col gap-2">
+    <div
+      className={`shrink-0 w-64 flex flex-col gap-2 rounded-xl p-1 transition-colors ${
+        isDragging && hoverGap !== null ? 'bg-indigo-500/5 ring-1 ring-[#4F7CFF]/30' : ''
+      }`}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       {/* Column header */}
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2">
@@ -203,18 +283,28 @@ function KanbanColumnView({
         </div>
       </div>
 
-      {/* Tasks */}
-      <div className="flex flex-col gap-2">
-        {tasks.map((task) => (
-          <TaskCardView
-            key={task.id}
-            task={task}
-            allColumns={allColumns}
-            onMove={onMoveTask}
-            onDelete={onDeleteTask}
-            onClick={() => onTaskClick(task.id)}
-          />
+      {/* Tasks with inline drop indicators */}
+      <div ref={tasksRef} className="flex flex-col gap-2">
+        {visibleTasks.map((task, i) => (
+          <div key={task.id}>
+            {isDragging && hoverGap === i && <DropIndicator />}
+            <TaskCardView
+              task={task}
+              allColumns={allColumns}
+              onDragStart={onDragStart}
+              onDragEnd={onDragEnd}
+              onMove={(taskId, colId) => onMoveTask(taskId, colId, orderForGap(visibleTasks.length, tasks.filter((t) => t.columnId === colId && t.id !== taskId)))}
+              onDelete={onDeleteTask}
+              onClick={() => onTaskClick(task.id)}
+            />
+          </div>
         ))}
+        {isDragging && hoverGap === visibleTasks.length && <DropIndicator />}
+        {isDragging && visibleTasks.length === 0 && hoverGap === null && (
+          <div className="h-16 rounded-lg border-2 border-dashed border-[#4F7CFF]/25 flex items-center justify-center text-xs text-[#4F7CFF]/40">
+            Drop here
+          </div>
+        )}
       </div>
 
       {/* Add task */}
@@ -257,19 +347,33 @@ function KanbanColumnView({
 interface TaskCardProps {
   task: Task
   allColumns: Column[]
+  onDragStart: (taskId: string) => void
+  onDragEnd: () => void
   onMove: (taskId: string, columnId: string) => void
   onDelete: (taskId: string) => void
   onClick: () => void
 }
 
-function TaskCardView({ task, allColumns, onMove, onDelete, onClick }: TaskCardProps) {
+function TaskCardView({ task, allColumns, onDragStart, onDragEnd, onMove, onDelete, onClick }: TaskCardProps) {
   const [showMenu, setShowMenu] = useState(false)
   const [showMoveMenu, setShowMoveMenu] = useState(false)
   const otherColumns = allColumns.filter((c) => c.id !== task.columnId)
 
+  const handleDragStart = (e: React.DragEvent) => {
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('taskId', task.id)
+    e.dataTransfer.setData('sourceColumnId', task.columnId)
+    // Delay so browser captures ghost before card is hidden from source column
+    setTimeout(() => onDragStart(task.id), 0)
+  }
+
   return (
     <div
-      className="bg-surface-raised hover:bg-surface-high rounded-xl p-3 cursor-pointer transition-colors relative group"
+      data-task-card
+      draggable
+      onDragStart={handleDragStart}
+      onDragEnd={onDragEnd}
+      className="bg-surface-raised hover:bg-surface-high rounded-xl p-3 cursor-grab active:cursor-grabbing transition-colors relative group select-none"
       onClick={onClick}
     >
       <p className="text-sm text-white leading-snug">{task.title}</p>

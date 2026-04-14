@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   collection, query, where, onSnapshot,
-  addDoc, serverTimestamp, orderBy,
+  addDoc, serverTimestamp,
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import { Board } from '../types'
@@ -14,10 +14,12 @@ export function useBoards(userId: string) {
     const q = query(
       collection(db, 'users', userId, 'boards'),
       where('isDeleted', '==', false),
-      orderBy('createdAt', 'desc'),
     )
     return onSnapshot(q, (snap) => {
-      setBoards(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Board)))
+      const sorted = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() } as Board))
+        .sort((a, b) => b.createdAt - a.createdAt)
+      setBoards(sorted)
       setLoading(false)
     })
   }, [userId])

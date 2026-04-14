@@ -103,12 +103,10 @@ export function useBoard(userId: string, boardId: string) {
     })
   }
 
-  const moveTask = async (taskId: string, targetColumnId: string) => {
-    const targetTasks = tasks.filter((t) => t.columnId === targetColumnId && t.id !== taskId)
-    const maxOrder = targetTasks.length > 0 ? Math.max(...targetTasks.map((t) => t.order)) : 0
+  const moveTask = async (taskId: string, targetColumnId: string, newOrder: number) => {
     await updateDoc(
       doc(db, 'users', userId, 'boards', boardId, 'tasks', taskId),
-      { columnId: targetColumnId, order: maxOrder + 1, updatedAt: serverTimestamp() },
+      { columnId: targetColumnId, order: newOrder, updatedAt: serverTimestamp() },
     )
   }
 
