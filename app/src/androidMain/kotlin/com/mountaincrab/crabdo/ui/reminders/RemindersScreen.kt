@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -34,6 +35,7 @@ fun RemindersScreen(
 ) {
     val reminders by viewModel.reminders.collectAsStateWithLifecycle()
     val completedReminders by viewModel.completedReminders.collectAsStateWithLifecycle()
+    val isSyncing by viewModel.isSyncing.collectAsStateWithLifecycle()
     var showCompleted by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -52,9 +54,14 @@ fun RemindersScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { scaffoldPadding ->
+        PullToRefreshBox(
+            isRefreshing = isSyncing,
+            onRefresh = { viewModel.sync() },
+            modifier = Modifier.fillMaxSize().padding(scaffoldPadding)
+        ) {
         if (reminders.isEmpty() && completedReminders.isEmpty()) {
             Box(
-                modifier = Modifier.fillMaxSize().padding(scaffoldPadding),
+                modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -82,7 +89,7 @@ fun RemindersScreen(
             val pastReminders = reminders.filter { it.nextTriggerMillis < todayStart }
 
             LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(scaffoldPadding),
+                modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 88.dp)
             ) {
                 if (todayReminders.isNotEmpty()) {
@@ -132,6 +139,7 @@ fun RemindersScreen(
                 }
             }
         }
+        } // end PullToRefreshBox
     }
 }
 

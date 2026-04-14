@@ -177,6 +177,8 @@ class ReminderRepository(
         } catch (_: Exception) {}
     }
 
+    fun triggerSync() = enqueueSyncWork()
+
     private fun enqueueSyncWork() {
         val request = OneTimeWorkRequestBuilder<SyncWorker>()
             .setConstraints(Constraints(requiredNetworkType = NetworkType.CONNECTED))
