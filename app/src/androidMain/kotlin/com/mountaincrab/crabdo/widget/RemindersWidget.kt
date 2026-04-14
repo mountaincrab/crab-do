@@ -14,6 +14,7 @@ import androidx.glance.action.clickable
 import androidx.glance.GlanceId
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.action.actionStartActivity
+import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.lazy.LazyColumn
 import androidx.glance.appwidget.lazy.items
 import androidx.glance.appwidget.provideContent
@@ -56,10 +57,13 @@ class RemindersWidget : GlanceAppWidget() {
 
 @Composable
 private fun WidgetContent(context: Context, reminders: List<ReminderEntity>, isDark: Boolean) {
-    val bgColor = ColorProvider(Color(0xFF0A1020))
+    // Semi-transparent blue body; fully opaque darker header
+    val bodyBg    = ColorProvider(Color(0x991A2A6E)) // ~60% opaque blue
+    val headerBg  = ColorProvider(Color(0xFF0D1840)) // solid dark navy
     val textColor = ColorProvider(Color(0xFFF3F4F6))
     val subtextColor = ColorProvider(Color(0xFF9CA3AF))
-    val accentColor = ColorProvider(Color(0xFF4F7CFF))
+    val accentColor  = ColorProvider(Color(0xFF4F7CFF))
+    val dividerColor = ColorProvider(Color(0x22FFFFFF)) // very faint white divider
 
     val addIntent = Intent(context, MainActivity::class.java).apply {
         putExtra("open_add_reminder", true)
@@ -69,11 +73,14 @@ private fun WidgetContent(context: Context, reminders: List<ReminderEntity>, isD
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
-            .background(bgColor)
-            .padding(8.dp)
+            .background(bodyBg)
     ) {
+        // ── Header ───────────────────────────────────────────────────────────
         Row(
-            modifier = GlanceModifier.fillMaxWidth().padding(bottom = 4.dp),
+            modifier = GlanceModifier
+                .fillMaxWidth()
+                .background(headerBg)
+                .padding(horizontal = 10.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
@@ -85,19 +92,27 @@ private fun WidgetContent(context: Context, reminders: List<ReminderEntity>, isD
                 ),
                 modifier = GlanceModifier.defaultWeight()
             )
-            Text(
-                text = "+",
-                style = TextStyle(
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 22.sp,
-                    color = accentColor
-                ),
+            // Add button — styled as a small accent pill
+            Box(
                 modifier = GlanceModifier
-                    .clickable(actionStartActivity(addIntent))
-                    .padding(horizontal = 4.dp)
-            )
+                    .background(accentColor)
+                    .cornerRadius(6.dp)
+                    .padding(horizontal = 9.dp, vertical = 3.dp)
+                    .clickable(actionStartActivity(addIntent)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "+",
+                    style = TextStyle(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = ColorProvider(Color.White)
+                    )
+                )
+            }
         }
 
+        // ── Content ───────────────────────────────────────────────────────────
         if (reminders.isEmpty()) {
             Box(
                 modifier = GlanceModifier.fillMaxSize(),
@@ -119,6 +134,7 @@ private fun WidgetContent(context: Context, reminders: List<ReminderEntity>, isD
                         reminder = reminder,
                         textColor = textColor,
                         subtextColor = subtextColor,
+                        dividerColor = dividerColor,
                         modifier = GlanceModifier.clickable(actionStartActivity(editIntent))
                     )
                 }
@@ -132,6 +148,7 @@ private fun ReminderWidgetRow(
     reminder: ReminderEntity,
     textColor: ColorProvider,
     subtextColor: ColorProvider,
+    dividerColor: ColorProvider,
     modifier: GlanceModifier = GlanceModifier
 ) {
     val now = System.currentTimeMillis()
@@ -141,25 +158,37 @@ private fun ReminderWidgetRow(
     val prefix = if (isSnoozed) "💤 " else ""
 
     Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 3.dp)
+        modifier = modifier.fillMaxWidth()
     ) {
-        Text(
-            text = reminder.title,
-            style = TextStyle(
-                fontWeight = FontWeight.Medium,
-                fontSize = 13.sp,
-                color = textColor
-            ),
-            maxLines = 1
-        )
-        Text(
-            text = "$prefix$timeStr",
-            style = TextStyle(
-                fontSize = 11.sp,
-                color = subtextColor
+        // Faint separator line above each row
+        Box(
+            modifier = GlanceModifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(dividerColor)
+        ) {}
+
+        Column(
+            modifier = GlanceModifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 4.dp)
+        ) {
+            Text(
+                text = reminder.title,
+                style = TextStyle(
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 13.sp,
+                    color = textColor
+                ),
+                maxLines = 1
             )
-        )
+            Text(
+                text = "$prefix$timeStr",
+                style = TextStyle(
+                    fontSize = 11.sp,
+                    color = subtextColor
+                )
+            )
+        }
     }
 }
