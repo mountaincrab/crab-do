@@ -86,6 +86,10 @@ class TaskDetailViewModel(
         viewModelScope.launch { subtaskRepository.deleteSubtask(subtaskId) }
     }
 
+    fun reorderSubtask(subtaskId: String, orderBefore: Double, orderAfter: Double) {
+        viewModelScope.launch { subtaskRepository.reorderSubtask(subtaskId, orderBefore, orderAfter) }
+    }
+
     fun deleteTask(onDeleted: () -> Unit) {
         viewModelScope.launch {
             taskRepository.deleteTask(taskId)

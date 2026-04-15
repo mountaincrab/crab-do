@@ -13,6 +13,9 @@ interface SubtaskDao {
     @Query("SELECT * FROM subtasks WHERE taskId = :taskId AND isDeleted = 0 ORDER BY `order`")
     suspend fun getSubtasksByTask(taskId: String): List<SubtaskEntity>
 
+    @Query("SELECT * FROM subtasks WHERE id = :subtaskId")
+    suspend fun getSubtaskById(subtaskId: String): SubtaskEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(subtask: SubtaskEntity)
 

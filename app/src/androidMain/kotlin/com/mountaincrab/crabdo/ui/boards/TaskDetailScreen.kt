@@ -1,8 +1,14 @@
 package com.mountaincrab.crabdo.ui.boards
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.draganddrop.dragAndDropSource
+import androidx.compose.foundation.draganddrop.dragAndDropTarget
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
@@ -14,8 +20,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draganddrop.DragAndDropEvent
+import androidx.compose.ui.draganddrop.DragAndDropTarget
+import androidx.compose.ui.draganddrop.DragAndDropTransferData
+import androidx.compose.ui.draganddrop.toAndroidDragEvent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -31,7 +42,7 @@ import java.util.TimeZone
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun TaskDetailScreen(
     taskId: String,
@@ -46,6 +57,11 @@ fun TaskDetailScreen(
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showReminderDialog by remember { mutableStateOf(false) }
     var showAddSubtaskSheet by remember { mutableStateOf(false) }
+    var draggedSubtaskId by remember { mutableStateOf<String?>(null) }
+    var subtaskHoverIndex by remember { mutableStateOf<Int?>(null) }
+    val visibleSubtasks = remember(subtasks, draggedSubtaskId) {
+        subtasks.filter { it.id != draggedSubtaskId }
+    }
 
     Scaffold(
         topBar = {
@@ -160,12 +176,81 @@ fun TaskDetailScreen(
                     }
                 }
             }
-            items(subtasks, key = { it.id }) { subtask ->
-                SubtaskItem(
-                    subtask = subtask,
-                    onToggle = { viewModel.toggleSubtask(subtask.id, it) },
-                    onDelete = { viewModel.deleteSubtask(subtask.id) }
-                )
+            itemsIndexed(visibleSubtasks, key = { _, s -> s.id }) { index, subtask ->
+                val insertBeforeTarget = remember(subtask.id, index, visibleSubtasks) {
+                    object : DragAndDropTarget {
+                        override fun onDrop(event: DragAndDropEvent): Boolean {
+                            val draggedId = event.toAndroidDragEvent()
+                                .clipData?.getItemAt(0)?.text?.toString() ?: return false
+                            if (draggedId == subtask.id) return false
+                            val prevOrder = visibleSubtasks.getOrNull(index - 1)?.order
+                                ?: (subtask.order - 2.0)
+                            viewModel.reorderSubtask(draggedId, prevOrder, subtask.order)
+                            subtaskHoverIndex = null
+                            draggedSubtaskId = null
+                            return true
+                        }
+                        override fun onEntered(event: DragAndDropEvent) { subtaskHoverIndex = index }
+                        override fun onEnded(event: DragAndDropEvent) { subtaskHoverIndex = null }
+                    }
+                }
+                Column {
+                    SubtaskDropIndicator(visible = subtaskHoverIndex == index)
+                    SubtaskItem(
+                        subtask = subtask,
+                        onToggle = { viewModel.toggleSubtask(subtask.id, it) },
+                        onDelete = { viewModel.deleteSubtask(subtask.id) },
+                        dragHandleModifier = Modifier
+                            .dragAndDropSource {
+                                detectTapGestures(
+                                    onLongPress = {
+                                        draggedSubtaskId = subtask.id
+                                        startTransfer(
+                                            DragAndDropTransferData(
+                                                clipData = android.content.ClipData.newPlainText(
+                                                    "subtaskId", subtask.id
+                                                )
+                                            )
+                                        )
+                                    }
+                                )
+                            },
+                        modifier = Modifier.dragAndDropTarget(
+                            shouldStartDragAndDrop = { true },
+                            target = insertBeforeTarget
+                        )
+                    )
+                }
+            }
+            // Trailing drop target: append after all subtasks
+            item {
+                val appendTarget = remember(visibleSubtasks) {
+                    object : DragAndDropTarget {
+                        override fun onDrop(event: DragAndDropEvent): Boolean {
+                            val draggedId = event.toAndroidDragEvent()
+                                .clipData?.getItemAt(0)?.text?.toString() ?: return false
+                            val maxOrder = visibleSubtasks.maxOfOrNull { it.order } ?: 0.0
+                            viewModel.reorderSubtask(draggedId, maxOrder, maxOrder + 2.0)
+                            subtaskHoverIndex = null
+                            draggedSubtaskId = null
+                            return true
+                        }
+                        override fun onEntered(event: DragAndDropEvent) {
+                            subtaskHoverIndex = visibleSubtasks.size
+                        }
+                        override fun onEnded(event: DragAndDropEvent) { subtaskHoverIndex = null }
+                    }
+                }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(24.dp)
+                        .dragAndDropTarget(shouldStartDragAndDrop = { true }, target = appendTarget)
+                ) {
+                    SubtaskDropIndicator(
+                        visible = subtaskHoverIndex == visibleSubtasks.size && draggedSubtaskId != null
+                    )
+                }
             }
         }
     }
@@ -340,6 +425,13 @@ private fun AddSubtaskSheet(
 ) {
     var text by remember { mutableStateOf("") }
     val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    // Single back press closes both the keyboard and the sheet
+    BackHandler(enabled = true) {
+        keyboardController?.hide()
+        onDismiss()
+    }
 
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
@@ -388,6 +480,19 @@ private fun AddSubtaskSheet(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun SubtaskDropIndicator(visible: Boolean) {
+    if (visible) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 1.dp)
+                .height(2.dp)
+                .background(MaterialTheme.colorScheme.primary)
+        )
     }
 }
 

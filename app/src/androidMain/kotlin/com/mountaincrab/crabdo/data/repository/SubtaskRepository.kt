@@ -35,6 +35,18 @@ class SubtaskRepository(
         enqueueSyncWork()
     }
 
+    suspend fun reorderSubtask(subtaskId: String, orderBefore: Double, orderAfter: Double) {
+        val subtask = subtaskDao.getSubtaskById(subtaskId) ?: return
+        val newOrder = if (orderAfter <= orderBefore) orderBefore + 1.0
+                       else (orderBefore + orderAfter) / 2.0
+        subtaskDao.upsert(subtask.copy(
+            order = newOrder,
+            updatedAt = System.currentTimeMillis(),
+            syncStatus = SyncStatus.PENDING
+        ))
+        enqueueSyncWork()
+    }
+
     suspend fun deleteSubtask(subtaskId: String) {
         subtaskDao.softDelete(subtaskId)
         enqueueSyncWork()
