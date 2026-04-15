@@ -7,6 +7,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.mountaincrab.crabdo.data.local.entity.SubtaskEntity
 
@@ -20,6 +22,7 @@ fun SubtaskItem(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .alpha(if (subtask.isCompleted) 0.45f else 1f)
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -29,7 +32,10 @@ fun SubtaskItem(
         )
         Text(
             text = subtask.title,
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodyMedium.copy(
+                textDecoration = if (subtask.isCompleted) TextDecoration.LineThrough
+                                 else TextDecoration.None
+            ),
             modifier = Modifier.weight(1f).padding(start = 8.dp)
         )
         IconButton(onClick = onDelete) {

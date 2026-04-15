@@ -13,6 +13,7 @@ import com.mountaincrab.crabdo.preferences.UserPreferencesRepository
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -42,6 +43,7 @@ class TaskDetailViewModel(
 
     val subtasks: StateFlow<List<SubtaskEntity>> =
         subtaskRepository.observeSubtasks(taskId)
+            .map { list -> list.sortedWith(compareBy({ it.isCompleted }, { it.order })) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun updateTitle(title: String) {

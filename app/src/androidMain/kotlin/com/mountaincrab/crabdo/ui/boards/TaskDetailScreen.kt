@@ -4,7 +4,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsOff
@@ -12,6 +14,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
@@ -36,9 +43,9 @@ fun TaskDetailScreen(
 
     var titleText by remember(task?.title) { mutableStateOf(task?.title ?: "") }
     var descriptionText by remember(task?.description) { mutableStateOf(task?.description ?: "") }
-    var newSubtaskTitle by remember { mutableStateOf("") }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showReminderDialog by remember { mutableStateOf(false) }
+    var showAddSubtaskSheet by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -135,8 +142,23 @@ fun TaskDetailScreen(
             item {
                 HorizontalDivider()
                 Spacer(Modifier.height(4.dp))
-                Text("Checklist", style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Checklist",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = { showAddSubtaskSheet = true }) {
+                        Icon(Icons.Default.Add, contentDescription = null,
+                            modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Add subtask")
+                    }
+                }
             }
             items(subtasks, key = { it.id }) { subtask ->
                 SubtaskItem(
@@ -144,29 +166,6 @@ fun TaskDetailScreen(
                     onToggle = { viewModel.toggleSubtask(subtask.id, it) },
                     onDelete = { viewModel.deleteSubtask(subtask.id) }
                 )
-            }
-            item {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    OutlinedTextField(
-                        value = newSubtaskTitle,
-                        onValueChange = { newSubtaskTitle = it },
-                        placeholder = { Text("Add item") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    TextButton(
-                        onClick = {
-                            if (newSubtaskTitle.isNotBlank()) {
-                                viewModel.addSubtask(newSubtaskTitle.trim())
-                                newSubtaskTitle = ""
-                            }
-                        }
-                    ) { Text("Add") }
-                }
             }
         }
     }
@@ -198,6 +197,13 @@ fun TaskDetailScreen(
                 showReminderDialog = false
             },
             onDismiss = { showReminderDialog = false }
+        )
+    }
+
+    if (showAddSubtaskSheet) {
+        AddSubtaskSheet(
+            onAdd = { title -> viewModel.addSubtask(title) },
+            onDismiss = { showAddSubtaskSheet = false }
         )
     }
 }
@@ -323,6 +329,65 @@ private fun TaskReminderDialog(
             },
             onDismiss = { showTimePicker = false }
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AddSubtaskSheet(
+    onAdd: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var text by remember { mutableStateOf("") }
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 24.dp)
+                .imePadding(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                placeholder = { Text("Subtask name") },
+                modifier = Modifier
+                    .weight(1f)
+                    .focusRequester(focusRequester),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        if (text.isNotBlank()) {
+                            onAdd(text.trim())
+                            text = ""
+                        }
+                    }
+                )
+            )
+            Spacer(Modifier.width(8.dp))
+            IconButton(
+                onClick = {
+                    if (text.isNotBlank()) {
+                        onAdd(text.trim())
+                        text = ""
+                    }
+                },
+                enabled = text.isNotBlank()
+            ) {
+                Icon(
+                    Icons.Default.Check,
+                    contentDescription = "Add subtask",
+                    tint = if (text.isNotBlank()) MaterialTheme.colorScheme.primary
+                           else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                )
+            }
+        }
     }
 }
 
