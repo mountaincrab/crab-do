@@ -3,7 +3,9 @@ package com.mountaincrab.crabdo.ui.boards
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.draganddrop.dragAndDropSource
 import androidx.compose.foundation.draganddrop.dragAndDropTarget
 import androidx.compose.foundation.layout.*
@@ -24,6 +26,8 @@ import androidx.compose.ui.draganddrop.DragAndDropEvent
 import androidx.compose.ui.draganddrop.DragAndDropTarget
 import androidx.compose.ui.draganddrop.DragAndDropTransferData
 import androidx.compose.ui.draganddrop.toAndroidDragEvent
+import androidx.compose.ui.input.pointer.PointerEventPass
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -210,10 +214,16 @@ fun TaskDetailScreen(
                                 target = insertBeforeTarget
                             )
                             .dragAndDropSource {
-                                detectTapGestures(
-                                    onLongPress = {
+                                val dragSource = this
+                                awaitPointerEventScope {
+                                    // Initial pass intercepts before Checkbox/clickable children
+                                    awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                                    val released = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                                        waitForUpOrCancellation()
+                                    }
+                                    if (released == null) {
                                         draggedSubtaskId = subtask.id
-                                        startTransfer(
+                                        dragSource.startTransfer(
                                             DragAndDropTransferData(
                                                 clipData = android.content.ClipData.newPlainText(
                                                     "subtaskId", subtask.id
@@ -221,7 +231,7 @@ fun TaskDetailScreen(
                                             )
                                         )
                                     }
-                                )
+                                }
                             }
                     )
                 }

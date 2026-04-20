@@ -165,7 +165,7 @@ fun KanbanColumn(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(32.dp)
+                        .height(if (draggedTaskId != null) 32.dp else 0.dp)
                         .dragAndDropTarget(shouldStartDragAndDrop = { true }, target = trailingTarget)
                 ) {
                     DropIndicator(visible = hoverIndex == visibleTasks.size && draggedTaskId != null)

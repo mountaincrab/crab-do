@@ -17,12 +17,15 @@ import androidx.compose.material3.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
@@ -320,7 +323,7 @@ internal fun TimePickerDialog(
         },
         text = {
             if (isKeyboardMode) {
-                TimeInput(state = state)
+                KeyboardTimeInput(state = state)
             } else {
                 TimePicker(state = state)
             }
@@ -328,6 +331,47 @@ internal fun TimePickerDialog(
         confirmButton = { TextButton(onClick = onConfirm) { Text("OK") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun KeyboardTimeInput(state: TimePickerState) {
+    var hourText by remember { mutableStateOf(state.hour.toString().padStart(2, '0')) }
+    var minuteText by remember { mutableStateOf(state.minute.toString().padStart(2, '0')) }
+
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(top = 8.dp)
+    ) {
+        OutlinedTextField(
+            value = hourText,
+            onValueChange = { v ->
+                val digits = v.filter { it.isDigit() }.take(2)
+                hourText = digits
+                digits.toIntOrNull()?.takeIf { it in 0..23 }?.let { state.hour = it }
+            },
+            label = { Text("HH") },
+            modifier = Modifier.weight(1f),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+            singleLine = true,
+            textStyle = MaterialTheme.typography.headlineMedium.copy(textAlign = TextAlign.Center)
+        )
+        Text(":", style = MaterialTheme.typography.headlineLarge)
+        OutlinedTextField(
+            value = minuteText,
+            onValueChange = { v ->
+                val digits = v.filter { it.isDigit() }.take(2)
+                minuteText = digits
+                digits.toIntOrNull()?.takeIf { it in 0..59 }?.let { state.minute = it }
+            },
+            label = { Text("MM") },
+            modifier = Modifier.weight(1f),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+            singleLine = true,
+            textStyle = MaterialTheme.typography.headlineMedium.copy(textAlign = TextAlign.Center)
+        )
+    }
 }
 
 private fun localDateToUtcMidnight(localMillis: Long): Long {
