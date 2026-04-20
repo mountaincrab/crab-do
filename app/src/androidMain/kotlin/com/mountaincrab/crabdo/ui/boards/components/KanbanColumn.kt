@@ -1,5 +1,6 @@
 package com.mountaincrab.crabdo.ui.boards.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -72,7 +73,6 @@ fun KanbanColumn(
 
     Column(
         modifier = modifier
-            .width(280.dp)
             .fillMaxHeight(0.9f)
             .dragAndDropTarget(shouldStartDragAndDrop = { true }, target = appendDropTarget)
     ) {
@@ -172,9 +172,16 @@ fun KanbanColumn(
                 }
             }
             item {
-                TextButton(
+                OutlinedButton(
                     onClick = { showAddCardDialog = true },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp, vertical = 4.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        contentColor = MaterialTheme.colorScheme.onSurface
+                    )
                 ) {
                     Icon(
                         Icons.Default.Add,
@@ -182,7 +189,7 @@ fun KanbanColumn(
                         tint = MaterialTheme.colorScheme.primary
                     )
                     Spacer(Modifier.width(4.dp))
-                    Text("Add card")
+                    Text("Add task")
                 }
             }
         }

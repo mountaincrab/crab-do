@@ -1,8 +1,11 @@
 package com.mountaincrab.crabdo.ui.boards
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
@@ -58,10 +61,14 @@ fun KanbanBoardScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
+            val lazyRowState = rememberLazyListState()
+            val snapBehavior = rememberSnapFlingBehavior(lazyRowState)
             LazyRow(
+                state = lazyRowState,
+                flingBehavior = snapBehavior,
                 modifier = Modifier.fillMaxSize(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
             ) {
                 items(columns, key = { it.id }) { column ->
                     KanbanColumn(
@@ -84,7 +91,8 @@ fun KanbanBoardScreen(
                         },
                         onReorder = { taskId, orderBefore, orderAfter ->
                             viewModel.moveTask(taskId, column.id, orderBefore, orderAfter)
-                        }
+                        },
+                        modifier = Modifier.fillParentMaxWidth(0.92f)
                     )
                 }
                 item {
@@ -112,13 +120,18 @@ private fun AddColumnButton(onAdd: (String) -> Unit) {
 
     Box(
         modifier = Modifier
-            .width(200.dp)
+            .width(180.dp)
             .padding(top = 48.dp),
         contentAlignment = Alignment.TopStart
     ) {
-        TextButton(
+        OutlinedButton(
             onClick = { showDialog = true },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)),
+            colors = ButtonDefaults.outlinedButtonColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                contentColor = MaterialTheme.colorScheme.onSurface
+            )
         ) {
             Icon(
                 Icons.Default.Add,
