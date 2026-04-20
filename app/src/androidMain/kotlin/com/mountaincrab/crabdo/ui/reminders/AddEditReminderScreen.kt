@@ -338,6 +338,13 @@ internal fun TimePickerDialog(
 private fun KeyboardTimeInput(state: TimePickerState) {
     var hourText by remember { mutableStateOf(state.hour.toString().padStart(2, '0')) }
     var minuteText by remember { mutableStateOf(state.minute.toString().padStart(2, '0')) }
+    val hourFocusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(Unit) {
+        hourFocusRequester.requestFocus()
+        keyboardController?.show()
+    }
 
     Row(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -352,7 +359,7 @@ private fun KeyboardTimeInput(state: TimePickerState) {
                 digits.toIntOrNull()?.takeIf { it in 0..23 }?.let { state.hour = it }
             },
             label = { Text("HH") },
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).focusRequester(hourFocusRequester),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
             singleLine = true,
             textStyle = MaterialTheme.typography.headlineMedium.copy(textAlign = TextAlign.Center)

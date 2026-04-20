@@ -1,6 +1,9 @@
 package com.mountaincrab.crabdo.ui.boards
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.draganddrop.dragAndDropTarget
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -15,14 +18,17 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draganddrop.DragAndDropEvent
+import androidx.compose.ui.draganddrop.DragAndDropTarget
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.mountaincrab.crabdo.ui.boards.components.KanbanColumn
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun KanbanBoardScreen(
     boardId: String,
@@ -63,41 +69,83 @@ fun KanbanBoardScreen(
         ) {
             val lazyRowState = rememberLazyListState()
             val snapBehavior = rememberSnapFlingBehavior(lazyRowState)
-            LazyRow(
-                state = lazyRowState,
-                flingBehavior = snapBehavior,
-                modifier = Modifier.fillMaxSize(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
-            ) {
-                items(columns, key = { it.id }) { column ->
-                    KanbanColumn(
-                        column = column,
-                        tasks = tasksByColumn[column.id] ?: emptyList(),
-                        draggedTaskId = draggedTaskId,
-                        onDragStart = { draggedTaskId = it },
-                        onDragEnd = { draggedTaskId = null },
-                        onCardDropped = { taskId, targetColumnId, orderBefore, orderAfter ->
-                            viewModel.moveTask(taskId, targetColumnId, orderBefore, orderAfter)
-                            draggedTaskId = null
-                        },
-                        onCardTapped = { taskId ->
-                            navController.navigate(
-                                com.mountaincrab.crabdo.ui.navigation.Screen.TaskDetail.createRoute(taskId)
-                            )
-                        },
-                        onAddCard = { title, description, reminderAt, style ->
-                            viewModel.createTask(column.id, title, description, reminderAt, style)
-                        },
-                        onReorder = { taskId, orderBefore, orderAfter ->
-                            viewModel.moveTask(taskId, column.id, orderBefore, orderAfter)
-                        },
-                        modifier = Modifier.fillParentMaxWidth(0.92f)
-                    )
+
+            val edgeScrollState = remember { mutableIntStateOf(0) }
+            LaunchedEffect(edgeScrollState.intValue) {
+                while (edgeScrollState.intValue != 0) {
+                    lazyRowState.scrollBy(edgeScrollState.intValue * 20f)
+                    delay(16)
                 }
-                item {
-                    AddColumnButton { viewModel.addColumn(it) }
+            }
+            val leftEdgeTarget = remember {
+                object : DragAndDropTarget {
+                    override fun onDrop(event: DragAndDropEvent) = false
+                    override fun onEntered(event: DragAndDropEvent) { edgeScrollState.intValue = -1 }
+                    override fun onExited(event: DragAndDropEvent) { edgeScrollState.intValue = 0 }
+                    override fun onEnded(event: DragAndDropEvent) { edgeScrollState.intValue = 0 }
                 }
+            }
+            val rightEdgeTarget = remember {
+                object : DragAndDropTarget {
+                    override fun onDrop(event: DragAndDropEvent) = false
+                    override fun onEntered(event: DragAndDropEvent) { edgeScrollState.intValue = 1 }
+                    override fun onExited(event: DragAndDropEvent) { edgeScrollState.intValue = 0 }
+                    override fun onEnded(event: DragAndDropEvent) { edgeScrollState.intValue = 0 }
+                }
+            }
+
+            Box(modifier = Modifier.fillMaxSize()) {
+                LazyRow(
+                    state = lazyRowState,
+                    flingBehavior = snapBehavior,
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
+                ) {
+                    items(columns, key = { it.id }) { column ->
+                        KanbanColumn(
+                            column = column,
+                            tasks = tasksByColumn[column.id] ?: emptyList(),
+                            draggedTaskId = draggedTaskId,
+                            onDragStart = { draggedTaskId = it },
+                            onDragEnd = { draggedTaskId = null },
+                            onCardDropped = { taskId, targetColumnId, orderBefore, orderAfter ->
+                                viewModel.moveTask(taskId, targetColumnId, orderBefore, orderAfter)
+                                draggedTaskId = null
+                            },
+                            onCardTapped = { taskId ->
+                                navController.navigate(
+                                    com.mountaincrab.crabdo.ui.navigation.Screen.TaskDetail.createRoute(taskId)
+                                )
+                            },
+                            onAddCard = { title, description, reminderAt, style ->
+                                viewModel.createTask(column.id, title, description, reminderAt, style)
+                            },
+                            onReorder = { taskId, orderBefore, orderAfter ->
+                                viewModel.moveTask(taskId, column.id, orderBefore, orderAfter)
+                            },
+                            modifier = Modifier.fillParentMaxWidth(0.92f)
+                        )
+                    }
+                    item {
+                        AddColumnButton { viewModel.addColumn(it) }
+                    }
+                }
+                // Edge scroll zones — always present so they're in the view hierarchy at drag start
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .width(56.dp)
+                        .align(Alignment.CenterStart)
+                        .dragAndDropTarget(shouldStartDragAndDrop = { true }, target = leftEdgeTarget)
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .width(56.dp)
+                        .align(Alignment.CenterEnd)
+                        .dragAndDropTarget(shouldStartDragAndDrop = { true }, target = rightEdgeTarget)
+                )
             }
         }
     }
