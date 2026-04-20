@@ -28,6 +28,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
@@ -94,7 +95,8 @@ fun TaskDetailScreen(
                     onValueChange = { titleText = it },
                     label = { Text("Title") },
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
                 )
             }
             item {
@@ -103,7 +105,8 @@ fun TaskDetailScreen(
                     onValueChange = { descriptionText = it },
                     label = { Text("Description") },
                     modifier = Modifier.fillMaxWidth(),
-                    minLines = 3
+                    minLines = 3,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
                 )
             }
             item {
@@ -200,7 +203,12 @@ fun TaskDetailScreen(
                         subtask = subtask,
                         onToggle = { viewModel.toggleSubtask(subtask.id, it) },
                         onDelete = { viewModel.deleteSubtask(subtask.id) },
-                        dragHandleModifier = Modifier
+                        onRename = { viewModel.renameSubtask(subtask.id, it) },
+                        modifier = Modifier
+                            .dragAndDropTarget(
+                                shouldStartDragAndDrop = { true },
+                                target = insertBeforeTarget
+                            )
                             .dragAndDropSource {
                                 detectTapGestures(
                                     onLongPress = {
@@ -214,11 +222,7 @@ fun TaskDetailScreen(
                                         )
                                     }
                                 )
-                            },
-                        modifier = Modifier.dragAndDropTarget(
-                            shouldStartDragAndDrop = { true },
-                            target = insertBeforeTarget
-                        )
+                            }
                     )
                 }
             }
@@ -452,7 +456,7 @@ private fun AddSubtaskSheet(
                     .weight(1f)
                     .focusRequester(focusRequester),
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done, capitalization = KeyboardCapitalization.Sentences),
                 keyboardActions = KeyboardActions(
                     onDone = {
                         if (text.isNotBlank()) {

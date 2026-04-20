@@ -19,7 +19,8 @@ import androidx.core.view.WindowCompat
 enum class AppTheme(val displayName: String) {
     DEEP_NAVY("Deep Navy"),
     CHARCOAL("Charcoal"),
-    SLATE("Slate");
+    SLATE("Slate"),
+    RETRO("Retro");
 
     companion object {
         fun fromName(name: String?): AppTheme =
@@ -110,24 +111,63 @@ private val SlateScheme = buildScheme(
     outline = Color(0xFF353949),
 )
 
+// ── Retro theme ──────────────────────────────────────────────────────────────
+private val RetroMagenta = Color(0xFFFF00CC)
+private val RetroCyan = Color(0xFF00FFEE)
+private val RetroYellow = Color(0xFFFFEE00)
+
+private val RetroScheme = darkColorScheme(
+    primary = RetroMagenta,
+    onPrimary = Color.Black,
+    primaryContainer = RetroMagenta.copy(alpha = 0.20f),
+    onPrimaryContainer = Color.White,
+    secondary = RetroCyan,
+    onSecondary = Color.Black,
+    secondaryContainer = RetroCyan.copy(alpha = 0.18f),
+    onSecondaryContainer = Color.White,
+    tertiary = RetroYellow,
+    onTertiary = Color.Black,
+    error = Color(0xFFFF4400),
+    onError = Color.White,
+    errorContainer = Color(0xFFFF4400).copy(alpha = 0.18f),
+    onErrorContainer = Color(0xFFFCA5A5),
+    background = Color(0xFF0D0015),
+    onBackground = Color(0xFFFFFFFF),
+    surface = Color(0xFF1A0028),
+    onSurface = Color(0xFFFFFFFF),
+    surfaceVariant = Color(0xFF2D0050),
+    onSurfaceVariant = Color(0xFFCC99FF),
+    outline = Color(0xFF4A0080),
+    outlineVariant = Color(0xFF4A0080).copy(alpha = 0.4f),
+    inverseSurface = Color(0xFFFFFFFF),
+    inverseOnSurface = Color(0xFF0D0015),
+    inversePrimary = RetroMagenta,
+)
+
 private fun paletteFor(theme: AppTheme): AppPalette = when (theme) {
     AppTheme.DEEP_NAVY -> AppPalette(
         gradientStart = AccentPurple,
         gradientEnd = AccentBlue,
-        cardBorder = Color(0x1A8B9CFF),
+        cardBorder = Color(0x408B9CFF),
         alarmTint = Color(0xFFF59E0B),
     )
     AppTheme.CHARCOAL -> AppPalette(
         gradientStart = AccentPurple,
         gradientEnd = AccentBlue,
-        cardBorder = Color(0x1AFFFFFF),
+        cardBorder = Color(0x40FFFFFF),
         alarmTint = Color(0xFFF59E0B),
     )
     AppTheme.SLATE -> AppPalette(
         gradientStart = AccentPurple,
         gradientEnd = AccentBlue,
-        cardBorder = Color(0x1FBFC7E0),
+        cardBorder = Color(0x40BFC7E0),
         alarmTint = Color(0xFFF59E0B),
+    )
+    AppTheme.RETRO -> AppPalette(
+        gradientStart = RetroMagenta,
+        gradientEnd = RetroCyan,
+        cardBorder = Color(0x50FF00CC),
+        alarmTint = RetroYellow,
     )
 }
 
@@ -159,6 +199,7 @@ fun CrabbanTheme(
         AppTheme.DEEP_NAVY -> DeepNavyScheme
         AppTheme.CHARCOAL -> CharcoalScheme
         AppTheme.SLATE -> SlateScheme
+        AppTheme.RETRO -> RetroScheme
     }
     val palette = paletteFor(appTheme)
 

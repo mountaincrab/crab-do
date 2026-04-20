@@ -35,6 +35,16 @@ class SubtaskRepository(
         enqueueSyncWork()
     }
 
+    suspend fun renameSubtask(subtaskId: String, title: String) {
+        val subtask = subtaskDao.getSubtaskById(subtaskId) ?: return
+        subtaskDao.upsert(subtask.copy(
+            title = title,
+            updatedAt = System.currentTimeMillis(),
+            syncStatus = SyncStatus.PENDING
+        ))
+        enqueueSyncWork()
+    }
+
     suspend fun reorderSubtask(subtaskId: String, orderBefore: Double, orderAfter: Double) {
         val subtask = subtaskDao.getSubtaskById(subtaskId) ?: return
         val newOrder = if (orderAfter <= orderBefore) orderBefore + 1.0

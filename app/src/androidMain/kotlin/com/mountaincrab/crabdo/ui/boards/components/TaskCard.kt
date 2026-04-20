@@ -1,5 +1,6 @@
 package com.mountaincrab.crabdo.ui.boards.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -11,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mountaincrab.crabdo.data.local.entity.TaskEntity
+import com.mountaincrab.crabdo.ui.theme.LocalAppPalette
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -23,6 +25,7 @@ fun TaskCard(
     modifier: Modifier = Modifier,
     onTap: () -> Unit
 ) {
+    val cardBorder = LocalAppPalette.current.cardBorder
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(10.dp),
@@ -31,7 +34,8 @@ fun TaskCard(
         ),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
+        ),
+        border = BorderStroke(1.dp, cardBorder)
     ) {
         Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
             Text(

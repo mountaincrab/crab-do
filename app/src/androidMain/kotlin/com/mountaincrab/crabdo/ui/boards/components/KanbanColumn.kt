@@ -145,9 +145,31 @@ fun KanbanColumn(
                     )
                 }
             }
-            // Trailing indicator for drop-at-end.
+            // Trailing indicator for drop-at-end — explicit target so onEntered fires reliably.
             item {
-                DropIndicator(visible = hoverIndex == visibleTasks.size && draggedTaskId != null)
+                val trailingTarget = remember(column.id, tasks, visibleTasks) {
+                    object : DragAndDropTarget {
+                        override fun onDrop(event: DragAndDropEvent): Boolean {
+                            val taskId = event.toAndroidDragEvent().clipData?.getItemAt(0)?.text?.toString()
+                                ?: return false
+                            val maxOrder = tasks.filter { it.id != taskId }.maxOfOrNull { it.order } ?: 0.0
+                            onCardDropped(taskId, column.id, maxOrder, maxOrder + 2.0)
+                            hoverIndex = null
+                            onDragEnd()
+                            return true
+                        }
+                        override fun onEntered(event: DragAndDropEvent) { hoverIndex = visibleTasks.size }
+                        override fun onEnded(event: DragAndDropEvent) { hoverIndex = null }
+                    }
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(32.dp)
+                        .dragAndDropTarget(shouldStartDragAndDrop = { true }, target = trailingTarget)
+                ) {
+                    DropIndicator(visible = hoverIndex == visibleTasks.size && draggedTaskId != null)
+                }
             }
             item {
                 TextButton(

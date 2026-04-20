@@ -237,11 +237,13 @@ private fun ThemeSwatch(
         AppTheme.DEEP_NAVY -> Color(0xFF131A2E)
         AppTheme.CHARCOAL -> Color(0xFF141414)
         AppTheme.SLATE -> Color(0xFF20232E)
+        AppTheme.RETRO -> Color(0xFF1A0028)
     }
     val inner = when (theme) {
         AppTheme.DEEP_NAVY -> Color(0xFF1C2340)
         AppTheme.CHARCOAL -> Color(0xFF1E1E1E)
         AppTheme.SLATE -> Color(0xFF2A2E3C)
+        AppTheme.RETRO -> Color(0xFF2D0050)
     }
     Column(
         modifier = modifier,

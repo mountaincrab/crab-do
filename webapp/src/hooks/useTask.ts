@@ -67,5 +67,20 @@ export function useTask(userId: string, boardId: string, taskId: string) {
     )
   }
 
-  return { task, subtasks, updateTask, addSubtask, toggleSubtask, deleteSubtask }
+  const renameSubtask = async (subtaskId: string, title: string) => {
+    await updateDoc(
+      doc(db, 'users', userId, 'boards', boardId, 'tasks', taskId, 'subtasks', subtaskId),
+      { title, updatedAt: serverTimestamp() },
+    )
+  }
+
+  const reorderSubtask = async (subtaskId: string, orderBefore: number, orderAfter: number) => {
+    const newOrder = orderAfter <= orderBefore ? orderBefore + 1 : (orderBefore + orderAfter) / 2
+    await updateDoc(
+      doc(db, 'users', userId, 'boards', boardId, 'tasks', taskId, 'subtasks', subtaskId),
+      { order: newOrder, updatedAt: serverTimestamp() },
+    )
+  }
+
+  return { task, subtasks, updateTask, addSubtask, toggleSubtask, deleteSubtask, renameSubtask, reorderSubtask }
 }
