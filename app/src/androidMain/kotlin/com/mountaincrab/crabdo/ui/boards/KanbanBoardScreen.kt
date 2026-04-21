@@ -3,7 +3,6 @@ package com.mountaincrab.crabdo.ui.boards
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.draganddrop.dragAndDropTarget
-import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -72,9 +71,12 @@ fun KanbanBoardScreen(
 
             val edgeScrollState = remember { mutableIntStateOf(0) }
             LaunchedEffect(edgeScrollState.intValue) {
-                while (edgeScrollState.intValue != 0) {
-                    lazyRowState.scrollBy(edgeScrollState.intValue * 20f)
-                    delay(16)
+                if (edgeScrollState.intValue != 0) {
+                    delay(700)
+                    if (edgeScrollState.intValue != 0) {
+                        val target = (lazyRowState.firstVisibleItemIndex + edgeScrollState.intValue).coerceAtLeast(0)
+                        lazyRowState.animateScrollToItem(target)
+                    }
                 }
             }
             val leftEdgeTarget = remember {
