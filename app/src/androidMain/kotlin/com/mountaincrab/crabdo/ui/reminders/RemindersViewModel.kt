@@ -5,7 +5,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import com.mountaincrab.crabdo.auth.AuthRepository
-import com.mountaincrab.crabdo.data.local.entity.ReminderEntity
+import com.mountaincrab.crabdo.data.local.entity.OneOffReminderEntity
+import com.mountaincrab.crabdo.data.local.entity.RecurringReminderEntity
 import com.mountaincrab.crabdo.data.repository.ReminderRepository
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -21,12 +22,16 @@ class RemindersViewModel(
 
     private val userId = authRepository.currentUserId ?: ""
 
-    val reminders: StateFlow<List<ReminderEntity>> =
-        reminderRepository.observeReminders(userId)
+    val oneOffReminders: StateFlow<List<OneOffReminderEntity>> =
+        reminderRepository.observeOneOffs(userId)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val completedReminders: StateFlow<List<ReminderEntity>> =
-        reminderRepository.observeCompletedReminders(userId)
+    val completedOneOffs: StateFlow<List<OneOffReminderEntity>> =
+        reminderRepository.observeCompletedOneOffs(userId)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val recurringReminders: StateFlow<List<RecurringReminderEntity>> =
+        reminderRepository.observeRecurring(userId)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val isSyncing: StateFlow<Boolean> =
@@ -36,13 +41,23 @@ class RemindersViewModel(
 
     fun sync() { reminderRepository.triggerSync() }
 
-    fun deleteReminder(reminderId: String) {
-        viewModelScope.launch { reminderRepository.deleteReminder(reminderId) }
+    fun deleteOneOff(id: String) {
+        viewModelScope.launch { reminderRepository.deleteOneOff(id) }
     }
 
-    fun toggleEnabled(reminder: ReminderEntity) {
+    fun deleteRecurring(id: String) {
+        viewModelScope.launch { reminderRepository.deleteRecurring(id) }
+    }
+
+    fun toggleOneOffEnabled(reminder: OneOffReminderEntity) {
         viewModelScope.launch {
-            reminderRepository.updateReminder(reminder.copy(isEnabled = !reminder.isEnabled))
+            reminderRepository.updateOneOff(reminder.copy(isEnabled = !reminder.isEnabled))
+        }
+    }
+
+    fun toggleRecurringEnabled(reminder: RecurringReminderEntity) {
+        viewModelScope.launch {
+            reminderRepository.updateRecurring(reminder.copy(isEnabled = !reminder.isEnabled))
         }
     }
 }

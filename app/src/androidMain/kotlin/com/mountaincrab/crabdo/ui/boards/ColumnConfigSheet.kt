@@ -5,6 +5,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material3.*
@@ -23,10 +24,13 @@ fun ColumnConfigSheet(
     onDismiss: () -> Unit,
     onRename: (ColumnEntity, String) -> Unit,
     onDelete: (String) -> Unit,
-    onReorder: (List<String>) -> Unit
+    onReorder: (List<String>) -> Unit,
+    onAdd: (String) -> Unit
 ) {
     var orderedColumns by remember(columns) { mutableStateOf(columns.toList()) }
     var showDeleteConfirm by remember { mutableStateOf<ColumnEntity?>(null) }
+    var showAddDialog by remember { mutableStateOf(false) }
+    var newColumnTitle by remember { mutableStateOf("") }
 
     val lazyListState = rememberLazyListState()
     val reorderState = rememberReorderableLazyListState(lazyListState) { from, to ->
@@ -54,7 +58,43 @@ fun ColumnConfigSheet(
                     }
                 }
             }
+            HorizontalDivider()
+            TextButton(
+                onClick = { showAddDialog = true },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Add column")
+            }
         }
+    }
+
+    if (showAddDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddDialog = false; newColumnTitle = "" },
+            title = { Text("New Column") },
+            text = {
+                OutlinedTextField(
+                    value = newColumnTitle,
+                    onValueChange = { newColumnTitle = it },
+                    label = { Text("Column name") },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (newColumnTitle.isNotBlank()) onAdd(newColumnTitle.trim())
+                    showAddDialog = false
+                    newColumnTitle = ""
+                }) { Text("Add") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddDialog = false; newColumnTitle = "" }) { Text("Cancel") }
+            }
+        )
     }
 
     showDeleteConfirm?.let { col ->

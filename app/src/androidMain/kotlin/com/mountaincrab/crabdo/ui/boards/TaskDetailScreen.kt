@@ -40,7 +40,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.mountaincrab.crabdo.data.local.entity.TaskEntity
 import com.mountaincrab.crabdo.ui.boards.components.SubtaskItem
-import com.mountaincrab.crabdo.ui.reminders.TimePickerDialog
+import com.mountaincrab.crabdo.ui.reminders.ReminderTimePickerDialog
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.TimeZone
@@ -413,7 +413,7 @@ private fun TaskReminderDialog(
     }
 
     if (showTimePicker) {
-        TimePickerDialog(
+        ReminderTimePickerDialog(
             state = timePickerState,
             isKeyboardMode = isTimeInputKeyboard,
             onToggleMode = onToggleTimeInputMode,

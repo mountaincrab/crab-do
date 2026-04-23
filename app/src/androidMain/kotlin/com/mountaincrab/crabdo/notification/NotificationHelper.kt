@@ -12,7 +12,7 @@ import com.mountaincrab.crabdo.R
 import com.mountaincrab.crabdo.alarm.AlarmAlertActivity
 import com.mountaincrab.crabdo.alarm.ReminderReceiver
 import com.mountaincrab.crabdo.alarm.SnoozePickerActivity
-import com.mountaincrab.crabdo.data.local.entity.ReminderEntity
+import com.mountaincrab.crabdo.data.local.entity.ReminderStyle
 
 object NotificationHelper {
     const val CHANNEL_ALARM = "channel_alarm_v2"
@@ -48,7 +48,7 @@ object NotificationHelper {
         id: String,
         title: String,
         notificationId: Int,
-        style: ReminderEntity.ReminderStyle
+        style: ReminderStyle
     ) {
         val manager = context.getSystemService<NotificationManager>() ?: return
 
@@ -74,7 +74,7 @@ object NotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val channel = if (style == ReminderEntity.ReminderStyle.ALARM) CHANNEL_ALARM else CHANNEL_NOTIFICATION
+        val channel = if (style == ReminderStyle.ALARM) CHANNEL_ALARM else CHANNEL_NOTIFICATION
 
         val builder = NotificationCompat.Builder(context, channel)
             .setSmallIcon(R.drawable.ic_notification)
@@ -86,7 +86,7 @@ object NotificationHelper {
             .addAction(R.drawable.ic_dismiss, "Dismiss", dismissIntent)
             .addAction(R.drawable.ic_snooze, "Snooze", snoozeIntent)
 
-        if (style == ReminderEntity.ReminderStyle.ALARM) {
+        if (style == ReminderStyle.ALARM) {
             builder.setOngoing(true)
 
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {

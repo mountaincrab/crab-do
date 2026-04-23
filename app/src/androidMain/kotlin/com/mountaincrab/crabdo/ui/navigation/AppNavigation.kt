@@ -21,17 +21,21 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.mountaincrab.crabdo.ui.auth.LoginScreen
 import com.mountaincrab.crabdo.ui.boards.*
-import com.mountaincrab.crabdo.ui.reminders.AddEditReminderScreen
+import com.mountaincrab.crabdo.ui.reminders.AddEditOneOffReminderScreen
+import com.mountaincrab.crabdo.ui.reminders.AddEditRecurringReminderScreen
 import com.mountaincrab.crabdo.ui.reminders.RemindersScreen
 import com.mountaincrab.crabdo.ui.settings.SettingsScreen
 import org.koin.compose.viewmodel.koinViewModel
+
+enum class ReminderTarget { ONE_OFF, RECURRING }
 
 @Composable
 fun AppNavigation(
     navController: NavHostController,
     startDestination: String,
-    openAddReminder: Boolean = false,
-    openReminderId: String? = null
+    openAddReminder: ReminderTarget? = null,
+    openReminderId: String? = null,
+    openReminderType: ReminderTarget? = null,
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
@@ -50,15 +54,23 @@ fun AppNavigation(
     val pinnedBoardTitle = boards.firstOrNull { it.id == pinnedBoardId }?.title ?: "Board"
 
     LaunchedEffect(openAddReminder) {
-        if (openAddReminder) {
-            navController.navigate(Screen.AddEditReminder.createRoute(fromWidget = true))
+        when (openAddReminder) {
+            ReminderTarget.ONE_OFF ->
+                navController.navigate(Screen.AddEditOneOffReminder.createRoute(fromWidget = true))
+            ReminderTarget.RECURRING ->
+                navController.navigate(Screen.AddEditRecurringReminder.createRoute(fromWidget = true))
+            null -> Unit
         }
     }
-    LaunchedEffect(openReminderId) {
-        if (openReminderId != null) {
-            navController.navigate(
-                Screen.AddEditReminder.createRoute(reminderId = openReminderId, fromWidget = true)
-            )
+    LaunchedEffect(openReminderId, openReminderType) {
+        if (openReminderId != null && openReminderType != null) {
+            val route = when (openReminderType) {
+                ReminderTarget.ONE_OFF ->
+                    Screen.AddEditOneOffReminder.createRoute(reminderId = openReminderId, fromWidget = true)
+                ReminderTarget.RECURRING ->
+                    Screen.AddEditRecurringReminder.createRoute(reminderId = openReminderId, fromWidget = true)
+            }
+            navController.navigate(route)
         }
     }
 
@@ -153,7 +165,7 @@ fun AppNavigation(
                 )
             }
             composable(
-                Screen.AddEditReminder.route,
+                Screen.AddEditOneOffReminder.route,
                 arguments = listOf(
                     navArgument("reminderId") {
                         type = NavType.StringType; nullable = true; defaultValue = null
@@ -163,7 +175,24 @@ fun AppNavigation(
                     }
                 )
             ) { backStackEntry ->
-                AddEditReminderScreen(
+                AddEditOneOffReminderScreen(
+                    reminderId = backStackEntry.arguments?.getString("reminderId"),
+                    fromWidget = backStackEntry.arguments?.getBoolean("fromWidget") ?: false,
+                    navController = navController
+                )
+            }
+            composable(
+                Screen.AddEditRecurringReminder.route,
+                arguments = listOf(
+                    navArgument("reminderId") {
+                        type = NavType.StringType; nullable = true; defaultValue = null
+                    },
+                    navArgument("fromWidget") {
+                        type = NavType.BoolType; defaultValue = false
+                    }
+                )
+            ) { backStackEntry ->
+                AddEditRecurringReminderScreen(
                     reminderId = backStackEntry.arguments?.getString("reminderId"),
                     fromWidget = backStackEntry.arguments?.getBoolean("fromWidget") ?: false,
                     navController = navController

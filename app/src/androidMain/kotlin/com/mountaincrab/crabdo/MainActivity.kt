@@ -17,6 +17,7 @@ import androidx.core.content.ContextCompat
 import androidx.navigation.compose.rememberNavController
 import com.mountaincrab.crabdo.auth.AuthRepository
 import com.mountaincrab.crabdo.ui.navigation.AppNavigation
+import com.mountaincrab.crabdo.ui.navigation.ReminderTarget
 import com.mountaincrab.crabdo.ui.navigation.Screen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mountaincrab.crabdo.ui.theme.CrabbanTheme
@@ -31,8 +32,9 @@ class MainActivity : ComponentActivity() {
     private val requestNotificationPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* continue either way */ }
 
-    private var openAddReminder by mutableStateOf(false)
+    private var openAddReminder by mutableStateOf<ReminderTarget?>(null)
     private var openReminderId by mutableStateOf<String?>(null)
+    private var openReminderType by mutableStateOf<ReminderTarget?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,10 +45,7 @@ class MainActivity : ComponentActivity() {
                 requestNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
-        if (intent?.getBooleanExtra("open_add_reminder", false) == true) {
-            openAddReminder = true
-        }
-        intent?.getStringExtra("open_reminder_id")?.let { openReminderId = it }
+        applyReminderIntent(intent)
         setContent {
             val themeViewModel: ThemeViewModel = koinViewModel()
             val appTheme by themeViewModel.appTheme.collectAsStateWithLifecycle()
@@ -62,17 +61,22 @@ class MainActivity : ComponentActivity() {
                     val navController = rememberNavController()
                     val shouldOpenAddReminder = openAddReminder
                     val shouldOpenReminderId = openReminderId
+                    val shouldOpenReminderType = openReminderType
                     LaunchedEffect(shouldOpenAddReminder) {
-                        if (shouldOpenAddReminder) openAddReminder = false
+                        if (shouldOpenAddReminder != null) openAddReminder = null
                     }
                     LaunchedEffect(shouldOpenReminderId) {
-                        if (shouldOpenReminderId != null) openReminderId = null
+                        if (shouldOpenReminderId != null) {
+                            openReminderId = null
+                            openReminderType = null
+                        }
                     }
                     AppNavigation(
                         navController = navController,
                         startDestination = if (isSignedIn) Screen.PinnedBoard.route else Screen.Login.route,
                         openAddReminder = shouldOpenAddReminder,
-                        openReminderId = shouldOpenReminderId
+                        openReminderId = shouldOpenReminderId,
+                        openReminderType = shouldOpenReminderType,
                     )
                 }
             }
@@ -81,9 +85,20 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        if (intent.getBooleanExtra("open_add_reminder", false)) {
-            openAddReminder = true
+        applyReminderIntent(intent)
+    }
+
+    private fun applyReminderIntent(intent: Intent?) {
+        if (intent == null) return
+        val type = intent.getStringExtra("reminder_type")?.let { raw ->
+            runCatching { ReminderTarget.valueOf(raw) }.getOrNull()
         }
-        intent.getStringExtra("open_reminder_id")?.let { openReminderId = it }
+        if (intent.getBooleanExtra("open_add_reminder", false)) {
+            openAddReminder = type ?: ReminderTarget.ONE_OFF
+        }
+        intent.getStringExtra("open_reminder_id")?.let {
+            openReminderId = it
+            openReminderType = type ?: ReminderTarget.ONE_OFF
+        }
     }
 }

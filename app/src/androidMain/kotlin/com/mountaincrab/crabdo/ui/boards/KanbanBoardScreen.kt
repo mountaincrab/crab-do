@@ -1,6 +1,5 @@
 package com.mountaincrab.crabdo.ui.boards
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.draganddrop.dragAndDropTarget
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
@@ -129,9 +128,6 @@ fun KanbanBoardScreen(
                             modifier = Modifier.fillParentMaxWidth(0.92f)
                         )
                     }
-                    item {
-                        AddColumnButton { viewModel.addColumn(it) }
-                    }
                 }
                 // Edge scroll zones — always present so they're in the view hierarchy at drag start
                 Box(
@@ -158,63 +154,8 @@ fun KanbanBoardScreen(
             onDismiss = { showColumnConfig = false },
             onRename = { col, title -> viewModel.renameColumn(col, title) },
             onDelete = { viewModel.deleteColumn(it) },
-            onReorder = { viewModel.reorderColumns(it) }
-        )
-    }
-}
-
-@Composable
-private fun AddColumnButton(onAdd: (String) -> Unit) {
-    var showDialog by remember { mutableStateOf(false) }
-    var title by remember { mutableStateOf("") }
-
-    Box(
-        modifier = Modifier
-            .width(180.dp)
-            .padding(top = 48.dp),
-        contentAlignment = Alignment.TopStart
-    ) {
-        OutlinedButton(
-            onClick = { showDialog = true },
-            modifier = Modifier.fillMaxWidth(),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)),
-            colors = ButtonDefaults.outlinedButtonColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                contentColor = MaterialTheme.colorScheme.onSurface
-            )
-        ) {
-            Icon(
-                Icons.Default.Add,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary
-            )
-            Spacer(Modifier.width(4.dp))
-            Text("Add column")
-        }
-    }
-
-    if (showDialog) {
-        AlertDialog(
-            onDismissRequest = { showDialog = false; title = "" },
-            title = { Text("New Column") },
-            text = {
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text("Column name") },
-                    singleLine = true
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    if (title.isNotBlank()) onAdd(title.trim())
-                    showDialog = false
-                    title = ""
-                }) { Text("Add") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDialog = false; title = "" }) { Text("Cancel") }
-            }
+            onReorder = { viewModel.reorderColumns(it) },
+            onAdd = { viewModel.addColumn(it) }
         )
     }
 }

@@ -69,6 +69,11 @@ service cloud.firestore {
       match /reminders/{reminderId} {
         allow read, write: if isOwner(uid);
       }
+
+      // ---------- Recurring reminders (owner-only, no sharing) ----------
+      match /recurringReminders/{reminderId} {
+        allow read, write: if isOwner(uid);
+      }
     }
 
     // ---------- Helper functions ----------

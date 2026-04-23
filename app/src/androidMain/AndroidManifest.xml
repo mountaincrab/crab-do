@@ -79,16 +79,30 @@
             </intent-filter>
         </receiver>
 
-        <!-- Home screen widget -->
+        <!-- Home screen widget: one-off reminders -->
         <receiver
-            android:name=".widget.RemindersWidgetReceiver"
+            android:name=".widget.OneOffRemindersWidgetReceiver"
+            android:label="@string/widget_one_off_reminders"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/reminders_widget_info" />
+                android:resource="@xml/one_off_reminders_widget_info" />
+        </receiver>
+
+        <!-- Home screen widget: recurring reminders -->
+        <receiver
+            android:name=".widget.RecurringRemindersWidgetReceiver"
+            android:label="@string/widget_recurring_reminders"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/recurring_reminders_widget_info" />
         </receiver>
 
     </application>

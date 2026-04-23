@@ -14,10 +14,11 @@ import com.mountaincrab.crabdo.data.model.SyncStatus
         ColumnEntity::class,
         TaskEntity::class,
         SubtaskEntity::class,
-        ReminderEntity::class,
+        OneOffReminderEntity::class,
+        RecurringReminderEntity::class,
         BoardAccessEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -26,7 +27,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun columnDao(): ColumnDao
     abstract fun taskDao(): TaskDao
     abstract fun subtaskDao(): SubtaskDao
-    abstract fun reminderDao(): ReminderDao
+    abstract fun oneOffReminderDao(): OneOffReminderDao
+    abstract fun recurringReminderDao(): RecurringReminderDao
     abstract fun boardAccessDao(): BoardAccessDao
 }
 
@@ -38,7 +40,6 @@ class Converters {
     @TypeConverter fun toTaskReminderStyle(value: String): TaskEntity.ReminderStyle =
         TaskEntity.ReminderStyle.valueOf(value)
 
-    @TypeConverter fun fromReminderEntityStyle(value: ReminderEntity.ReminderStyle): String = value.name
-    @TypeConverter fun toReminderEntityStyle(value: String): ReminderEntity.ReminderStyle =
-        ReminderEntity.ReminderStyle.valueOf(value)
+    @TypeConverter fun fromReminderStyle(value: ReminderStyle): String = value.name
+    @TypeConverter fun toReminderStyle(value: String): ReminderStyle = ReminderStyle.valueOf(value)
 }

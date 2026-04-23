@@ -9,4 +9,6 @@
         (Android sign-in via Credential Manager always uses the web client ID.)
     -->
     <string name="google_web_client_id" translatable="false">391613358251-tdlg1skcl7h2ftlfs02ij3goc0sof2u9.apps.googleusercontent.com</string>
+    <string name="widget_one_off_reminders">One-off Reminders</string>
+    <string name="widget_recurring_reminders">Recurring Reminders</string>
 </resources>

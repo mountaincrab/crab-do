@@ -25,7 +25,8 @@ class SyncWorker(
     private val columnDao: ColumnDao by inject()
     private val taskDao: TaskDao by inject()
     private val subtaskDao: SubtaskDao by inject()
-    private val reminderDao: ReminderDao by inject()
+    private val oneOffReminderDao: OneOffReminderDao by inject()
+    private val recurringReminderDao: RecurringReminderDao by inject()
     private val alarmScheduler: AlarmScheduler by inject()
     private val boardAccessDao: BoardAccessDao by inject()
     private val firestore: FirebaseFirestore by inject()
@@ -96,15 +97,26 @@ class SyncWorker(
             subtaskDao.markSynced(subtask.id)
         }
 
-        reminderDao.getUnsyncedReminders().forEach { reminder ->
+        oneOffReminderDao.getUnsynced().forEach { reminder ->
             userRef.collection("reminders").document(reminder.id)
                 .set(reminder.toFirestoreMap(), SetOptions.merge()).await()
-            reminderDao.markSynced(reminder.id)
+            oneOffReminderDao.markSynced(reminder.id)
         }
-        reminderDao.getDeletedUnsyncedReminders().forEach { reminder ->
+        oneOffReminderDao.getDeletedUnsynced().forEach { reminder ->
             userRef.collection("reminders").document(reminder.id)
+                .set(mapOf("isDeleted" to true), SetOptions.merge()).await()
+            oneOffReminderDao.markSynced(reminder.id)
+        }
+
+        recurringReminderDao.getUnsynced().forEach { reminder ->
+            userRef.collection("recurringReminders").document(reminder.id)
                 .set(reminder.toFirestoreMap(), SetOptions.merge()).await()
-            reminderDao.markSynced(reminder.id)
+            recurringReminderDao.markSynced(reminder.id)
+        }
+        recurringReminderDao.getDeletedUnsynced().forEach { reminder ->
+            userRef.collection("recurringReminders").document(reminder.id)
+                .set(mapOf("isDeleted" to true), SetOptions.merge()).await()
+            recurringReminderDao.markSynced(reminder.id)
         }
     }
 
@@ -164,16 +176,27 @@ class SyncWorker(
             }
         }
 
+        val now = System.currentTimeMillis()
+
         userRef.collection("reminders")
             .whereGreaterThan("updatedAt", sinceTimestamp)
             .get().await().documents.forEach { doc ->
-                val reminder = doc.toReminderEntity(userId).copy(syncStatus = SyncStatus.SYNCED)
-                reminderDao.upsert(reminder)
-                // Schedule alarm for active reminders pulled from remote (e.g. created on web app)
-                if (reminder.isEnabled && !reminder.isCompleted && !reminder.isDeleted &&
-                    reminder.nextTriggerMillis > System.currentTimeMillis()
-                ) {
-                    alarmScheduler.scheduleReminder(reminder)
+                val reminder = doc.toOneOffReminderEntity(userId).copy(syncStatus = SyncStatus.SYNCED)
+                oneOffReminderDao.upsert(reminder)
+                if (reminder.isEnabled && !reminder.isCompleted && !reminder.isDeleted && reminder.scheduledAt > now) {
+                    alarmScheduler.scheduleReminder(reminder.id, reminder.title, reminder.scheduledAt, reminder.reminderStyle.name)
+                } else {
+                    alarmScheduler.cancelReminder(reminder.id)
+                }
+            }
+
+        userRef.collection("recurringReminders")
+            .whereGreaterThan("updatedAt", sinceTimestamp)
+            .get().await().documents.forEach { doc ->
+                val reminder = doc.toRecurringReminderEntity(userId).copy(syncStatus = SyncStatus.SYNCED)
+                recurringReminderDao.upsert(reminder)
+                if (reminder.isEnabled && !reminder.isDeleted && reminder.nextFireAt > now) {
+                    alarmScheduler.scheduleReminder(reminder.id, reminder.title, reminder.nextFireAt, reminder.reminderStyle.name)
                 } else {
                     alarmScheduler.cancelReminder(reminder.id)
                 }

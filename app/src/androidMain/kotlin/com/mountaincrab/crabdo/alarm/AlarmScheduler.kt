@@ -7,24 +7,15 @@ import android.content.Intent
 import android.os.Build
 import android.util.Log
 import androidx.core.content.getSystemService
-import com.mountaincrab.crabdo.data.local.entity.ReminderEntity
 import com.mountaincrab.crabdo.data.local.entity.TaskEntity
 
 class AlarmScheduler(private val context: Context) {
 
-    fun scheduleReminder(reminder: ReminderEntity) {
+    fun scheduleReminder(id: String, title: String, triggerMillis: Long, styleName: String) {
         schedule(
-            requestCode = reminderRequestCode(reminder.id),
-            triggerMillis = reminder.nextTriggerMillis,
-            intent = buildReminderIntent(reminder.id, reminder.title, reminder.reminderStyle)
-        )
-    }
-
-    fun scheduleSnooze(reminderId: String, title: String, style: ReminderEntity.ReminderStyle, triggerMillis: Long) {
-        schedule(
-            requestCode = reminderRequestCode(reminderId),
+            requestCode = reminderRequestCode(id),
             triggerMillis = triggerMillis,
-            intent = buildReminderIntent(reminderId, title, style)
+            intent = buildReminderIntent(id, title, styleName)
         )
     }
 
@@ -67,10 +58,6 @@ class AlarmScheduler(private val context: Context) {
         }
     }
 
-    companion object {
-        private const val TAG = "AlarmScheduler"
-    }
-
     private fun cancel(requestCode: Int) {
         val alarmManager = context.getSystemService<AlarmManager>() ?: return
         val matchIntent = Intent(context, ReminderReceiver::class.java).apply {
@@ -93,13 +80,13 @@ class AlarmScheduler(private val context: Context) {
         }
     }
 
-    private fun buildReminderIntent(id: String, title: String, style: ReminderEntity.ReminderStyle) =
+    private fun buildReminderIntent(id: String, title: String, styleName: String) =
         Intent(context, ReminderReceiver::class.java).apply {
             action = ReminderReceiver.ACTION_FIRE_REMINDER
             putExtra(ReminderReceiver.EXTRA_REMINDER_ID, id)
             putExtra(ReminderReceiver.EXTRA_TITLE, title)
             putExtra(ReminderReceiver.EXTRA_TYPE, "reminder")
-            putExtra(ReminderReceiver.EXTRA_STYLE, style.name)
+            putExtra(ReminderReceiver.EXTRA_STYLE, styleName)
         }
 
     private fun buildTaskReminderIntent(taskId: String, style: TaskEntity.ReminderStyle) =
@@ -112,4 +99,8 @@ class AlarmScheduler(private val context: Context) {
 
     private fun reminderRequestCode(id: String): Int = id.hashCode() and 0x7FFFFFFF
     private fun taskRequestCode(id: String): Int = (id + "_task").hashCode() and 0x7FFFFFFF
+
+    companion object {
+        private const val TAG = "AlarmScheduler"
+    }
 }

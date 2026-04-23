@@ -9,7 +9,7 @@ import android.content.Intent
 import android.os.Build
 import android.util.Log
 import androidx.core.content.getSystemService
-import com.mountaincrab.crabdo.data.local.entity.ReminderEntity
+import com.mountaincrab.crabdo.data.local.entity.ReminderStyle
 import com.mountaincrab.crabdo.data.repository.ReminderRepository
 import com.mountaincrab.crabdo.notification.NotificationHelper
 import kotlinx.coroutines.CoroutineScope
@@ -33,13 +33,12 @@ class ReminderReceiver : BroadcastReceiver(), KoinComponent {
         val reminderId = intent.getStringExtra(EXTRA_REMINDER_ID) ?: return
         val title = intent.getStringExtra(EXTRA_TITLE) ?: "Reminder"
         val styleStr = intent.getStringExtra(EXTRA_STYLE) ?: "ALARM"
-        val style = try { ReminderEntity.ReminderStyle.valueOf(styleStr) }
-                    catch (e: Exception) { ReminderEntity.ReminderStyle.ALARM }
+        val style = try { ReminderStyle.valueOf(styleStr) } catch (e: Exception) { ReminderStyle.ALARM }
         val notificationId = reminderId.hashCode() and 0x7FFFFFFF
 
         Log.d(TAG, "handleFire: reminderId=$reminderId, style=$style, title=$title")
 
-        if (style == ReminderEntity.ReminderStyle.ALARM) {
+        if (style == ReminderStyle.ALARM) {
             val serviceIntent = Intent(context, AlarmRingerService::class.java).apply {
                 action = AlarmRingerService.ACTION_START
                 putExtra(EXTRA_REMINDER_ID, reminderId)

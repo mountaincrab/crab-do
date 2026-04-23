@@ -16,7 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
-import com.mountaincrab.crabdo.data.local.entity.ReminderEntity
+import com.mountaincrab.crabdo.data.local.entity.ReminderStyle
 import com.mountaincrab.crabdo.data.repository.ReminderRepository
 import com.mountaincrab.crabdo.ui.theme.CrabbanTheme
 import kotlinx.coroutines.launch
@@ -46,8 +46,8 @@ class SnoozePickerActivity : ComponentActivity() {
         val notificationId = intent.getIntExtra(ReminderReceiver.EXTRA_NOTIFICATION_ID, -1)
         val title = intent.getStringExtra(ReminderReceiver.EXTRA_TITLE) ?: "Reminder"
         val styleStr = intent.getStringExtra(ReminderReceiver.EXTRA_STYLE) ?: "ALARM"
-        val style = try { ReminderEntity.ReminderStyle.valueOf(styleStr) }
-                    catch (e: Exception) { ReminderEntity.ReminderStyle.ALARM }
+        val style = try { ReminderStyle.valueOf(styleStr) }
+                    catch (e: Exception) { ReminderStyle.ALARM }
 
         if (notificationId != -1) {
             getSystemService(NotificationManager::class.java)?.cancel(notificationId)
@@ -59,7 +59,7 @@ class SnoozePickerActivity : ComponentActivity() {
                 SnoozePickerDialog(
                     onSnooze = { minutes ->
                         val snoozeMillis = System.currentTimeMillis() + minutes * 60_000L
-                        alarmScheduler.scheduleSnooze(reminderId, title, style, snoozeMillis)
+                        alarmScheduler.scheduleReminder(reminderId, title, snoozeMillis, styleStr)
                         lifecycleScope.launch {
                             reminderRepository.setSnoozeUntil(reminderId, snoozeMillis)
                         }

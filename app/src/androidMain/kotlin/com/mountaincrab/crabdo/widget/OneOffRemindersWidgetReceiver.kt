@@ -9,9 +9,9 @@ import androidx.glance.appwidget.updateAll
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 
-class RemindersWidgetReceiver : GlanceAppWidgetReceiver() {
+class OneOffRemindersWidgetReceiver : GlanceAppWidgetReceiver() {
 
-    override val glanceAppWidget: GlanceAppWidget = RemindersWidget()
+    override val glanceAppWidget: GlanceAppWidget = OneOffRemindersWidget()
 
     override fun onUpdate(
         context: Context,
@@ -19,21 +19,13 @@ class RemindersWidgetReceiver : GlanceAppWidgetReceiver() {
         appWidgetIds: IntArray
     ) {
         super.onUpdate(context, appWidgetManager, appWidgetIds)
-        refreshWidgets(context)
+        MainScope().launch { OneOffRemindersWidget().updateAll(context) }
     }
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         if (intent.action == AppWidgetManager.ACTION_APPWIDGET_UPDATE) {
-            refreshWidgets(context)
-        }
-    }
-
-    companion object {
-        fun refreshWidgets(context: Context) {
-            MainScope().launch {
-                RemindersWidget().updateAll(context)
-            }
+            MainScope().launch { OneOffRemindersWidget().updateAll(context) }
         }
     }
 }

@@ -15,7 +15,8 @@ import com.mountaincrab.crabdo.ui.auth.LoginViewModel
 import com.mountaincrab.crabdo.ui.boards.BoardListViewModel
 import com.mountaincrab.crabdo.ui.boards.KanbanBoardViewModel
 import com.mountaincrab.crabdo.ui.boards.TaskDetailViewModel
-import com.mountaincrab.crabdo.ui.reminders.AddEditReminderViewModel
+import com.mountaincrab.crabdo.ui.reminders.AddEditOneOffReminderViewModel
+import com.mountaincrab.crabdo.ui.reminders.AddEditRecurringReminderViewModel
 import com.mountaincrab.crabdo.ui.reminders.RemindersViewModel
 import com.mountaincrab.crabdo.ui.settings.SettingsViewModel
 import com.mountaincrab.crabdo.ui.theme.ThemeViewModel
@@ -53,7 +54,8 @@ val appModule = module {
     single { get<AppDatabase>().columnDao() }
     single { get<AppDatabase>().taskDao() }
     single { get<AppDatabase>().subtaskDao() }
-    single { get<AppDatabase>().reminderDao() }
+    single { get<AppDatabase>().oneOffReminderDao() }
+    single { get<AppDatabase>().recurringReminderDao() }
     single { get<AppDatabase>().boardAccessDao() }
 
     // Repositories
@@ -67,7 +69,7 @@ val appModule = module {
     single { SubtaskRepository(subtaskDao = get(), workManager = get()) }
     single {
         ReminderRepository(
-            reminderDao = get(), alarmScheduler = get(), workManager = get(),
+            oneOffDao = get(), recurringDao = get(), alarmScheduler = get(), workManager = get(),
             firebaseAuth = get(), firestore = get(), context = androidContext()
         )
     }
@@ -100,7 +102,13 @@ val appModule = module {
     }
     viewModel { RemindersViewModel(reminderRepository = get(), authRepository = get(), workManager = get()) }
     viewModel { (reminderId: String?) ->
-        AddEditReminderViewModel(
+        AddEditOneOffReminderViewModel(
+            existingReminderId = reminderId, reminderRepository = get(),
+            authRepository = get(), userPrefsRepository = get()
+        )
+    }
+    viewModel { (reminderId: String?) ->
+        AddEditRecurringReminderViewModel(
             existingReminderId = reminderId, reminderRepository = get(),
             authRepository = get(), userPrefsRepository = get()
         )

@@ -3,7 +3,13 @@ package com.mountaincrab.crabdo.data.remote
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
-import com.mountaincrab.crabdo.data.local.entity.*
+import com.mountaincrab.crabdo.data.local.entity.BoardEntity
+import com.mountaincrab.crabdo.data.local.entity.ColumnEntity
+import com.mountaincrab.crabdo.data.local.entity.OneOffReminderEntity
+import com.mountaincrab.crabdo.data.local.entity.RecurringReminderEntity
+import com.mountaincrab.crabdo.data.local.entity.ReminderStyle
+import com.mountaincrab.crabdo.data.local.entity.SubtaskEntity
+import com.mountaincrab.crabdo.data.local.entity.TaskEntity
 import com.mountaincrab.crabdo.data.model.SyncStatus
 import com.mountaincrab.crabdo.util.currentTimeMillis
 
@@ -106,14 +112,13 @@ fun DocumentSnapshot.toSubtaskEntity(): SubtaskEntity = SubtaskEntity(
     isDeleted = getBoolean("isDeleted") ?: false
 )
 
-// ─── ReminderEntity ───────────────────────────────────────────────────────────
+// ─── OneOffReminderEntity ─────────────────────────────────────────────────────
 
-fun ReminderEntity.toFirestoreMap(): Map<String, Any?> = mapOf(
+fun OneOffReminderEntity.toFirestoreMap(): Map<String, Any?> = mapOf(
     "userId" to userId,
     "title" to title,
-    "nextTriggerMillis" to nextTriggerMillis,
+    "scheduledAt" to scheduledAt,
     "reminderStyle" to reminderStyle.name,
-    "recurrenceRuleJson" to recurrenceRuleJson,
     "isEnabled" to isEnabled,
     "isCompleted" to isCompleted,
     "completedAt" to completedAt,
@@ -122,18 +127,51 @@ fun ReminderEntity.toFirestoreMap(): Map<String, Any?> = mapOf(
     "isDeleted" to isDeleted
 )
 
-fun DocumentSnapshot.toReminderEntity(userId: String): ReminderEntity = ReminderEntity(
+fun DocumentSnapshot.toOneOffReminderEntity(userId: String): OneOffReminderEntity = OneOffReminderEntity(
     id = id,
     userId = userId,
     title = getString("title") ?: "",
-    nextTriggerMillis = getLong("nextTriggerMillis") ?: 0L,
+    scheduledAt = getLong("scheduledAt") ?: 0L,
     reminderStyle = try {
-        ReminderEntity.ReminderStyle.valueOf(getString("reminderStyle") ?: "ALARM")
-    } catch (e: Exception) { ReminderEntity.ReminderStyle.ALARM },
-    recurrenceRuleJson = getString("recurrenceRuleJson"),
+        ReminderStyle.valueOf(getString("reminderStyle") ?: "ALARM")
+    } catch (e: Exception) { ReminderStyle.ALARM },
     isEnabled = getBoolean("isEnabled") ?: true,
     isCompleted = getBoolean("isCompleted") ?: false,
     completedAt = getLong("completedAt"),
+    createdAt = getLong("createdAt") ?: 0L,
+    updatedAt = getTimestamp("updatedAt")?.toDate()?.time ?: currentTimeMillis(),
+    syncStatus = SyncStatus.SYNCED,
+    isDeleted = getBoolean("isDeleted") ?: false
+)
+
+// ─── RecurringReminderEntity ──────────────────────────────────────────────────
+
+fun RecurringReminderEntity.toFirestoreMap(): Map<String, Any?> = mapOf(
+    "userId" to userId,
+    "title" to title,
+    "recurrenceRuleJson" to recurrenceRuleJson,
+    "startDate" to startDate,
+    "reminderTime" to reminderTime,
+    "nextFireAt" to nextFireAt,
+    "reminderStyle" to reminderStyle.name,
+    "isEnabled" to isEnabled,
+    "createdAt" to createdAt,
+    "updatedAt" to FieldValue.serverTimestamp(),
+    "isDeleted" to isDeleted
+)
+
+fun DocumentSnapshot.toRecurringReminderEntity(userId: String): RecurringReminderEntity = RecurringReminderEntity(
+    id = id,
+    userId = userId,
+    title = getString("title") ?: "",
+    recurrenceRuleJson = getString("recurrenceRuleJson") ?: "",
+    startDate = getLong("startDate") ?: 0L,
+    reminderTime = getString("reminderTime") ?: "09:00",
+    nextFireAt = getLong("nextFireAt") ?: 0L,
+    reminderStyle = try {
+        ReminderStyle.valueOf(getString("reminderStyle") ?: "ALARM")
+    } catch (e: Exception) { ReminderStyle.ALARM },
+    isEnabled = getBoolean("isEnabled") ?: true,
     createdAt = getLong("createdAt") ?: 0L,
     updatedAt = getTimestamp("updatedAt")?.toDate()?.time ?: currentTimeMillis(),
     syncStatus = SyncStatus.SYNCED,
