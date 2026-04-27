@@ -118,6 +118,7 @@ fun OneOffReminderEntity.toFirestoreMap(): Map<String, Any?> = mapOf(
     "userId" to userId,
     "title" to title,
     "scheduledAt" to scheduledAt,
+    "nextTriggerMillis" to scheduledAt,  // alias for webapp compatibility
     "reminderStyle" to reminderStyle.name,
     "isEnabled" to isEnabled,
     "snoozedUntilMillis" to snoozedUntilMillis,
@@ -132,7 +133,7 @@ fun DocumentSnapshot.toOneOffReminderEntity(userId: String): OneOffReminderEntit
     id = id,
     userId = userId,
     title = getString("title") ?: "",
-    scheduledAt = getLong("scheduledAt") ?: 0L,
+    scheduledAt = getLong("scheduledAt") ?: getLong("nextTriggerMillis") ?: 0L,
     reminderStyle = try {
         ReminderStyle.valueOf(getString("reminderStyle") ?: "ALARM")
     } catch (e: Exception) { ReminderStyle.ALARM },

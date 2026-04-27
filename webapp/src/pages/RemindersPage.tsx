@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useReminders } from '../hooks/useReminders'
-import { Reminder } from '../types'
+import { Reminder, RecurringReminder } from '../types'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -29,10 +29,62 @@ function millisToDatetimeLocal(ms: number): string {
 }
 
 function defaultDatetimeLocal(): string {
-  // default to next hour, rounded up
   const d = new Date(Date.now() + 3_600_000)
   d.setMinutes(0, 0, 0)
   return millisToDatetimeLocal(d.getTime())
+}
+
+function describeRecurrence(ruleJson: string, reminderTime: string): string {
+  try {
+    const rule = JSON.parse(ruleJson) as {
+      type: 'DAILY' | 'WEEKLY' | 'EVERY_N_DAYS' | 'MONTHLY'
+      interval?: number
+      daysOfWeek?: number[]
+      dayOfMonth?: number
+    }
+    const interval = rule.interval ?? 1
+    const DAY_NAMES = ['', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+    switch (rule.type) {
+      case 'DAILY':
+        return interval === 1 ? `Every day at ${reminderTime}` : `Every ${interval} days at ${reminderTime}`
+      case 'EVERY_N_DAYS':
+        return `Every ${interval} days at ${reminderTime}`
+      case 'WEEKLY': {
+        const days = (rule.daysOfWeek ?? []).map((d) => DAY_NAMES[d] ?? '?').join(', ')
+        return interval === 1 ? `Every ${days} at ${reminderTime}` : `Every ${interval} weeks on ${days} at ${reminderTime}`
+      }
+      case 'MONTHLY': {
+        const day = rule.dayOfMonth ?? 1
+        const suffix =
+          day >= 11 && day <= 13 ? 'th' : day % 10 === 1 ? 'st' : day % 10 === 2 ? 'nd' : day % 10 === 3 ? 'rd' : 'th'
+        return `Monthly on the ${day}${suffix} at ${reminderTime}`
+      }
+      default:
+        return reminderTime
+    }
+  } catch {
+    return reminderTime
+  }
+}
+
+// ── Toggle switch ─────────────────────────────────────────────────────────────
+
+function EnableToggle({ enabled, onToggle }: { enabled: boolean; onToggle: () => void }) {
+  return (
+    <button
+      onClick={onToggle}
+      title={enabled ? 'Disable' : 'Enable'}
+      className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ${
+        enabled ? 'bg-indigo-500' : 'bg-slate-600'
+      }`}
+    >
+      <span
+        className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+          enabled ? 'translate-x-4' : 'translate-x-0.5'
+        }`}
+      />
+    </button>
+  )
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -118,25 +170,38 @@ function ReminderDialog({ initial, onSave, onClose }: ReminderDialogProps) {
   )
 }
 
-interface ReminderRowProps {
+interface OneOffRowProps {
   reminder: Reminder
   onEdit: () => void
   onDelete: () => void
+  onToggleEnabled: () => void
+  dimmed?: boolean
 }
 
-function ReminderRow({ reminder, onEdit, onDelete }: ReminderRowProps) {
-  const isPast = reminder.nextTriggerMillis < Date.now()
+function OneOffReminderRow({ reminder, onEdit, onDelete, onToggleEnabled, dimmed }: OneOffRowProps) {
+  const now = Date.now()
+  const isSnoozed = reminder.snoozedUntilMillis != null && reminder.snoozedUntilMillis > now
+  const isPast = !isSnoozed && reminder.nextTriggerMillis < now
+  const styleIcon = reminder.reminderStyle === 'ALARM' ? '⏰' : '🔔'
+
   return (
-    <div className="bg-surface-raised rounded-xl px-4 py-3 flex items-center gap-3 group">
+    <div className={`bg-surface-raised rounded-xl px-4 py-3 flex items-center gap-3 group ${dimmed ? 'opacity-50' : ''}`}>
       <div className="flex-1 min-w-0">
-        <p className="font-medium text-white truncate">{reminder.title}</p>
-        <p className={`text-sm mt-0.5 ${isPast ? 'text-red-400' : 'text-slate-400'}`}>
-          {formatTriggerTime(reminder.nextTriggerMillis)}
+        <p className={`font-medium truncate ${reminder.isEnabled ? 'text-white' : 'text-slate-500'}`}>
+          {reminder.title}
         </p>
+        {isSnoozed ? (
+          <p className="text-sm mt-0.5 text-emerald-400">
+            Snoozing until {new Date(reminder.snoozedUntilMillis!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </p>
+        ) : (
+          <p className={`text-sm mt-0.5 ${isPast ? 'text-red-400' : 'text-slate-400'}`}>
+            {formatTriggerTime(reminder.nextTriggerMillis)}
+          </p>
+        )}
       </div>
-      <span className="text-xs text-slate-500 shrink-0">
-        {reminder.reminderStyle === 'ALARM' ? '⏰' : '🔔'}
-      </span>
+      <span className="text-xs text-slate-500 shrink-0">{styleIcon}</span>
+      <EnableToggle enabled={reminder.isEnabled} onToggle={onToggleEnabled} />
       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         <button
           onClick={onEdit}
@@ -161,20 +226,96 @@ function ReminderRow({ reminder, onEdit, onDelete }: ReminderRowProps) {
   )
 }
 
+interface RecurringRowProps {
+  reminder: RecurringReminder
+  onDelete: () => void
+  onToggleEnabled: () => void
+  dimmed?: boolean
+}
+
+function RecurringReminderRow({ reminder, onDelete, onToggleEnabled, dimmed }: RecurringRowProps) {
+  const now = Date.now()
+  const isSnoozed = reminder.snoozedUntilMillis != null && reminder.snoozedUntilMillis > now
+  const recurrenceDesc = describeRecurrence(reminder.recurrenceRuleJson, reminder.reminderTime)
+
+  return (
+    <div className={`bg-surface-raised rounded-xl px-4 py-3 flex items-center gap-3 group ${dimmed ? 'opacity-50' : ''}`}>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="text-xs text-slate-500 shrink-0">🔄</span>
+          <p className={`font-medium truncate ${reminder.isEnabled ? 'text-white' : 'text-slate-500'}`}>
+            {reminder.title}
+          </p>
+        </div>
+        <p className="text-sm mt-0.5 text-slate-400 truncate">{recurrenceDesc}</p>
+        {isSnoozed ? (
+          <p className="text-sm mt-0.5 text-emerald-400">
+            Snoozing until {new Date(reminder.snoozedUntilMillis!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </p>
+        ) : (
+          <p className="text-sm mt-0.5 text-indigo-400">
+            Next: {formatTriggerTime(reminder.nextFireAt)}
+          </p>
+        )}
+      </div>
+      <EnableToggle enabled={reminder.isEnabled} onToggle={onToggleEnabled} />
+      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          onClick={onDelete}
+          className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-surface-high transition-colors"
+          title="Delete"
+        >
+          <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
+
+type ActiveEntry =
+  | { kind: 'one-off'; sortKey: number; data: Reminder }
+  | { kind: 'recurring'; sortKey: number; data: RecurringReminder }
 
 export default function RemindersPage() {
   const { user, signOut } = useAuth()
-  const { reminders, completedReminders, loading, createReminder, updateReminder, deleteReminder } =
-    useReminders(user!.uid)
+  const {
+    reminders,
+    completedReminders,
+    recurringReminders,
+    loading,
+    createReminder,
+    updateReminder,
+    deleteReminder,
+    toggleReminderEnabled,
+    deleteRecurringReminder,
+    toggleRecurringEnabled,
+  } = useReminders(user!.uid)
 
   const [showCreate, setShowCreate] = useState(false)
   const [editing, setEditing] = useState<Reminder | null>(null)
   const [showCompleted, setShowCompleted] = useState(false)
 
+  const activeEntries: ActiveEntry[] = [
+    ...reminders.map((r) => ({
+      kind: 'one-off' as const,
+      sortKey: r.snoozedUntilMillis ?? r.nextTriggerMillis,
+      data: r,
+    })),
+    ...recurringReminders.map((r) => ({
+      kind: 'recurring' as const,
+      sortKey: r.snoozedUntilMillis ?? r.nextFireAt,
+      data: r,
+    })),
+  ].sort((a, b) => a.sortKey - b.sortKey)
+
+  const isEmpty = activeEntries.length === 0 && completedReminders.length === 0
+
   return (
     <div className="min-h-screen bg-surface text-white">
-      {/* Header */}
       <header className="border-b border-white/10 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
@@ -217,24 +358,34 @@ export default function RemindersPage() {
 
         {loading ? (
           <div className="text-slate-500 text-center py-20">Loading…</div>
-        ) : reminders.length === 0 && completedReminders.length === 0 ? (
+        ) : isEmpty ? (
           <div className="text-slate-500 text-center py-20">
             <p className="text-4xl mb-4">🔔</p>
             <p>No reminders yet. Create your first one.</p>
           </div>
         ) : (
           <div className="space-y-2">
-            {reminders.length === 0 ? (
+            {activeEntries.length === 0 ? (
               <p className="text-slate-500 text-center py-8">No upcoming reminders.</p>
             ) : (
-              reminders.map((r) => (
-                <ReminderRow
-                  key={r.id}
-                  reminder={r}
-                  onEdit={() => setEditing(r)}
-                  onDelete={() => deleteReminder(r.id)}
-                />
-              ))
+              activeEntries.map((entry) =>
+                entry.kind === 'one-off' ? (
+                  <OneOffReminderRow
+                    key={entry.data.id}
+                    reminder={entry.data}
+                    onEdit={() => setEditing(entry.data)}
+                    onDelete={() => deleteReminder(entry.data.id)}
+                    onToggleEnabled={() => toggleReminderEnabled(entry.data)}
+                  />
+                ) : (
+                  <RecurringReminderRow
+                    key={entry.data.id}
+                    reminder={entry.data}
+                    onDelete={() => deleteRecurringReminder(entry.data.id)}
+                    onToggleEnabled={() => toggleRecurringEnabled(entry.data)}
+                  />
+                ),
+              )
             )}
 
             {completedReminders.length > 0 && (
@@ -257,13 +408,15 @@ export default function RemindersPage() {
                   Completed ({completedReminders.length})
                 </button>
                 {showCompleted && (
-                  <div className="space-y-2 opacity-50">
+                  <div className="space-y-2">
                     {completedReminders.map((r) => (
-                      <ReminderRow
+                      <OneOffReminderRow
                         key={r.id}
                         reminder={r}
                         onEdit={() => setEditing(r)}
                         onDelete={() => deleteReminder(r.id)}
+                        onToggleEnabled={() => toggleReminderEnabled(r)}
+                        dimmed
                       />
                     ))}
                   </div>

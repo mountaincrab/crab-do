@@ -64,16 +64,36 @@ cd webapp && npm run build
 - `src/hooks/useTask.ts` — task + subtask Firestore hooks
 - `src/types.ts` — shared TypeScript types
 
+## Keeping both apps in sync
+
+Any change to **shared data** must be reflected in both apps. Examples:
+- New Firestore field → update both `FirestoreMappers.kt` (read+write) **and** `webapp/src/types.ts` + relevant hook
+- New display state (e.g. snooze, enable/disable) → update both `ReminderItem.kt` **and** `RemindersPage.tsx`
+- New Firestore collection → update both `SyncWorker.kt` **and** the relevant webapp hook
+- Field name divergence between apps → always write **both** field names and read with fallback
+
+**What the webapp does NOT need to match:**
+- Android alarm/notification mechanics (AlarmScheduler, BroadcastReceiver, etc.)
+- Room DB schema (local-only)
+- RecurrenceEngine computation (next-fire calculation is Android-only)
+- Creating recurring reminders (Android-only; webapp is read/display only for recurring)
+
 ## Firestore data model
 
 ```
-users/{userId}/boards/{boardId}/
-  columns/{columnId}
-  tasks/{taskId}/
-    subtasks/{subtaskId}
-reminders/{reminderId}   (top-level under users/{userId})
+users/{userId}/
+  boards/{boardId}/
+    columns/{columnId}
+    tasks/{taskId}/
+      subtasks/{subtaskId}
+  reminders/{reminderId}          ← one-off reminders
+  recurringReminders/{reminderId} ← recurring reminders
 ```
 
-Subtask fields: `id`, `taskId`, `title`, `isCompleted`, `order` (Double), `updatedAt`, `isDeleted`.
+**One-off reminder fields:** `userId`, `title`, `scheduledAt`, `nextTriggerMillis` (alias), `reminderStyle`, `isEnabled`, `snoozedUntilMillis`, `isCompleted`, `completedAt`, `createdAt`, `updatedAt`, `isDeleted`.
+
+**Recurring reminder fields:** `userId`, `title`, `recurrenceRuleJson`, `startDate`, `reminderTime` ("HH:mm"), `nextFireAt`, `reminderStyle`, `isEnabled`, `snoozedUntilMillis`, `createdAt`, `updatedAt`, `isDeleted`.
+
+**Subtask fields:** `id`, `taskId`, `title`, `isCompleted`, `order` (Double), `updatedAt`, `isDeleted`.
 
 Ordering uses midpoint arithmetic: `newOrder = (orderBefore + orderAfter) / 2`. If `orderAfter <= orderBefore`, use `orderBefore + 1`.

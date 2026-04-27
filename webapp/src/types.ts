@@ -43,12 +43,27 @@ export interface Reminder {
   id: string
   userId: string
   title: string
-  nextTriggerMillis: number
+  nextTriggerMillis: number  // normalised from scheduledAt (Android) or nextTriggerMillis (webapp)
   reminderStyle: 'ALARM' | 'NOTIFICATION'
-  recurrenceRuleJson: string | null
   isEnabled: boolean
+  snoozedUntilMillis: number | null
   isCompleted: boolean
   completedAt: number | null
+  createdAt: number
+  updatedAt: number
+  isDeleted: boolean
+}
+
+export interface RecurringReminder {
+  id: string
+  userId: string
+  title: string
+  recurrenceRuleJson: string
+  reminderTime: string  // "HH:mm"
+  nextFireAt: number
+  reminderStyle: 'ALARM' | 'NOTIFICATION'
+  isEnabled: boolean
+  snoozedUntilMillis: number | null
   createdAt: number
   updatedAt: number
   isDeleted: boolean
