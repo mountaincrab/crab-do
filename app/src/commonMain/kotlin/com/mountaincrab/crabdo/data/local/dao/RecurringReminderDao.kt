@@ -7,8 +7,11 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface RecurringReminderDao {
-    @Query("SELECT * FROM recurring_reminders WHERE userId = :userId AND isDeleted = 0 ORDER BY title")
+    @Query("SELECT * FROM recurring_reminders WHERE userId = :userId AND isDeleted = 0 ORDER BY COALESCE(snoozedUntilMillis, nextFireAt)")
     fun observeActive(userId: String): Flow<List<RecurringReminderEntity>>
+
+    @Query("SELECT * FROM recurring_reminders WHERE userId = :userId AND isDeleted = 1 ORDER BY updatedAt DESC")
+    fun observeDeleted(userId: String): Flow<List<RecurringReminderEntity>>
 
     @Query("SELECT * FROM recurring_reminders WHERE id = :id")
     suspend fun getById(id: String): RecurringReminderEntity?
@@ -39,4 +42,7 @@ interface RecurringReminderDao {
 
     @Query("UPDATE recurring_reminders SET nextFireAt = :nextFireAt, snoozedUntilMillis = NULL, updatedAt = :updatedAt, syncStatus = 'PENDING' WHERE id = :id")
     suspend fun advanceToNext(id: String, nextFireAt: Long, updatedAt: Long = currentTimeMillis())
+
+    @Query("UPDATE recurring_reminders SET isDeleted = 0, updatedAt = :updatedAt, syncStatus = 'PENDING' WHERE id = :id")
+    suspend fun restore(id: String, updatedAt: Long = currentTimeMillis())
 }

@@ -51,4 +51,10 @@ interface OneOffReminderDao {
 
     @Query("UPDATE one_off_reminders SET isCompleted = 1, completedAt = :completedAt, updatedAt = :updatedAt, syncStatus = 'PENDING' WHERE id = :id")
     suspend fun markCompleted(id: String, completedAt: Long = currentTimeMillis(), updatedAt: Long = currentTimeMillis())
+
+    @Query("SELECT * FROM one_off_reminders WHERE userId = :userId AND isDeleted = 1 ORDER BY updatedAt DESC")
+    fun observeDeleted(userId: String): Flow<List<OneOffReminderEntity>>
+
+    @Query("UPDATE one_off_reminders SET isDeleted = 0, updatedAt = :updatedAt, syncStatus = 'PENDING' WHERE id = :id")
+    suspend fun restore(id: String, updatedAt: Long = currentTimeMillis())
 }

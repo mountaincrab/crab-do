@@ -161,10 +161,12 @@ fun AddEditRecurringReminderScreen(
                 )
             }
 
-            RecurrencePicker(
-                rule = viewModel.recurrenceRule,
-                onRuleChanged = { viewModel.recurrenceRule = it }
-            )
+            if (viewModel.isLoaded) {
+                RecurrencePicker(
+                    rule = viewModel.recurrenceRule,
+                    onRuleChanged = { viewModel.recurrenceRule = it }
+                )
+            }
 
             Spacer(Modifier.height(4.dp))
 

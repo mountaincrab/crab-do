@@ -45,7 +45,9 @@ class ReminderRepository(
 
     fun observeOneOffs(userId: String) = oneOffDao.observeActive(userId)
     fun observeCompletedOneOffs(userId: String) = oneOffDao.observeCompleted(userId)
+    fun observeDeletedOneOffs(userId: String) = oneOffDao.observeDeleted(userId)
     fun observeRecurring(userId: String) = recurringDao.observeActive(userId)
+    fun observeDeletedRecurring(userId: String) = recurringDao.observeDeleted(userId)
 
     suspend fun getOneOffById(id: String): OneOffReminderEntity? = oneOffDao.getById(id)
     suspend fun getRecurringById(id: String): RecurringReminderEntity? = recurringDao.getById(id)
@@ -136,6 +138,36 @@ class ReminderRepository(
     suspend fun deleteRecurring(id: String) {
         alarmScheduler.cancelReminder(id)
         recurringDao.softDelete(id)
+        enqueueSyncWork()
+        notifyWidgets()
+    }
+
+    suspend fun restoreOneOff(id: String) {
+        oneOffDao.restore(id)
+        val entity = oneOffDao.getById(id) ?: return
+        if (entity.isEnabled && !entity.isCompleted && entity.scheduledAt > System.currentTimeMillis()) {
+            alarmScheduler.scheduleReminder(entity.id, entity.title, entity.scheduledAt, entity.reminderStyle.name)
+        }
+        enqueueSyncWork()
+        notifyWidgets()
+    }
+
+    suspend fun restoreRecurring(id: String) {
+        val existing = recurringDao.getById(id) ?: return
+        val (hour, minute) = parseReminderTime(existing.reminderTime)
+        val rule = RecurrenceRule.fromJson(existing.recurrenceRuleJson)
+        val nextFire = RecurrenceEngine.nextTriggerAfter(rule, System.currentTimeMillis(), hour, minute)
+            ?: (System.currentTimeMillis() + 86_400_000L)
+        val restored = existing.copy(
+            isDeleted = false,
+            nextFireAt = nextFire,
+            updatedAt = System.currentTimeMillis(),
+            syncStatus = SyncStatus.PENDING
+        )
+        recurringDao.upsert(restored)
+        if (restored.isEnabled) {
+            alarmScheduler.scheduleReminder(restored.id, restored.title, restored.nextFireAt, restored.reminderStyle.name)
+        }
         enqueueSyncWork()
         notifyWidgets()
     }

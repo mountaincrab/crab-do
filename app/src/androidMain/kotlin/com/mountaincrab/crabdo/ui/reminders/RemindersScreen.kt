@@ -1,15 +1,15 @@
 package com.mountaincrab.crabdo.ui.reminders
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
@@ -26,6 +26,7 @@ import com.mountaincrab.crabdo.ui.navigation.Screen
 import com.mountaincrab.crabdo.ui.reminders.components.OneOffReminderItem
 import com.mountaincrab.crabdo.ui.reminders.components.RecurringReminderItem
 import java.util.*
+import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -37,24 +38,36 @@ fun RemindersScreen(
 ) {
     val oneOffReminders by viewModel.oneOffReminders.collectAsStateWithLifecycle()
     val completedOneOffs by viewModel.completedOneOffs.collectAsStateWithLifecycle()
+    val deletedOneOffs by viewModel.deletedOneOffs.collectAsStateWithLifecycle()
     val recurringReminders by viewModel.recurringReminders.collectAsStateWithLifecycle()
+    val deletedRecurring by viewModel.deletedRecurring.collectAsStateWithLifecycle()
     val isSyncing by viewModel.isSyncing.collectAsStateWithLifecycle()
-    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+
+    val pagerState = rememberPagerState(pageCount = { 2 })
+    val scope = rememberCoroutineScope()
 
     Scaffold(
         topBar = {
             Column {
                 TopAppBar(title = { Text("Reminders") })
-                TabRow(selectedTabIndex = selectedTab) {
-                    Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("One-off") })
-                    Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("Recurring") })
+                TabRow(selectedTabIndex = pagerState.currentPage) {
+                    Tab(
+                        selected = pagerState.currentPage == 0,
+                        onClick = { scope.launch { pagerState.animateScrollToPage(0) } },
+                        text = { Text("One-off") }
+                    )
+                    Tab(
+                        selected = pagerState.currentPage == 1,
+                        onClick = { scope.launch { pagerState.animateScrollToPage(1) } },
+                        text = { Text("Recurring") }
+                    )
                 }
             }
         },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = {
-                    val route = if (selectedTab == 0) {
+                    val route = if (pagerState.currentPage == 0) {
                         Screen.AddEditOneOffReminder.createRoute()
                     } else {
                         Screen.AddEditRecurringReminder.createRoute()
@@ -73,9 +86,14 @@ fun RemindersScreen(
             onRefresh = { viewModel.sync() },
             modifier = Modifier.fillMaxSize().padding(scaffoldPadding)
         ) {
-            when (selectedTab) {
-                0 -> OneOffTab(oneOffReminders, completedOneOffs, navController, viewModel)
-                1 -> RecurringTab(recurringReminders, navController, viewModel)
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize()
+            ) { page ->
+                when (page) {
+                    0 -> OneOffTab(oneOffReminders, completedOneOffs, deletedOneOffs, navController, viewModel)
+                    1 -> RecurringTab(recurringReminders, deletedRecurring, navController, viewModel)
+                }
             }
         }
     }
@@ -86,12 +104,14 @@ fun RemindersScreen(
 private fun OneOffTab(
     reminders: List<OneOffReminderEntity>,
     completedReminders: List<OneOffReminderEntity>,
+    deletedReminders: List<OneOffReminderEntity>,
     navController: NavController,
     viewModel: RemindersViewModel
 ) {
     var showCompleted by rememberSaveable { mutableStateOf(false) }
+    var showDeleted by rememberSaveable { mutableStateOf(false) }
 
-    if (reminders.isEmpty() && completedReminders.isEmpty()) {
+    if (reminders.isEmpty() && completedReminders.isEmpty() && deletedReminders.isEmpty()) {
         EmptyState("No one-off reminders", "Tap + to add one")
         return
     }
@@ -154,6 +174,24 @@ private fun OneOffTab(
                 }
             }
         }
+        if (deletedReminders.isNotEmpty()) {
+            item {
+                TextButton(
+                    onClick = { showDeleted = !showDeleted },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Icon(if (showDeleted) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null)
+                    Spacer(Modifier.width(6.dp))
+                    Text(if (showDeleted) "Hide deleted" else "Show deleted (${deletedReminders.size})")
+                }
+            }
+            if (showDeleted) {
+                item { SectionHeader("Deleted") }
+                items(deletedReminders, key = { it.id }) { reminder ->
+                    DeletedOneOffRow(reminder, viewModel)
+                }
+            }
+        }
     }
 }
 
@@ -161,10 +199,13 @@ private fun OneOffTab(
 @Composable
 private fun RecurringTab(
     reminders: List<RecurringReminderEntity>,
+    deletedReminders: List<RecurringReminderEntity>,
     navController: NavController,
     viewModel: RemindersViewModel
 ) {
-    if (reminders.isEmpty()) {
+    var showDeleted by rememberSaveable { mutableStateOf(false) }
+
+    if (reminders.isEmpty() && deletedReminders.isEmpty()) {
         EmptyState("No recurring reminders", "Tap + to add one")
         return
     }
@@ -176,87 +217,121 @@ private fun RecurringTab(
         items(reminders, key = { it.id }) { reminder ->
             RecurringRow(reminder, navController, viewModel)
         }
+        if (deletedReminders.isNotEmpty()) {
+            item {
+                TextButton(
+                    onClick = { showDeleted = !showDeleted },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Icon(if (showDeleted) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null)
+                    Spacer(Modifier.width(6.dp))
+                    Text(if (showDeleted) "Hide deleted" else "Show deleted (${deletedReminders.size})")
+                }
+            }
+            if (showDeleted) {
+                item { SectionHeader("Deleted") }
+                items(deletedReminders, key = { it.id }) { reminder ->
+                    DeletedRecurringRow(reminder, viewModel)
+                }
+            }
+        }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun OneOffRow(
     reminder: OneOffReminderEntity,
     navController: NavController,
     viewModel: RemindersViewModel
 ) {
-    val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart) { viewModel.deleteOneOff(reminder.id); true }
-            else false
-        }
-    )
-    SwipeToDismissBox(
-        state = dismissState,
-        backgroundContent = { DeleteBackground(dismissState) },
-        enableDismissFromStartToEnd = false
+    Surface(
+        onClick = { navController.navigate(Screen.AddEditOneOffReminder.createRoute(reminder.id)) },
+        color = MaterialTheme.colorScheme.surface
     ) {
-        Surface(
-            onClick = { navController.navigate(Screen.AddEditOneOffReminder.createRoute(reminder.id)) },
-            color = MaterialTheme.colorScheme.surface
-        ) {
-            OneOffReminderItem(
-                reminder = reminder,
-                onToggleEnabled = { viewModel.toggleOneOffEnabled(reminder) },
-                onDelete = { viewModel.deleteOneOff(reminder.id) }
-            )
-        }
+        OneOffReminderItem(
+            reminder = reminder,
+            onToggleEnabled = { viewModel.toggleOneOffEnabled(reminder) },
+            onDelete = { viewModel.deleteOneOff(reminder.id) }
+        )
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RecurringRow(
     reminder: RecurringReminderEntity,
     navController: NavController,
     viewModel: RemindersViewModel
 ) {
-    val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart) { viewModel.deleteRecurring(reminder.id); true }
-            else false
-        }
-    )
-    SwipeToDismissBox(
-        state = dismissState,
-        backgroundContent = { DeleteBackground(dismissState) },
-        enableDismissFromStartToEnd = false
+    Surface(
+        onClick = { navController.navigate(Screen.AddEditRecurringReminder.createRoute(reminder.id)) },
+        color = MaterialTheme.colorScheme.surface
     ) {
-        Surface(
-            onClick = { navController.navigate(Screen.AddEditRecurringReminder.createRoute(reminder.id)) },
-            color = MaterialTheme.colorScheme.surface
+        RecurringReminderItem(
+            reminder = reminder,
+            onToggleEnabled = { viewModel.toggleRecurringEnabled(reminder) },
+            onDelete = { viewModel.deleteRecurring(reminder.id) }
+        )
+    }
+}
+
+@Composable
+private fun DeletedOneOffRow(
+    reminder: OneOffReminderEntity,
+    viewModel: RemindersViewModel
+) {
+    Surface(color = MaterialTheme.colorScheme.surface) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            RecurringReminderItem(
-                reminder = reminder,
-                onToggleEnabled = { viewModel.toggleRecurringEnabled(reminder) },
-                onDelete = { viewModel.deleteRecurring(reminder.id) }
+            Text(
+                text = reminder.title,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f)
             )
+            IconButton(onClick = { viewModel.restoreOneOff(reminder.id) }) {
+                Icon(
+                    Icons.Default.Restore,
+                    contentDescription = "Restore",
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DeleteBackground(dismissState: SwipeToDismissBoxState) {
-    val color by animateColorAsState(
-        if (dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart)
-            MaterialTheme.colorScheme.errorContainer
-        else MaterialTheme.colorScheme.surface
-    )
-    Box(
-        modifier = Modifier.fillMaxSize().background(color).padding(horizontal = 20.dp),
-        contentAlignment = Alignment.CenterEnd
-    ) {
-        Icon(Icons.Default.Delete, contentDescription = "Delete",
-            tint = MaterialTheme.colorScheme.onErrorContainer)
+private fun DeletedRecurringRow(
+    reminder: RecurringReminderEntity,
+    viewModel: RemindersViewModel
+) {
+    Surface(color = MaterialTheme.colorScheme.surface) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = reminder.title,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f)
+            )
+            IconButton(onClick = { viewModel.restoreRecurring(reminder.id) }) {
+                Icon(
+                    Icons.Default.Restore,
+                    contentDescription = "Restore",
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
     }
 }
+
 
 @Composable
 private fun SectionHeader(title: String) {

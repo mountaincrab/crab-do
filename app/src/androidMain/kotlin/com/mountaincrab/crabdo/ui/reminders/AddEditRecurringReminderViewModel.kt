@@ -29,6 +29,7 @@ class AddEditRecurringReminderViewModel(
     var selectedStyle by mutableStateOf(ReminderStyle.ALARM)
     var recurrenceRule by mutableStateOf<RecurrenceRule?>(RecurrenceRule.daily())
     var isTimeInputKeyboard by mutableStateOf(false)
+    var isLoaded by mutableStateOf(existingReminderId == null)
 
     init {
         viewModelScope.launch {
@@ -51,6 +52,7 @@ class AddEditRecurringReminderViewModel(
                         set(Calendar.MINUTE, minute)
                     }.timeInMillis
                 }
+                isLoaded = true
             }
         }
     }

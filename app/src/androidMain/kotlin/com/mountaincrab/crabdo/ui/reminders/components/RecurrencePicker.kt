@@ -1,6 +1,8 @@
 package com.mountaincrab.crabdo.ui.reminders.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,10 +32,10 @@ fun RecurrencePicker(
     var dayOfMonthStr by remember { mutableStateOf(rule?.dayOfMonth?.toString() ?: "1") }
 
     val periods = listOf("days", "weeks", "months")
-    val dayLabels = listOf("Su", "Mo", "Tu", "We", "Th", "Fr", "Sa")
+    val dayLabels = listOf("Mo", "Tu", "We", "Th", "Fr", "Sa", "Su")
     val calDays = listOf(
-        Calendar.SUNDAY, Calendar.MONDAY, Calendar.TUESDAY,
-        Calendar.WEDNESDAY, Calendar.THURSDAY, Calendar.FRIDAY, Calendar.SATURDAY
+        Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY,
+        Calendar.THURSDAY, Calendar.FRIDAY, Calendar.SATURDAY, Calendar.SUNDAY
     )
 
     fun emitRule() {
@@ -50,7 +52,7 @@ fun RecurrencePicker(
         onRuleChanged(newRule)
     }
 
-    Card(modifier = modifier.fillMaxWidth()) {
+    OutlinedCard(modifier = modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -67,12 +69,17 @@ fun RecurrencePicker(
                     singleLine = true
                 )
                 var expanded by remember { mutableStateOf(false) }
-                ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+                ExposedDropdownMenuBox(
+                    expanded = expanded,
+                    onExpandedChange = { expanded = it },
+                    modifier = Modifier.weight(1f)
+                ) {
                     OutlinedTextField(
                         value = periods[periodIndex],
                         onValueChange = {},
                         readOnly = true,
-                        modifier = Modifier.menuAnchor().width(100.dp),
+                        modifier = Modifier.menuAnchor().fillMaxWidth(),
+                        singleLine = true,
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) }
                     )
                     ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
@@ -88,17 +95,33 @@ fun RecurrencePicker(
 
             if (periodIndex == 1) {
                 Text("On:", style = MaterialTheme.typography.bodyMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                val chipShape = RoundedCornerShape(50)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
                     dayLabels.forEachIndexed { idx, label ->
                         val calDay = calDays[idx]
-                        FilterChip(
-                            selected = calDay in selectedDays,
+                        val selected = calDay in selectedDays
+                        Surface(
                             onClick = {
                                 selectedDays = if (calDay in selectedDays) selectedDays - calDay else selectedDays + calDay
                                 emitRule()
                             },
-                            label = { Text(label) }
-                        )
+                            modifier = Modifier.weight(1f).height(32.dp),
+                            shape = chipShape,
+                            color = if (selected) MaterialTheme.colorScheme.secondaryContainer
+                                    else MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(
+                                1.dp,
+                                if (selected) MaterialTheme.colorScheme.secondary
+                                else MaterialTheme.colorScheme.outline
+                            )
+                        ) {
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                            }
+                        }
                     }
                 }
             }

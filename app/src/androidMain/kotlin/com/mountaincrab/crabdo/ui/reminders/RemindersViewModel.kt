@@ -30,8 +30,16 @@ class RemindersViewModel(
         reminderRepository.observeCompletedOneOffs(userId)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val deletedOneOffs: StateFlow<List<OneOffReminderEntity>> =
+        reminderRepository.observeDeletedOneOffs(userId)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val recurringReminders: StateFlow<List<RecurringReminderEntity>> =
         reminderRepository.observeRecurring(userId)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val deletedRecurring: StateFlow<List<RecurringReminderEntity>> =
+        reminderRepository.observeDeletedRecurring(userId)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val isSyncing: StateFlow<Boolean> =
@@ -59,5 +67,13 @@ class RemindersViewModel(
         viewModelScope.launch {
             reminderRepository.updateRecurring(reminder.copy(isEnabled = !reminder.isEnabled))
         }
+    }
+
+    fun restoreOneOff(id: String) {
+        viewModelScope.launch { reminderRepository.restoreOneOff(id) }
+    }
+
+    fun restoreRecurring(id: String) {
+        viewModelScope.launch { reminderRepository.restoreRecurring(id) }
     }
 }
