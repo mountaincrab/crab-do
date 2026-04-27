@@ -37,8 +37,8 @@ interface RecurringReminderDao {
     @Query("UPDATE recurring_reminders SET isDeleted = 1, updatedAt = :updatedAt, syncStatus = 'PENDING' WHERE id = :id")
     suspend fun softDelete(id: String, updatedAt: Long = currentTimeMillis())
 
-    @Query("UPDATE recurring_reminders SET snoozedUntilMillis = :millis WHERE id = :id")
-    suspend fun updateSnooze(id: String, millis: Long?)
+    @Query("UPDATE recurring_reminders SET snoozedUntilMillis = :millis, updatedAt = :updatedAt, syncStatus = 'PENDING' WHERE id = :id")
+    suspend fun updateSnooze(id: String, millis: Long?, updatedAt: Long = currentTimeMillis())
 
     @Query("UPDATE recurring_reminders SET nextFireAt = :nextFireAt, snoozedUntilMillis = NULL, updatedAt = :updatedAt, syncStatus = 'PENDING' WHERE id = :id")
     suspend fun advanceToNext(id: String, nextFireAt: Long, updatedAt: Long = currentTimeMillis())

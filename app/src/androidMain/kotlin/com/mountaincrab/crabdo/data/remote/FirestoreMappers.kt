@@ -120,6 +120,7 @@ fun OneOffReminderEntity.toFirestoreMap(): Map<String, Any?> = mapOf(
     "scheduledAt" to scheduledAt,
     "reminderStyle" to reminderStyle.name,
     "isEnabled" to isEnabled,
+    "snoozedUntilMillis" to snoozedUntilMillis,
     "isCompleted" to isCompleted,
     "completedAt" to completedAt,
     "createdAt" to createdAt,
@@ -136,6 +137,7 @@ fun DocumentSnapshot.toOneOffReminderEntity(userId: String): OneOffReminderEntit
         ReminderStyle.valueOf(getString("reminderStyle") ?: "ALARM")
     } catch (e: Exception) { ReminderStyle.ALARM },
     isEnabled = getBoolean("isEnabled") ?: true,
+    snoozedUntilMillis = getLong("snoozedUntilMillis"),
     isCompleted = getBoolean("isCompleted") ?: false,
     completedAt = getLong("completedAt"),
     createdAt = getLong("createdAt") ?: 0L,
@@ -155,6 +157,7 @@ fun RecurringReminderEntity.toFirestoreMap(): Map<String, Any?> = mapOf(
     "nextFireAt" to nextFireAt,
     "reminderStyle" to reminderStyle.name,
     "isEnabled" to isEnabled,
+    "snoozedUntilMillis" to snoozedUntilMillis,
     "createdAt" to createdAt,
     "updatedAt" to FieldValue.serverTimestamp(),
     "isDeleted" to isDeleted
@@ -172,6 +175,7 @@ fun DocumentSnapshot.toRecurringReminderEntity(userId: String): RecurringReminde
         ReminderStyle.valueOf(getString("reminderStyle") ?: "ALARM")
     } catch (e: Exception) { ReminderStyle.ALARM },
     isEnabled = getBoolean("isEnabled") ?: true,
+    snoozedUntilMillis = getLong("snoozedUntilMillis"),
     createdAt = getLong("createdAt") ?: 0L,
     updatedAt = getTimestamp("updatedAt")?.toDate()?.time ?: currentTimeMillis(),
     syncStatus = SyncStatus.SYNCED,
