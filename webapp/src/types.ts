@@ -43,7 +43,7 @@ export interface Reminder {
   id: string
   userId: string
   title: string
-  nextTriggerMillis: number  // normalised from scheduledAt (Android) or nextTriggerMillis (webapp)
+  scheduledAt: number
   reminderStyle: 'ALARM' | 'NOTIFICATION'
   isEnabled: boolean
   snoozedUntilMillis: number | null

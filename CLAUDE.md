@@ -90,7 +90,7 @@ users/{userId}/
   recurringReminders/{reminderId} ← recurring reminders
 ```
 
-**One-off reminder fields:** `userId`, `title`, `scheduledAt`, `nextTriggerMillis` (alias), `reminderStyle`, `isEnabled`, `snoozedUntilMillis`, `isCompleted`, `completedAt`, `createdAt`, `updatedAt`, `isDeleted`.
+**One-off reminder fields:** `userId`, `title`, `scheduledAt`, `reminderStyle`, `isEnabled`, `snoozedUntilMillis`, `isCompleted`, `completedAt`, `createdAt`, `updatedAt`, `isDeleted`.
 
 **Recurring reminder fields:** `userId`, `title`, `recurrenceRuleJson`, `startDate`, `reminderTime` ("HH:mm"), `nextFireAt`, `reminderStyle`, `isEnabled`, `snoozedUntilMillis`, `createdAt`, `updatedAt`, `isDeleted`.
 

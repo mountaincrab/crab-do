@@ -98,7 +98,7 @@ interface ReminderDialogProps {
 function ReminderDialog({ initial, onSave, onClose }: ReminderDialogProps) {
   const [title, setTitle] = useState(initial?.title ?? '')
   const [datetime, setDatetime] = useState(
-    initial ? millisToDatetimeLocal(initial.nextTriggerMillis) : defaultDatetimeLocal(),
+    initial ? millisToDatetimeLocal(initial.scheduledAt) : defaultDatetimeLocal(),
   )
   const [style, setStyle] = useState<'ALARM' | 'NOTIFICATION'>(initial?.reminderStyle ?? 'NOTIFICATION')
   const [saving, setSaving] = useState(false)
@@ -181,7 +181,7 @@ interface OneOffRowProps {
 function OneOffReminderRow({ reminder, onEdit, onDelete, onToggleEnabled, dimmed }: OneOffRowProps) {
   const now = Date.now()
   const isSnoozed = reminder.snoozedUntilMillis != null && reminder.snoozedUntilMillis > now
-  const isPast = !isSnoozed && reminder.nextTriggerMillis < now
+  const isPast = !isSnoozed && reminder.scheduledAt < now
   const styleIcon = reminder.reminderStyle === 'ALARM' ? '⏰' : '🔔'
 
   return (
@@ -196,7 +196,7 @@ function OneOffReminderRow({ reminder, onEdit, onDelete, onToggleEnabled, dimmed
           </p>
         ) : (
           <p className={`text-sm mt-0.5 ${isPast ? 'text-red-400' : 'text-slate-400'}`}>
-            {formatTriggerTime(reminder.nextTriggerMillis)}
+            {formatTriggerTime(reminder.scheduledAt)}
           </p>
         )}
       </div>
@@ -302,7 +302,7 @@ export default function RemindersPage() {
   const activeEntries: ActiveEntry[] = [
     ...reminders.map((r) => ({
       kind: 'one-off' as const,
-      sortKey: r.snoozedUntilMillis ?? r.nextTriggerMillis,
+      sortKey: r.snoozedUntilMillis ?? r.scheduledAt,
       data: r,
     })),
     ...recurringReminders.map((r) => ({

@@ -22,18 +22,9 @@ export function useReminders(userId: string) {
       where('isDeleted', '==', false),
     )
     const unsub1 = onSnapshot(q1, (snap) => {
-      const all = snap.docs.map((d) => {
-        const data = d.data()
-        return {
-          id: d.id,
-          ...data,
-          // Android writes 'scheduledAt'; webapp writes 'nextTriggerMillis' — normalise to one field
-          nextTriggerMillis: data.nextTriggerMillis ?? data.scheduledAt ?? 0,
-          snoozedUntilMillis: data.snoozedUntilMillis ?? null,
-        } as Reminder
-      })
+      const all = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Reminder))
       setReminders(
-        all.filter((r) => !r.isCompleted).sort((a, b) => a.nextTriggerMillis - b.nextTriggerMillis),
+        all.filter((r) => !r.isCompleted).sort((a, b) => a.scheduledAt - b.scheduledAt),
       )
       setCompletedReminders(
         all.filter((r) => r.isCompleted).sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0)),
@@ -47,14 +38,7 @@ export function useReminders(userId: string) {
       where('isDeleted', '==', false),
     )
     const unsub2 = onSnapshot(q2, (snap) => {
-      const all = snap.docs.map((d) => {
-        const data = d.data()
-        return {
-          id: d.id,
-          ...data,
-          snoozedUntilMillis: data.snoozedUntilMillis ?? null,
-        } as RecurringReminder
-      })
+      const all = snap.docs.map((d) => ({ id: d.id, ...d.data() } as RecurringReminder))
       setRecurringReminders(all.sort((a, b) => a.nextFireAt - b.nextFireAt))
       recurringReady = true
       checkReady()
@@ -65,14 +49,13 @@ export function useReminders(userId: string) {
 
   const createReminder = async (
     title: string,
-    nextTriggerMillis: number,
+    scheduledAt: number,
     style: 'ALARM' | 'NOTIFICATION',
   ) => {
     await addDoc(collection(db, 'users', userId, 'reminders'), {
       userId,
       title,
-      nextTriggerMillis,
-      scheduledAt: nextTriggerMillis,  // write both for Android compat
+      scheduledAt,
       reminderStyle: style,
       isEnabled: true,
       snoozedUntilMillis: null,
@@ -87,13 +70,12 @@ export function useReminders(userId: string) {
   const updateReminder = async (
     reminderId: string,
     title: string,
-    nextTriggerMillis: number,
+    scheduledAt: number,
     style: 'ALARM' | 'NOTIFICATION',
   ) => {
     await updateDoc(doc(db, 'users', userId, 'reminders', reminderId), {
       title,
-      nextTriggerMillis,
-      scheduledAt: nextTriggerMillis,  // write both for Android compat
+      scheduledAt,
       reminderStyle: style,
       isEnabled: true,
       updatedAt: serverTimestamp(),
