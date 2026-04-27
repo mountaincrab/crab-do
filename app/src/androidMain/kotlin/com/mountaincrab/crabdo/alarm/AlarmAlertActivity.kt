@@ -46,7 +46,9 @@ class AlarmAlertActivity : ComponentActivity() {
                         if (notificationId != -1) {
                             getSystemService<NotificationManager>()?.cancel(notificationId)
                         }
-                        stopService(Intent(this, AlarmRingerService::class.java))
+                        startService(Intent(this, AlarmRingerService::class.java).apply {
+                            action = AlarmRingerService.ACTION_ADVANCE
+                        })
                         finish()
                     },
                     onSnooze = {

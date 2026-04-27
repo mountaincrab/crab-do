@@ -15,10 +15,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.lifecycleScope
 import com.mountaincrab.crabdo.data.local.entity.ReminderStyle
 import com.mountaincrab.crabdo.data.repository.ReminderRepository
 import com.mountaincrab.crabdo.ui.theme.CrabbanTheme
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
 
@@ -52,15 +54,18 @@ class SnoozePickerActivity : ComponentActivity() {
         if (notificationId != -1) {
             getSystemService(NotificationManager::class.java)?.cancel(notificationId)
         }
-        stopService(Intent(this, AlarmRingerService::class.java))
+        startService(Intent(this, AlarmRingerService::class.java).apply {
+            action = AlarmRingerService.ACTION_ADVANCE
+        })
 
+        val activityScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         setContent {
             CrabbanTheme {
                 SnoozePickerDialog(
                     onSnooze = { minutes ->
                         val snoozeMillis = System.currentTimeMillis() + minutes * 60_000L
                         alarmScheduler.scheduleReminder(reminderId, title, snoozeMillis, styleStr)
-                        lifecycleScope.launch {
+                        activityScope.launch {
                             reminderRepository.setSnoozeUntil(reminderId, snoozeMillis)
                         }
                         finish()

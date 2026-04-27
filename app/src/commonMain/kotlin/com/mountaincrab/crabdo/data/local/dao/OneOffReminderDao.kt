@@ -42,7 +42,7 @@ interface OneOffReminderDao {
 
     @Query("""
         UPDATE one_off_reminders
-        SET snoozedUntilMillis = :millis, scheduledAt = :millis,
+        SET snoozedUntilMillis = :millis,
             isCompleted = 0, completedAt = NULL,
             updatedAt = :updatedAt, syncStatus = 'PENDING'
         WHERE id = :id

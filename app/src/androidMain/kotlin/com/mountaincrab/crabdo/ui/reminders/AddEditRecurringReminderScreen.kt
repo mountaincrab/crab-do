@@ -29,6 +29,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.mountaincrab.crabdo.data.local.entity.ReminderStyle
+import com.mountaincrab.crabdo.domain.RecurrenceEngine
 import com.mountaincrab.crabdo.ui.reminders.components.RecurrencePicker
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -174,7 +175,15 @@ fun AddEditRecurringReminderScreen(
                 onClick = {
                     keyboardController?.hide()
                     viewModel.save {
-                        val msg = "\"${viewModel.title}\" recurring reminder saved"
+                        val rule = viewModel.recurrenceRule
+                        val cal = Calendar.getInstance().apply { timeInMillis = viewModel.selectedDateTime }
+                        val nextFire = if (rule != null) {
+                            RecurrenceEngine.nextTriggerAfter(rule, System.currentTimeMillis(), cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE))
+                        } else null
+                        val nextStr = if (nextFire != null) {
+                            " · Next: ${SimpleDateFormat("EEE d MMM, HH:mm", Locale.getDefault()).format(Date(nextFire))}"
+                        } else ""
+                        val msg = "\"${viewModel.title}\" saved$nextStr"
                         Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
                         if (fromWidget) activity?.finish() else navController.popBackStack()
                     }

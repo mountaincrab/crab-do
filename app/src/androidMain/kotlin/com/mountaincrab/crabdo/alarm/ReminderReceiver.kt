@@ -72,7 +72,9 @@ class ReminderReceiver : BroadcastReceiver(), KoinComponent {
         if (notificationId != -1) {
             context.getSystemService<NotificationManager>()?.cancel(notificationId)
         }
-        context.stopService(Intent(context, AlarmRingerService::class.java))
+        context.startService(Intent(context, AlarmRingerService::class.java).apply {
+            action = AlarmRingerService.ACTION_ADVANCE
+        })
     }
 
     private fun handleSnooze(context: Context, intent: Intent) {
@@ -92,6 +94,9 @@ class ReminderReceiver : BroadcastReceiver(), KoinComponent {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, snoozeTime, pendingIntent)
+        context.startService(Intent(context, AlarmRingerService::class.java).apply {
+            action = AlarmRingerService.ACTION_ADVANCE
+        })
     }
 
     companion object {

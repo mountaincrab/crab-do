@@ -13,43 +13,73 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.mountaincrab.crabdo.R
 import com.mountaincrab.crabdo.notification.NotificationHelper
+import java.util.LinkedList
 
 /**
  * Foreground service that keeps the alarm ringing (looping MediaPlayer) until the user
  * explicitly dismisses or snoozes. Started by [ReminderReceiver] when an ALARM-style
  * reminder fires; stopped by dismiss/snooze actions.
+ *
+ * When multiple alarms fire simultaneously, they are queued. After each dismiss/snooze
+ * the next alarm in the queue is presented automatically.
  */
 class AlarmRingerService : Service() {
 
+    private data class AlarmItem(val reminderId: String, val title: String, val notificationId: Int)
+
+    private val queue = LinkedList<AlarmItem>()
     private var mediaPlayer: MediaPlayer? = null
     private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_STOP) {
-            Log.d(TAG, "ACTION_STOP received — shutting down")
-            shutdown()
-            return START_NOT_STICKY
+        when (intent?.action) {
+            ACTION_STOP -> {
+                Log.d(TAG, "ACTION_STOP received — shutting down")
+                shutdown()
+                return START_NOT_STICKY
+            }
+            ACTION_ADVANCE -> {
+                Log.d(TAG, "ACTION_ADVANCE received — advancing queue")
+                advanceQueue()
+                return START_NOT_STICKY
+            }
+            ACTION_START -> {
+                val reminderId = intent.getStringExtra(ReminderReceiver.EXTRA_REMINDER_ID) ?: run {
+                    Log.w(TAG, "No reminderId — ignoring")
+                    if (queue.isEmpty()) stopSelf()
+                    return START_NOT_STICKY
+                }
+                val title = intent.getStringExtra(ReminderReceiver.EXTRA_TITLE) ?: "Reminder"
+                val notificationId = reminderId.hashCode() and 0x7FFFFFFF
+
+                if (queue.isEmpty()) {
+                    Log.d(TAG, "Starting alarm ringer for '$title' (id=$reminderId)")
+                    queue.add(AlarmItem(reminderId, title, notificationId))
+                    startForeground(FOREGROUND_NOTIFICATION_ID, buildNotification(reminderId, title, notificationId))
+                    startAlarmSound()
+                    acquireWakeLock()
+                } else {
+                    Log.d(TAG, "Queuing alarm '$title' (id=$reminderId), queue size will be ${queue.size + 1}")
+                    queue.add(AlarmItem(reminderId, title, notificationId))
+                }
+            }
         }
-
-        val reminderId = intent?.getStringExtra(ReminderReceiver.EXTRA_REMINDER_ID)
-        if (reminderId == null) {
-            Log.w(TAG, "No reminderId — stopping")
-            stopSelf()
-            return START_NOT_STICKY
-        }
-
-        val title = intent.getStringExtra(ReminderReceiver.EXTRA_TITLE) ?: "Reminder"
-        val notificationId = reminderId.hashCode() and 0x7FFFFFFF
-
-        Log.d(TAG, "Starting alarm ringer for '$title' (id=$reminderId)")
-
-        startForeground(FOREGROUND_NOTIFICATION_ID, buildNotification(reminderId, title, notificationId))
-        startAlarmSound()
-        acquireWakeLock()
-
         return START_NOT_STICKY
+    }
+
+    private fun advanceQueue() {
+        queue.poll() // remove the alarm that was just handled
+        val next = queue.peek()
+        if (next != null) {
+            Log.d(TAG, "Advancing to next alarm: '${next.title}' (id=${next.reminderId})")
+            val notification = buildNotification(next.reminderId, next.title, next.notificationId)
+            startForeground(FOREGROUND_NOTIFICATION_ID, notification)
+        } else {
+            Log.d(TAG, "Queue empty — shutting down")
+            shutdown()
+        }
     }
 
     private fun buildNotification(reminderId: String, title: String, notificationId: Int): Notification {
@@ -130,6 +160,7 @@ class AlarmRingerService : Service() {
     }
 
     private fun shutdown() {
+        queue.clear()
         mediaPlayer?.runCatching { if (isPlaying) stop(); release() }
         mediaPlayer = null
         wakeLock?.release()
@@ -149,6 +180,7 @@ class AlarmRingerService : Service() {
         private const val TAG = "AlarmRingerService"
         const val ACTION_START = "com.mountaincrab.crabdo.ACTION_START_ALARM"
         const val ACTION_STOP = "com.mountaincrab.crabdo.ACTION_STOP_ALARM"
+        const val ACTION_ADVANCE = "com.mountaincrab.crabdo.ACTION_ADVANCE_ALARM"
         const val FOREGROUND_NOTIFICATION_ID = 9999
     }
 }
