@@ -54,6 +54,13 @@ export interface Reminder {
   isDeleted: boolean
 }
 
+export interface ApiKeyMeta {
+  id: string        // Firestore doc id (UUID)
+  name: string
+  createdAt: number
+  keyHash: string   // SHA-256 hex; FK to apiKeys/{keyHash}
+}
+
 export interface RecurringReminder {
   id: string
   userId: string

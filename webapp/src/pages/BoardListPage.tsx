@@ -39,6 +39,12 @@ export default function BoardListPage() {
             >
               Reminders
             </Link>
+            <Link
+              to="/settings"
+              className="text-sm text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-surface-high"
+            >
+              Settings
+            </Link>
           </nav>
         </div>
         <div className="flex items-center gap-4">

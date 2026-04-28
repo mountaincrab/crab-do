@@ -332,6 +332,12 @@ export default function RemindersPage() {
             <span className="text-sm text-white font-medium px-3 py-1.5 rounded-lg bg-surface-high">
               Reminders
             </span>
+            <Link
+              to="/settings"
+              className="text-sm text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-surface-high"
+            >
+              Settings
+            </Link>
           </nav>
         </div>
         <div className="flex items-center gap-4">

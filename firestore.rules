@@ -2,6 +2,20 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ---------- API Keys ----------
+    match /apiKeys/{keyHash} {
+      // Client can create their own key entry (Admin SDK bypasses this for Cloud Function reads).
+      // Lock down field shape and hash format to prevent garbage/spam writes.
+      allow create: if request.auth != null
+                    && request.resource.data.keys().hasOnly(['userId'])
+                    && request.resource.data.userId == request.auth.uid
+                    && keyHash.matches('^[a-f0-9]{64}$');
+      // Owner can delete their own key entry
+      allow delete: if request.auth != null
+                    && resource.data.userId == request.auth.uid;
+      // No read or update allowed from clients
+    }
+
     // ---------- Invitations ----------
     match /invitations/{invitationId} {
       // Anyone authenticated can read invitations addressed to them
@@ -72,6 +86,11 @@ service cloud.firestore {
 
       // ---------- Recurring reminders (owner-only, no sharing) ----------
       match /recurringReminders/{reminderId} {
+        allow read, write: if isOwner(uid);
+      }
+
+      // ---------- API key metadata (owner-only) ----------
+      match /apiKeyMeta/{docId} {
         allow read, write: if isOwner(uid);
       }
     }

@@ -17,3 +17,10 @@ gradle/wrapper/gradle-wrapper.jar
 # Kotlin
 *.class
 *.jar (not wrapper)
+
+# Cloud Functions
+functions/lib/
+functions/node_modules/
+
+# Firebase deploy/emulator caches
+.firebase/
