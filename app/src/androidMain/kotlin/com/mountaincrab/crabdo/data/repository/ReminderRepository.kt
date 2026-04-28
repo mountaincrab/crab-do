@@ -142,6 +142,26 @@ class ReminderRepository(
         notifyWidgets()
     }
 
+    suspend fun dismissNextRecurring(id: String) {
+        val reminder = recurringDao.getById(id) ?: return
+        if (reminder.isDeleted) return
+        val rule = RecurrenceRule.fromJson(reminder.recurrenceRuleJson)
+        val (hour, minute) = parseReminderTime(reminder.reminderTime)
+        val now = System.currentTimeMillis()
+        // If nextFireAt is stale (past), catch up to the real next firing first;
+        // otherwise dismiss starts from the currently-scheduled occurrence.
+        val currentNext = if (reminder.nextFireAt > now) reminder.nextFireAt
+            else RecurrenceEngine.nextTriggerAfter(rule, now, hour, minute) ?: return
+        val newNext = RecurrenceEngine.nextTriggerAfter(rule, currentNext, hour, minute) ?: return
+        recurringDao.advanceToNext(id, newNext)
+        alarmScheduler.cancelReminder(id)
+        if (reminder.isEnabled) {
+            alarmScheduler.scheduleReminder(id, reminder.title, newNext, reminder.reminderStyle.name)
+        }
+        enqueueSyncWork()
+        notifyWidgets()
+    }
+
     suspend fun restoreOneOff(id: String) {
         oneOffDao.restore(id)
         val entity = oneOffDao.getById(id) ?: return
@@ -218,14 +238,25 @@ class ReminderRepository(
         val now = System.currentTimeMillis()
 
         oneOffDao.getAllActive(userId).forEach { reminder ->
-            if (reminder.scheduledAt > now) {
-                alarmScheduler.scheduleReminder(reminder.id, reminder.title, reminder.scheduledAt, reminder.reminderStyle.name)
+            val snooze = reminder.snoozedUntilMillis?.takeIf { it > now }
+            if (snooze == null && reminder.snoozedUntilMillis != null) {
+                oneOffDao.updateSnooze(reminder.id, null)
+                enqueueSyncWork()
+            }
+            val fireAt = snooze ?: reminder.scheduledAt
+            if (fireAt > now) {
+                alarmScheduler.scheduleReminder(reminder.id, reminder.title, fireAt, reminder.reminderStyle.name)
             }
         }
 
         recurringDao.getAllActive(userId).forEach { reminder ->
+            val snooze = reminder.snoozedUntilMillis?.takeIf { it > now }
+            if (snooze == null && reminder.snoozedUntilMillis != null) {
+                recurringDao.updateSnooze(reminder.id, null)
+                enqueueSyncWork()
+            }
             val (hour, minute) = parseReminderTime(reminder.reminderTime)
-            val fireAt = if (reminder.nextFireAt > now) {
+            val fireAt = snooze ?: if (reminder.nextFireAt > now) {
                 reminder.nextFireAt
             } else {
                 val rule = RecurrenceRule.fromJson(reminder.recurrenceRuleJson)
@@ -256,8 +287,11 @@ class ReminderRepository(
                                 val existing = oneOffDao.getById(entity.id)
                                 if (existing != null && existing.syncStatus == SyncStatus.PENDING) continue
                                 oneOffDao.upsert(entity)
-                                if (entity.isEnabled && !entity.isCompleted && entity.scheduledAt > System.currentTimeMillis()) {
-                                    alarmScheduler.scheduleReminder(entity.id, entity.title, entity.scheduledAt, entity.reminderStyle.name)
+                                val now = System.currentTimeMillis()
+                                val fireAt = entity.snoozedUntilMillis?.takeIf { it > now }
+                                    ?: entity.scheduledAt
+                                if (entity.isEnabled && !entity.isCompleted && fireAt > now) {
+                                    alarmScheduler.scheduleReminder(entity.id, entity.title, fireAt, entity.reminderStyle.name)
                                 } else {
                                     alarmScheduler.cancelReminder(entity.id)
                                 }
@@ -285,8 +319,11 @@ class ReminderRepository(
                                 val existing = recurringDao.getById(entity.id)
                                 if (existing != null && existing.syncStatus == SyncStatus.PENDING) continue
                                 recurringDao.upsert(entity)
-                                if (entity.isEnabled && entity.nextFireAt > System.currentTimeMillis()) {
-                                    alarmScheduler.scheduleReminder(entity.id, entity.title, entity.nextFireAt, entity.reminderStyle.name)
+                                val now = System.currentTimeMillis()
+                                val fireAt = entity.snoozedUntilMillis?.takeIf { it > now }
+                                    ?: entity.nextFireAt
+                                if (entity.isEnabled && fireAt > now) {
+                                    alarmScheduler.scheduleReminder(entity.id, entity.title, fireAt, entity.reminderStyle.name)
                                 } else {
                                     alarmScheduler.cancelReminder(entity.id)
                                 }

@@ -8,6 +8,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.mountaincrab.crabdo.alarm.AlarmScheduler
 import com.mountaincrab.crabdo.auth.AuthRepository
+import com.mountaincrab.crabdo.data.local.ALL_MIGRATIONS
 import com.mountaincrab.crabdo.data.local.AppDatabase
 import com.mountaincrab.crabdo.data.repository.*
 import com.mountaincrab.crabdo.preferences.UserPreferencesRepository
@@ -45,7 +46,11 @@ val appModule = module {
             name = "crabban_db"
         )
             .setDriver(BundledSQLiteDriver())
-            .fallbackToDestructiveMigration(dropAllTables = true)
+            .addMigrations(*ALL_MIGRATIONS)
+            // Wipe only on downgrade (which can't be migrated automatically).
+            // Upgrades MUST have a migration in ALL_MIGRATIONS or Room will crash —
+            // this is the desired safety net so we don't silently drop user data.
+            .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)
             .build()
     }
 

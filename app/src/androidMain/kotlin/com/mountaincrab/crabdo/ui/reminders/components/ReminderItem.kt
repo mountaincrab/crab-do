@@ -95,6 +95,7 @@ fun RecurringReminderItem(
     reminder: RecurringReminderEntity,
     onToggleEnabled: () -> Unit,
     onDelete: (() -> Unit)? = null,
+    onDismiss: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val now = System.currentTimeMillis()
@@ -149,6 +150,14 @@ fun RecurringReminderItem(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
                 )
+            }
+        }
+        if (onDismiss != null && reminder.isEnabled) {
+            TextButton(
+                onClick = onDismiss,
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+            ) {
+                Text("Dismiss", style = MaterialTheme.typography.labelMedium)
             }
         }
         Switch(

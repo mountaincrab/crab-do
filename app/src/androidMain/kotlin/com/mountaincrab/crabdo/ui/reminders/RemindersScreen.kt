@@ -269,7 +269,8 @@ private fun RecurringRow(
         RecurringReminderItem(
             reminder = reminder,
             onToggleEnabled = { viewModel.toggleRecurringEnabled(reminder) },
-            onDelete = { viewModel.deleteRecurring(reminder.id) }
+            onDelete = { viewModel.deleteRecurring(reminder.id) },
+            onDismiss = { viewModel.dismissRecurring(reminder.id) }
         )
     }
 }

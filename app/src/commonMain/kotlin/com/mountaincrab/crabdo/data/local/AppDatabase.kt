@@ -19,7 +19,7 @@ import com.mountaincrab.crabdo.data.model.SyncStatus
         BoardAccessEntity::class
     ],
     version = 5,
-    exportSchema = false
+    exportSchema = true
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
