@@ -45,7 +45,6 @@ export interface Reminder {
   title: string
   scheduledAt: number
   reminderStyle: 'ALARM' | 'NOTIFICATION'
-  isEnabled: boolean
   snoozedUntilMillis: number | null
   isCompleted: boolean
   completedAt: number | null

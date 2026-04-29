@@ -166,7 +166,6 @@ private fun OneOffTab(
                     Surface(color = MaterialTheme.colorScheme.surface) {
                         OneOffReminderItem(
                             reminder = reminder,
-                            onToggleEnabled = {},
                             onDelete = { viewModel.deleteOneOff(reminder.id) },
                             completed = true
                         )
@@ -250,7 +249,6 @@ private fun OneOffRow(
     ) {
         OneOffReminderItem(
             reminder = reminder,
-            onToggleEnabled = { viewModel.toggleOneOffEnabled(reminder) },
             onDelete = { viewModel.deleteOneOff(reminder.id) }
         )
     }

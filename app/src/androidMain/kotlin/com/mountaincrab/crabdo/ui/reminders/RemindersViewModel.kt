@@ -61,12 +61,6 @@ class RemindersViewModel(
         viewModelScope.launch { reminderRepository.dismissNextRecurring(id) }
     }
 
-    fun toggleOneOffEnabled(reminder: OneOffReminderEntity) {
-        viewModelScope.launch {
-            reminderRepository.updateOneOff(reminder.copy(isEnabled = !reminder.isEnabled))
-        }
-    }
-
     fun toggleRecurringEnabled(reminder: RecurringReminderEntity) {
         viewModelScope.launch {
             reminderRepository.updateRecurring(reminder.copy(isEnabled = !reminder.isEnabled))

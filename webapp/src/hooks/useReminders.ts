@@ -57,7 +57,6 @@ export function useReminders(userId: string) {
       title,
       scheduledAt,
       reminderStyle: style,
-      isEnabled: true,
       snoozedUntilMillis: null,
       isCompleted: false,
       completedAt: null,
@@ -77,7 +76,6 @@ export function useReminders(userId: string) {
       title,
       scheduledAt,
       reminderStyle: style,
-      isEnabled: true,
       updatedAt: serverTimestamp(),
     })
   }
@@ -85,13 +83,6 @@ export function useReminders(userId: string) {
   const deleteReminder = async (reminderId: string) => {
     await updateDoc(doc(db, 'users', userId, 'reminders', reminderId), {
       isDeleted: true,
-      updatedAt: serverTimestamp(),
-    })
-  }
-
-  const toggleReminderEnabled = async (reminder: Reminder) => {
-    await updateDoc(doc(db, 'users', userId, 'reminders', reminder.id), {
-      isEnabled: !reminder.isEnabled,
       updatedAt: serverTimestamp(),
     })
   }
@@ -118,7 +109,6 @@ export function useReminders(userId: string) {
     createReminder,
     updateReminder,
     deleteReminder,
-    toggleReminderEnabled,
     deleteRecurringReminder,
     toggleRecurringEnabled,
   }

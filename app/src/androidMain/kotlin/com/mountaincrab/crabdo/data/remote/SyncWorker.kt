@@ -183,8 +183,9 @@ class SyncWorker(
             .get().await().documents.forEach { doc ->
                 val reminder = doc.toOneOffReminderEntity(userId).copy(syncStatus = SyncStatus.SYNCED)
                 oneOffReminderDao.upsert(reminder)
-                if (reminder.isEnabled && !reminder.isCompleted && !reminder.isDeleted && reminder.scheduledAt > now) {
-                    alarmScheduler.scheduleReminder(reminder.id, reminder.title, reminder.scheduledAt, reminder.reminderStyle.name)
+                val fireAt = reminder.snoozedUntilMillis?.takeIf { it > now } ?: reminder.scheduledAt
+                if (!reminder.isCompleted && !reminder.isDeleted && fireAt > now) {
+                    alarmScheduler.scheduleReminder(reminder.id, reminder.title, fireAt, reminder.reminderStyle.name)
                 } else {
                     alarmScheduler.cancelReminder(reminder.id)
                 }

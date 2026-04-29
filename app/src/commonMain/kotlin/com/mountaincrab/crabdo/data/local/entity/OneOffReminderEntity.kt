@@ -13,7 +13,6 @@ data class OneOffReminderEntity(
     val title: String,
     val scheduledAt: Long,
     val reminderStyle: ReminderStyle = ReminderStyle.ALARM,
-    val isEnabled: Boolean = true,
     val snoozedUntilMillis: Long? = null,
     val isCompleted: Boolean = false,
     val completedAt: Long? = null,

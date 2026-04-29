@@ -174,11 +174,10 @@ interface OneOffRowProps {
   reminder: Reminder
   onEdit: () => void
   onDelete: () => void
-  onToggleEnabled: () => void
   dimmed?: boolean
 }
 
-function OneOffReminderRow({ reminder, onEdit, onDelete, onToggleEnabled, dimmed }: OneOffRowProps) {
+function OneOffReminderRow({ reminder, onEdit, onDelete, dimmed }: OneOffRowProps) {
   const now = Date.now()
   const isSnoozed = reminder.snoozedUntilMillis != null && reminder.snoozedUntilMillis > now
   const isPast = !isSnoozed && reminder.scheduledAt < now
@@ -187,7 +186,7 @@ function OneOffReminderRow({ reminder, onEdit, onDelete, onToggleEnabled, dimmed
   return (
     <div className={`bg-surface-raised rounded-xl px-4 py-3 flex items-center gap-3 group ${dimmed ? 'opacity-50' : ''}`}>
       <div className="flex-1 min-w-0">
-        <p className={`font-medium truncate ${reminder.isEnabled ? 'text-white' : 'text-slate-500'}`}>
+        <p className="font-medium truncate text-white">
           {reminder.title}
         </p>
         {isSnoozed ? (
@@ -201,7 +200,6 @@ function OneOffReminderRow({ reminder, onEdit, onDelete, onToggleEnabled, dimmed
         )}
       </div>
       <span className="text-xs text-slate-500 shrink-0">{styleIcon}</span>
-      <EnableToggle enabled={reminder.isEnabled} onToggle={onToggleEnabled} />
       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         <button
           onClick={onEdit}
@@ -290,7 +288,6 @@ export default function RemindersPage() {
     createReminder,
     updateReminder,
     deleteReminder,
-    toggleReminderEnabled,
     deleteRecurringReminder,
     toggleRecurringEnabled,
   } = useReminders(user!.uid)
@@ -381,7 +378,6 @@ export default function RemindersPage() {
                     reminder={entry.data}
                     onEdit={() => setEditing(entry.data)}
                     onDelete={() => deleteReminder(entry.data.id)}
-                    onToggleEnabled={() => toggleReminderEnabled(entry.data)}
                   />
                 ) : (
                   <RecurringReminderRow
@@ -421,7 +417,6 @@ export default function RemindersPage() {
                         reminder={r}
                         onEdit={() => setEditing(r)}
                         onDelete={() => deleteReminder(r.id)}
-                        onToggleEnabled={() => toggleReminderEnabled(r)}
                         dimmed
                       />
                     ))}

@@ -24,7 +24,6 @@ import java.util.*
 @Composable
 fun OneOffReminderItem(
     reminder: OneOffReminderEntity,
-    onToggleEnabled: () -> Unit,
     onDelete: (() -> Unit)? = null,
     completed: Boolean = false,
     modifier: Modifier = Modifier
@@ -47,8 +46,7 @@ fun OneOffReminderItem(
             tint = when {
                 completed -> mutedColor
                 isSnoozed -> MaterialTheme.colorScheme.tertiary
-                reminder.isEnabled -> MaterialTheme.colorScheme.primary
-                else -> mutedColor
+                else -> MaterialTheme.colorScheme.primary
             },
             modifier = Modifier.size(20.dp)
         )
@@ -57,7 +55,7 @@ fun OneOffReminderItem(
             Text(
                 text = reminder.title,
                 style = MaterialTheme.typography.bodyLarge,
-                color = if (completed || !reminder.isEnabled) mutedColor else MaterialTheme.colorScheme.onSurface
+                color = if (completed) mutedColor else MaterialTheme.colorScheme.onSurface
             )
             Spacer(Modifier.height(1.dp))
             if (isSnoozed) {
@@ -73,13 +71,6 @@ fun OneOffReminderItem(
                     color = mutedColor
                 )
             }
-        }
-        if (!completed) {
-            Switch(
-                checked = reminder.isEnabled,
-                onCheckedChange = { onToggleEnabled() },
-                modifier = Modifier.scale(0.85f)
-            )
         }
         if (onDelete != null) {
             IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {

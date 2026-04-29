@@ -16,10 +16,10 @@ interface OneOffReminderDao {
     @Query("SELECT * FROM one_off_reminders WHERE id = :id")
     suspend fun getById(id: String): OneOffReminderEntity?
 
-    @Query("SELECT * FROM one_off_reminders WHERE userId = :userId AND isEnabled = 1 AND isDeleted = 0 AND isCompleted = 0")
+    @Query("SELECT * FROM one_off_reminders WHERE userId = :userId AND isDeleted = 0 AND isCompleted = 0")
     suspend fun getAllActive(userId: String): List<OneOffReminderEntity>
 
-    @Query("SELECT * FROM one_off_reminders WHERE userId = :userId AND isEnabled = 1 AND isDeleted = 0 AND isCompleted = 0 ORDER BY scheduledAt")
+    @Query("SELECT * FROM one_off_reminders WHERE userId = :userId AND isDeleted = 0 AND isCompleted = 0 ORDER BY scheduledAt")
     fun observeAllActive(userId: String): Flow<List<OneOffReminderEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

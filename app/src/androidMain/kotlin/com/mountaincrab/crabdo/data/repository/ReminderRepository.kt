@@ -75,8 +75,10 @@ class ReminderRepository(
 
     suspend fun updateOneOff(entity: OneOffReminderEntity) {
         oneOffDao.upsert(entity.copy(updatedAt = System.currentTimeMillis(), syncStatus = SyncStatus.PENDING))
+        val now = System.currentTimeMillis()
+        val fireAt = entity.snoozedUntilMillis?.takeIf { it > now } ?: entity.scheduledAt
         alarmScheduler.cancelReminder(entity.id)
-        if (entity.isEnabled) alarmScheduler.scheduleReminder(entity.id, entity.title, entity.scheduledAt, entity.reminderStyle.name)
+        if (fireAt > now) alarmScheduler.scheduleReminder(entity.id, entity.title, fireAt, entity.reminderStyle.name)
         enqueueSyncWork()
         notifyWidgets()
     }
@@ -165,8 +167,10 @@ class ReminderRepository(
     suspend fun restoreOneOff(id: String) {
         oneOffDao.restore(id)
         val entity = oneOffDao.getById(id) ?: return
-        if (entity.isEnabled && !entity.isCompleted && entity.scheduledAt > System.currentTimeMillis()) {
-            alarmScheduler.scheduleReminder(entity.id, entity.title, entity.scheduledAt, entity.reminderStyle.name)
+        val now = System.currentTimeMillis()
+        val fireAt = entity.snoozedUntilMillis?.takeIf { it > now } ?: entity.scheduledAt
+        if (!entity.isCompleted && fireAt > now) {
+            alarmScheduler.scheduleReminder(entity.id, entity.title, fireAt, entity.reminderStyle.name)
         }
         enqueueSyncWork()
         notifyWidgets()
@@ -290,7 +294,7 @@ class ReminderRepository(
                                 val now = System.currentTimeMillis()
                                 val fireAt = entity.snoozedUntilMillis?.takeIf { it > now }
                                     ?: entity.scheduledAt
-                                if (entity.isEnabled && !entity.isCompleted && fireAt > now) {
+                                if (!entity.isCompleted && fireAt > now) {
                                     alarmScheduler.scheduleReminder(entity.id, entity.title, fireAt, entity.reminderStyle.name)
                                 } else {
                                     alarmScheduler.cancelReminder(entity.id)
