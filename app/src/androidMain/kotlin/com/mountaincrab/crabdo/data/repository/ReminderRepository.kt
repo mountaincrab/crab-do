@@ -127,6 +127,7 @@ class ReminderRepository(
         ) ?: entity.nextFireAt
         val updated = entity.copy(
             nextFireAt = nextFire,
+            snoozedUntilMillis = null,
             updatedAt = System.currentTimeMillis(),
             syncStatus = SyncStatus.PENDING
         )
@@ -185,6 +186,7 @@ class ReminderRepository(
         val restored = existing.copy(
             isDeleted = false,
             nextFireAt = nextFire,
+            snoozedUntilMillis = null,
             updatedAt = System.currentTimeMillis(),
             syncStatus = SyncStatus.PENDING
         )

@@ -100,23 +100,23 @@ class SyncWorker(
         oneOffReminderDao.getUnsynced().forEach { reminder ->
             userRef.collection("reminders").document(reminder.id)
                 .set(reminder.toFirestoreMap(), SetOptions.merge()).await()
-            oneOffReminderDao.markSynced(reminder.id)
+            oneOffReminderDao.markSynced(reminder.id, reminder.updatedAt)
         }
         oneOffReminderDao.getDeletedUnsynced().forEach { reminder ->
             userRef.collection("reminders").document(reminder.id)
                 .set(mapOf("isDeleted" to true), SetOptions.merge()).await()
-            oneOffReminderDao.markSynced(reminder.id)
+            oneOffReminderDao.markSynced(reminder.id, reminder.updatedAt)
         }
 
         recurringReminderDao.getUnsynced().forEach { reminder ->
             userRef.collection("recurringReminders").document(reminder.id)
                 .set(reminder.toFirestoreMap(), SetOptions.merge()).await()
-            recurringReminderDao.markSynced(reminder.id)
+            recurringReminderDao.markSynced(reminder.id, reminder.updatedAt)
         }
         recurringReminderDao.getDeletedUnsynced().forEach { reminder ->
             userRef.collection("recurringReminders").document(reminder.id)
                 .set(mapOf("isDeleted" to true), SetOptions.merge()).await()
-            recurringReminderDao.markSynced(reminder.id)
+            recurringReminderDao.markSynced(reminder.id, reminder.updatedAt)
         }
     }
 
@@ -196,8 +196,9 @@ class SyncWorker(
             .get().await().documents.forEach { doc ->
                 val reminder = doc.toRecurringReminderEntity(userId).copy(syncStatus = SyncStatus.SYNCED)
                 recurringReminderDao.upsert(reminder)
-                if (reminder.isEnabled && !reminder.isDeleted && reminder.nextFireAt > now) {
-                    alarmScheduler.scheduleReminder(reminder.id, reminder.title, reminder.nextFireAt, reminder.reminderStyle.name)
+                val fireAt = reminder.snoozedUntilMillis?.takeIf { it > now } ?: reminder.nextFireAt
+                if (reminder.isEnabled && !reminder.isDeleted && fireAt > now) {
+                    alarmScheduler.scheduleReminder(reminder.id, reminder.title, fireAt, reminder.reminderStyle.name)
                 } else {
                     alarmScheduler.cancelReminder(reminder.id)
                 }

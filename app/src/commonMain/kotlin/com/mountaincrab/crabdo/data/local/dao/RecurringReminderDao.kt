@@ -31,8 +31,8 @@ interface RecurringReminderDao {
     @Query("SELECT * FROM recurring_reminders WHERE syncStatus != 'SYNCED' AND isDeleted = 1")
     suspend fun getDeletedUnsynced(): List<RecurringReminderEntity>
 
-    @Query("UPDATE recurring_reminders SET syncStatus = 'SYNCED' WHERE id = :id")
-    suspend fun markSynced(id: String)
+    @Query("UPDATE recurring_reminders SET syncStatus = 'SYNCED' WHERE id = :id AND updatedAt = :updatedAt")
+    suspend fun markSynced(id: String, updatedAt: Long)
 
     @Query("UPDATE recurring_reminders SET isDeleted = 1, updatedAt = :updatedAt, syncStatus = 'PENDING' WHERE id = :id")
     suspend fun softDelete(id: String, updatedAt: Long = currentTimeMillis())
