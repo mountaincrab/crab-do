@@ -1,13 +1,8 @@
 package com.mountaincrab.crabdo.ui.boards
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.waitForUpOrCancellation
-import androidx.compose.foundation.draganddrop.dragAndDropSource
-import androidx.compose.foundation.draganddrop.dragAndDropTarget
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
@@ -21,19 +16,21 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draganddrop.DragAndDropEvent
-import androidx.compose.ui.draganddrop.DragAndDropTarget
-import androidx.compose.ui.draganddrop.DragAndDropTransferData
-import androidx.compose.ui.draganddrop.toAndroidDragEvent
-import androidx.compose.ui.input.pointer.PointerEventTimeoutCancellationException
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.mountaincrab.crabdo.data.local.entity.TaskEntity
@@ -45,7 +42,7 @@ import java.util.TimeZone
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TaskDetailScreen(
     taskId: String,
@@ -60,10 +57,17 @@ fun TaskDetailScreen(
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showReminderDialog by remember { mutableStateOf(false) }
     var showAddSubtaskSheet by remember { mutableStateOf(false) }
-    var draggedSubtaskId by remember { mutableStateOf<String?>(null) }
-    var subtaskHoverIndex by remember { mutableStateOf<Int?>(null) }
-    val visibleSubtasks = remember(subtasks, draggedSubtaskId) {
-        subtasks.filter { it.id != draggedSubtaskId }
+    var dragList by remember { mutableStateOf(subtasks) }
+    var draggingSubtaskId by remember { mutableStateOf<String?>(null) }
+    var dragOffsetY by remember { mutableFloatStateOf(0f) }
+    var itemHeightPx by remember { mutableFloatStateOf(0f) }
+    val density = LocalDensity.current
+    val subtaskSpacingPx = with(density) { 8.dp.toPx() }
+    val haptic = LocalHapticFeedback.current
+
+    // Keep dragList in sync with the ViewModel when not mid-drag.
+    LaunchedEffect(subtasks) {
+        if (draggingSubtaskId == null) dragList = subtasks
     }
 
     Scaffold(
@@ -84,19 +88,10 @@ fun TaskDetailScreen(
             )
         }
     ) { padding ->
-        // Catches drag-session end so a cancelled subtask drag (released over dead space)
-        // restores the hidden row instead of leaving it invisible until the next drag.
-        val sessionEndTarget = remember {
-            object : DragAndDropTarget {
-                override fun onDrop(event: DragAndDropEvent) = false
-                override fun onEnded(event: DragAndDropEvent) { draggedSubtaskId = null }
-            }
-        }
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .dragAndDropTarget(shouldStartDragAndDrop = { true }, target = sessionEndTarget),
+                .padding(padding),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -190,129 +185,84 @@ fun TaskDetailScreen(
                     }
                 }
             }
-            // Wrap all subtasks in one Column with a parent appendSubtaskTarget so that
-            // drops landing in the gap between rows (or anywhere in the subtask area that
-            // isn't a specific row) still get applied — appended to the end. Mirrors the
-            // outer-Column appendDropTarget pattern in KanbanColumn that fixes the same
-            // dead-zone problem.
             item {
-                val appendSubtaskTarget = remember(visibleSubtasks) {
-                    object : DragAndDropTarget {
-                        override fun onDrop(event: DragAndDropEvent): Boolean {
-                            val draggedId = event.toAndroidDragEvent()
-                                .clipData?.getItemAt(0)?.text?.toString() ?: return false
-                            val maxOrder = visibleSubtasks.maxOfOrNull { it.order } ?: 0.0
-                            viewModel.reorderSubtask(draggedId, maxOrder, maxOrder + 2.0)
-                            subtaskHoverIndex = null
-                            draggedSubtaskId = null
-                            return true
-                        }
-                        // onEntered intentionally omitted — parent fires before child targets,
-                        // causing the indicator to flicker to the bottom before the child's
-                        // onEntered corrects it. The trailingSubtaskTarget below drives the
-                        // end-of-list indicator instead.
-                        override fun onEnded(event: DragAndDropEvent) { subtaskHoverIndex = null }
-                    }
-                }
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .dragAndDropTarget(
-                            shouldStartDragAndDrop = { true },
-                            target = appendSubtaskTarget
-                        ),
+                    modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    visibleSubtasks.forEachIndexed { index, subtask ->
+                    dragList.forEach { subtask ->
                         key(subtask.id) {
-                        val insertBeforeTarget = remember(subtask.id, index, visibleSubtasks) {
-                            object : DragAndDropTarget {
-                                override fun onDrop(event: DragAndDropEvent): Boolean {
-                                    val draggedId = event.toAndroidDragEvent()
-                                        .clipData?.getItemAt(0)?.text?.toString() ?: return false
-                                    if (draggedId == subtask.id) return false
-                                    val prevOrder = visibleSubtasks.getOrNull(index - 1)?.order
-                                        ?: (subtask.order - 2.0)
-                                    viewModel.reorderSubtask(draggedId, prevOrder, subtask.order)
-                                    subtaskHoverIndex = null
-                                    draggedSubtaskId = null
-                                    return true
-                                }
-                                override fun onEntered(event: DragAndDropEvent) { subtaskHoverIndex = index }
-                                override fun onEnded(event: DragAndDropEvent) { subtaskHoverIndex = null }
-                            }
-                        }
-                        Column {
-                            SubtaskDropIndicator(visible = subtaskHoverIndex == index)
+                            val isDragging = subtask.id == draggingSubtaskId
                             SubtaskItem(
                                 subtask = subtask,
                                 onToggle = { viewModel.toggleSubtask(subtask.id, it) },
                                 onDelete = { viewModel.deleteSubtask(subtask.id) },
                                 onRename = { viewModel.renameSubtask(subtask.id, it) },
                                 modifier = Modifier
-                                    .dragAndDropTarget(
-                                        shouldStartDragAndDrop = { true },
-                                        target = insertBeforeTarget
-                                    )
-                                    .dragAndDropSource {
-                                        // Manual long-press detection: SubtaskItem's children
-                                        // (Checkbox, clickable Text, IconButton) consume the down
-                                        // event via their own clickable modifiers, so the parent
-                                        // would never see an unconsumed down. requireUnconsumed=false
-                                        // lets us still detect the gesture. We distinguish timeout
-                                        // (long-press) from a premature up (just a tap) by catching
-                                        // PointerEventTimeoutCancellationException — using
-                                        // withTimeoutOrNull would conflate the two.
-                                        val longPressMs = viewConfiguration.longPressTimeoutMillis
-                                        awaitEachGesture {
-                                            awaitFirstDown(requireUnconsumed = false)
-                                            try {
-                                                withTimeout(longPressMs) {
-                                                    waitForUpOrCancellation()
+                                    .zIndex(if (isDragging) 1f else 0f)
+                                    .graphicsLayer {
+                                        translationY = if (isDragging) dragOffsetY else 0f
+                                        alpha = if (isDragging) 0.85f else 1f
+                                    }
+                                    .onSizeChanged { size ->
+                                        if (size.height > 0) itemHeightPx = size.height.toFloat()
+                                    }
+                                    .pointerInput(subtask.id) {
+                                        detectDragGesturesAfterLongPress(
+                                            onDragStart = { _ ->
+                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                draggingSubtaskId = subtask.id
+                                                dragOffsetY = 0f
+                                            },
+                                            onDrag = { change, dragAmount ->
+                                                change.consume()
+                                                dragOffsetY += dragAmount.y
+                                                val slotH = if (itemHeightPx > 0f)
+                                                    itemHeightPx + subtaskSpacingPx
+                                                else with(density) { 56.dp.toPx() }
+                                                var curIdx = dragList.indexOfFirst { it.id == subtask.id }
+                                                while (dragOffsetY > slotH / 2f && curIdx < dragList.size - 1) {
+                                                    val m = dragList.toMutableList()
+                                                    m.add(curIdx + 1, m.removeAt(curIdx))
+                                                    dragList = m
+                                                    dragOffsetY -= slotH
+                                                    curIdx++
                                                 }
-                                            } catch (_: PointerEventTimeoutCancellationException) {
-                                                draggedSubtaskId = subtask.id
-                                                startTransfer(
-                                                    DragAndDropTransferData(
-                                                        clipData = android.content.ClipData.newPlainText(
-                                                            "subtaskId", subtask.id
+                                                while (dragOffsetY < -slotH / 2f && curIdx > 0) {
+                                                    val m = dragList.toMutableList()
+                                                    m.add(curIdx - 1, m.removeAt(curIdx))
+                                                    dragList = m
+                                                    dragOffsetY += slotH
+                                                    curIdx--
+                                                }
+                                            },
+                                            onDragEnd = {
+                                                val id = draggingSubtaskId
+                                                draggingSubtaskId = null
+                                                dragOffsetY = 0f
+                                                if (id != null) {
+                                                    val finalList = dragList
+                                                    val finalIdx = finalList.indexOfFirst { it.id == id }
+                                                    if (finalIdx >= 0) {
+                                                        val prevOrder = finalList.getOrNull(finalIdx - 1)?.order
+                                                        val nextOrder = finalList.getOrNull(finalIdx + 1)?.order
+                                                        viewModel.reorderSubtask(
+                                                            id,
+                                                            prevOrder ?: ((nextOrder ?: 1.0) - 2.0),
+                                                            nextOrder ?: ((prevOrder ?: 0.0) + 2.0)
                                                         )
-                                                    )
-                                                )
+                                                    }
+                                                }
+                                            },
+                                            onDragCancel = {
+                                                draggingSubtaskId = null
+                                                dragOffsetY = 0f
+                                                dragList = subtasks
                                             }
-                                        }
+                                        )
                                     }
                             )
                         }
-                        } // key(subtask.id)
-                    }
-                    // Trailing drop indicator at end (visual hint while dragging).
-                    // Has its own target so onEntered fires here rather than on the parent
-                    // appendSubtaskTarget (which would flicker due to parent/child event ordering).
-                    val trailingSubtaskTarget = remember(visibleSubtasks) {
-                        object : DragAndDropTarget {
-                            override fun onDrop(event: DragAndDropEvent): Boolean {
-                                val draggedId = event.toAndroidDragEvent()
-                                    .clipData?.getItemAt(0)?.text?.toString() ?: return false
-                                val maxOrder = visibleSubtasks.maxOfOrNull { it.order } ?: 0.0
-                                viewModel.reorderSubtask(draggedId, maxOrder, maxOrder + 2.0)
-                                subtaskHoverIndex = null
-                                draggedSubtaskId = null
-                                return true
-                            }
-                            override fun onEntered(event: DragAndDropEvent) { subtaskHoverIndex = visibleSubtasks.size }
-                            override fun onEnded(event: DragAndDropEvent) { subtaskHoverIndex = null }
-                        }
-                    }
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(if (draggedSubtaskId != null) 24.dp else 0.dp)
-                            .dragAndDropTarget(shouldStartDragAndDrop = { true }, target = trailingSubtaskTarget)
-                    ) {
-                        SubtaskDropIndicator(
-                            visible = subtaskHoverIndex == visibleSubtasks.size && draggedSubtaskId != null
-                        )
                     }
                 }
             }
@@ -544,19 +494,6 @@ private fun AddSubtaskSheet(
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun SubtaskDropIndicator(visible: Boolean) {
-    if (visible) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 1.dp)
-                .height(2.dp)
-                .background(MaterialTheme.colorScheme.primary)
-        )
     }
 }
 
