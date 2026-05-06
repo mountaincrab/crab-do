@@ -3,14 +3,13 @@ package com.mountaincrab.crabdo.ui.boards
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.draganddrop.dragAndDropSource
 import androidx.compose.foundation.draganddrop.dragAndDropTarget
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
@@ -26,8 +25,7 @@ import androidx.compose.ui.draganddrop.DragAndDropEvent
 import androidx.compose.ui.draganddrop.DragAndDropTarget
 import androidx.compose.ui.draganddrop.DragAndDropTransferData
 import androidx.compose.ui.draganddrop.toAndroidDragEvent
-import androidx.compose.ui.input.pointer.PointerEventPass
-import kotlinx.coroutines.withTimeoutOrNull
+import androidx.compose.ui.input.pointer.PointerEventTimeoutCancellationException
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -86,10 +84,19 @@ fun TaskDetailScreen(
             )
         }
     ) { padding ->
+        // Catches drag-session end so a cancelled subtask drag (released over dead space)
+        // restores the hidden row instead of leaving it invisible until the next drag.
+        val sessionEndTarget = remember {
+            object : DragAndDropTarget {
+                override fun onDrop(event: DragAndDropEvent) = false
+                override fun onEnded(event: DragAndDropEvent) { draggedSubtaskId = null }
+            }
+        }
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding),
+                .padding(padding)
+                .dragAndDropTarget(shouldStartDragAndDrop = { true }, target = sessionEndTarget),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -183,62 +190,13 @@ fun TaskDetailScreen(
                     }
                 }
             }
-            itemsIndexed(visibleSubtasks, key = { _, s -> s.id }) { index, subtask ->
-                val insertBeforeTarget = remember(subtask.id, index, visibleSubtasks) {
-                    object : DragAndDropTarget {
-                        override fun onDrop(event: DragAndDropEvent): Boolean {
-                            val draggedId = event.toAndroidDragEvent()
-                                .clipData?.getItemAt(0)?.text?.toString() ?: return false
-                            if (draggedId == subtask.id) return false
-                            val prevOrder = visibleSubtasks.getOrNull(index - 1)?.order
-                                ?: (subtask.order - 2.0)
-                            viewModel.reorderSubtask(draggedId, prevOrder, subtask.order)
-                            subtaskHoverIndex = null
-                            draggedSubtaskId = null
-                            return true
-                        }
-                        override fun onEntered(event: DragAndDropEvent) { subtaskHoverIndex = index }
-                        override fun onEnded(event: DragAndDropEvent) { subtaskHoverIndex = null }
-                    }
-                }
-                Column {
-                    SubtaskDropIndicator(visible = subtaskHoverIndex == index)
-                    SubtaskItem(
-                        subtask = subtask,
-                        onToggle = { viewModel.toggleSubtask(subtask.id, it) },
-                        onDelete = { viewModel.deleteSubtask(subtask.id) },
-                        onRename = { viewModel.renameSubtask(subtask.id, it) },
-                        modifier = Modifier
-                            .dragAndDropTarget(
-                                shouldStartDragAndDrop = { true },
-                                target = insertBeforeTarget
-                            )
-                            .dragAndDropSource {
-                                val dragSource = this
-                                awaitPointerEventScope {
-                                    // Initial pass intercepts before Checkbox/clickable children
-                                    awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-                                    val released = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
-                                        waitForUpOrCancellation()
-                                    }
-                                    if (released == null) {
-                                        draggedSubtaskId = subtask.id
-                                        dragSource.startTransfer(
-                                            DragAndDropTransferData(
-                                                clipData = android.content.ClipData.newPlainText(
-                                                    "subtaskId", subtask.id
-                                                )
-                                            )
-                                        )
-                                    }
-                                }
-                            }
-                    )
-                }
-            }
-            // Trailing drop target: append after all subtasks
+            // Wrap all subtasks in one Column with a parent appendSubtaskTarget so that
+            // drops landing in the gap between rows (or anywhere in the subtask area that
+            // isn't a specific row) still get applied — appended to the end. Mirrors the
+            // outer-Column appendDropTarget pattern in KanbanColumn that fixes the same
+            // dead-zone problem.
             item {
-                val appendTarget = remember(visibleSubtasks) {
+                val appendSubtaskTarget = remember(visibleSubtasks) {
                     object : DragAndDropTarget {
                         override fun onDrop(event: DragAndDropEvent): Boolean {
                             val draggedId = event.toAndroidDragEvent()
@@ -249,21 +207,113 @@ fun TaskDetailScreen(
                             draggedSubtaskId = null
                             return true
                         }
-                        override fun onEntered(event: DragAndDropEvent) {
-                            subtaskHoverIndex = visibleSubtasks.size
-                        }
+                        // onEntered intentionally omitted — parent fires before child targets,
+                        // causing the indicator to flicker to the bottom before the child's
+                        // onEntered corrects it. The trailingSubtaskTarget below drives the
+                        // end-of-list indicator instead.
                         override fun onEnded(event: DragAndDropEvent) { subtaskHoverIndex = null }
                     }
                 }
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(24.dp)
-                        .dragAndDropTarget(shouldStartDragAndDrop = { true }, target = appendTarget)
+                        .dragAndDropTarget(
+                            shouldStartDragAndDrop = { true },
+                            target = appendSubtaskTarget
+                        ),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    SubtaskDropIndicator(
-                        visible = subtaskHoverIndex == visibleSubtasks.size && draggedSubtaskId != null
-                    )
+                    visibleSubtasks.forEachIndexed { index, subtask ->
+                        key(subtask.id) {
+                        val insertBeforeTarget = remember(subtask.id, index, visibleSubtasks) {
+                            object : DragAndDropTarget {
+                                override fun onDrop(event: DragAndDropEvent): Boolean {
+                                    val draggedId = event.toAndroidDragEvent()
+                                        .clipData?.getItemAt(0)?.text?.toString() ?: return false
+                                    if (draggedId == subtask.id) return false
+                                    val prevOrder = visibleSubtasks.getOrNull(index - 1)?.order
+                                        ?: (subtask.order - 2.0)
+                                    viewModel.reorderSubtask(draggedId, prevOrder, subtask.order)
+                                    subtaskHoverIndex = null
+                                    draggedSubtaskId = null
+                                    return true
+                                }
+                                override fun onEntered(event: DragAndDropEvent) { subtaskHoverIndex = index }
+                                override fun onEnded(event: DragAndDropEvent) { subtaskHoverIndex = null }
+                            }
+                        }
+                        Column {
+                            SubtaskDropIndicator(visible = subtaskHoverIndex == index)
+                            SubtaskItem(
+                                subtask = subtask,
+                                onToggle = { viewModel.toggleSubtask(subtask.id, it) },
+                                onDelete = { viewModel.deleteSubtask(subtask.id) },
+                                onRename = { viewModel.renameSubtask(subtask.id, it) },
+                                modifier = Modifier
+                                    .dragAndDropTarget(
+                                        shouldStartDragAndDrop = { true },
+                                        target = insertBeforeTarget
+                                    )
+                                    .dragAndDropSource {
+                                        // Manual long-press detection: SubtaskItem's children
+                                        // (Checkbox, clickable Text, IconButton) consume the down
+                                        // event via their own clickable modifiers, so the parent
+                                        // would never see an unconsumed down. requireUnconsumed=false
+                                        // lets us still detect the gesture. We distinguish timeout
+                                        // (long-press) from a premature up (just a tap) by catching
+                                        // PointerEventTimeoutCancellationException — using
+                                        // withTimeoutOrNull would conflate the two.
+                                        val longPressMs = viewConfiguration.longPressTimeoutMillis
+                                        awaitEachGesture {
+                                            awaitFirstDown(requireUnconsumed = false)
+                                            try {
+                                                withTimeout(longPressMs) {
+                                                    waitForUpOrCancellation()
+                                                }
+                                            } catch (_: PointerEventTimeoutCancellationException) {
+                                                draggedSubtaskId = subtask.id
+                                                startTransfer(
+                                                    DragAndDropTransferData(
+                                                        clipData = android.content.ClipData.newPlainText(
+                                                            "subtaskId", subtask.id
+                                                        )
+                                                    )
+                                                )
+                                            }
+                                        }
+                                    }
+                            )
+                        }
+                        } // key(subtask.id)
+                    }
+                    // Trailing drop indicator at end (visual hint while dragging).
+                    // Has its own target so onEntered fires here rather than on the parent
+                    // appendSubtaskTarget (which would flicker due to parent/child event ordering).
+                    val trailingSubtaskTarget = remember(visibleSubtasks) {
+                        object : DragAndDropTarget {
+                            override fun onDrop(event: DragAndDropEvent): Boolean {
+                                val draggedId = event.toAndroidDragEvent()
+                                    .clipData?.getItemAt(0)?.text?.toString() ?: return false
+                                val maxOrder = visibleSubtasks.maxOfOrNull { it.order } ?: 0.0
+                                viewModel.reorderSubtask(draggedId, maxOrder, maxOrder + 2.0)
+                                subtaskHoverIndex = null
+                                draggedSubtaskId = null
+                                return true
+                            }
+                            override fun onEntered(event: DragAndDropEvent) { subtaskHoverIndex = visibleSubtasks.size }
+                            override fun onEnded(event: DragAndDropEvent) { subtaskHoverIndex = null }
+                        }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(if (draggedSubtaskId != null) 24.dp else 0.dp)
+                            .dragAndDropTarget(shouldStartDragAndDrop = { true }, target = trailingSubtaskTarget)
+                    ) {
+                        SubtaskDropIndicator(
+                            visible = subtaskHoverIndex == visibleSubtasks.size && draggedSubtaskId != null
+                        )
+                    }
                 }
             }
         }

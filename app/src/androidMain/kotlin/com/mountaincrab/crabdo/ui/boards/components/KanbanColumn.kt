@@ -64,7 +64,9 @@ fun KanbanColumn(
                 onDragEnd()
                 return true
             }
-            override fun onEntered(event: DragAndDropEvent) { hoverIndex = visibleTasks.size }
+            // onEntered intentionally omitted — parent fires before child targets, causing
+            // the indicator to flicker to the bottom before the child's onEntered corrects it.
+            // The trailingTarget item below drives the end-of-list indicator instead.
             override fun onEnded(event: DragAndDropEvent) { hoverIndex = null }
         }
     }
