@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.mountaincrab.crabdo.data.local.entity.TaskEntity
 import com.mountaincrab.crabdo.ui.boards.components.KanbanColumn
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
@@ -40,6 +41,12 @@ fun KanbanBoardScreen(
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     var showColumnConfig by remember { mutableStateOf(false) }
     var draggedTaskId by remember { mutableStateOf<String?>(null) }
+    val draggedTask: TaskEntity? = if (draggedTaskId == null) null
+        else tasksByColumn.values.flatten().firstOrNull { it.id == draggedTaskId }
+    val ghostColumnId = remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(draggedTaskId) {
+        if (draggedTaskId == null) ghostColumnId.value = null
+    }
 
     Scaffold(
         topBar = {
@@ -94,8 +101,20 @@ fun KanbanBoardScreen(
                     override fun onEnded(event: DragAndDropEvent) { edgeScrollState.intValue = 0 }
                 }
             }
+            // Catches drag-session end even when the drop lands outside any column target
+            // (e.g. top of screen, between columns) so the dragged card reappears.
+            val sessionEndTarget = remember {
+                object : DragAndDropTarget {
+                    override fun onDrop(event: DragAndDropEvent) = false
+                    override fun onEnded(event: DragAndDropEvent) { draggedTaskId = null }
+                }
+            }
 
-            Box(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .dragAndDropTarget(shouldStartDragAndDrop = { true }, target = sessionEndTarget)
+            ) {
                 LazyRow(
                     state = lazyRowState,
                     flingBehavior = snapBehavior,
@@ -104,10 +123,14 @@ fun KanbanBoardScreen(
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
                 ) {
                     items(columns, key = { it.id }) { column ->
+                        val columnTasks = tasksByColumn[column.id] ?: emptyList()
                         KanbanColumn(
                             column = column,
-                            tasks = tasksByColumn[column.id] ?: emptyList(),
+                            tasks = columnTasks,
                             draggedTaskId = draggedTaskId,
+                            // Non-null only when a task from a different column is being dragged
+                            foreignDraggedTask = if (columnTasks.any { it.id == draggedTaskId }) null else draggedTask,
+                            ghostColumnId = ghostColumnId,
                             onDragStart = { draggedTaskId = it },
                             onDragEnd = { draggedTaskId = null },
                             onCardDropped = { taskId, targetColumnId, orderBefore, orderAfter ->

@@ -18,6 +18,8 @@ import androidx.compose.ui.draganddrop.DragAndDropEvent
 import androidx.compose.ui.draganddrop.DragAndDropTarget
 import androidx.compose.ui.draganddrop.DragAndDropTransferData
 import androidx.compose.ui.draganddrop.toAndroidDragEvent
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
@@ -31,6 +33,8 @@ fun KanbanColumn(
     column: ColumnEntity,
     tasks: List<TaskEntity>,
     draggedTaskId: String?,
+    foreignDraggedTask: TaskEntity?,
+    ghostColumnId: MutableState<String?>,
     onDragStart: (taskId: String) -> Unit,
     onDragEnd: () -> Unit,
     onCardDropped: (taskId: String, targetColumnId: String, orderBefore: Double, orderAfter: Double) -> Unit,
@@ -41,23 +45,24 @@ fun KanbanColumn(
 ) {
     var showAddCardDialog by remember { mutableStateOf(false) }
 
-    // Live display order — mutated by DnD hover events so items shift as you drag.
-    // The dragged card stays in the list (dimmed) rather than disappearing.
     val displayTasksState = remember { mutableStateOf(tasks) }
     val currentTasksRef = rememberUpdatedState(tasks)
     val draggedTaskIdRef = rememberUpdatedState(draggedTaskId)
+    val foreignDraggedTaskRef = rememberUpdatedState(foreignDraggedTask)
     val onCardDroppedRef = rememberUpdatedState(onCardDropped)
     val onDragEndRef = rememberUpdatedState(onDragEnd)
 
-    // Track whether a drop was committed so we don't clobber the display on session end.
     var droppedSuccessfully by remember { mutableStateOf(false) }
+    // Set true when this column receives a cross-column drop; prevents premature ghost removal
+    // while waiting for Room to push the moved task into this column's task list.
+    var ghostDropped by remember { mutableStateOf(false) }
 
-    // Sync display when tasks list changes from outside (Firestore) while not dragging.
     LaunchedEffect(tasks) {
-        if (draggedTaskId == null) displayTasksState.value = tasks
+        if (draggedTaskId == null) {
+            displayTasksState.value = tasks
+            ghostDropped = false
+        }
     }
-    // Reset display when drag session ends. Skip reset on successful drop — the display
-    // already shows the correct order, and Room will update tasks shortly after.
     LaunchedEffect(draggedTaskId) {
         if (draggedTaskId == null && !droppedSuccessfully) {
             displayTasksState.value = currentTasksRef.value
@@ -65,11 +70,20 @@ fun KanbanColumn(
         droppedSuccessfully = false
     }
 
+    // Remove ghost when another column takes over as ghost host.
+    LaunchedEffect(ghostColumnId.value) {
+        if (ghostColumnId.value != column.id && !ghostDropped) {
+            val ghost = foreignDraggedTaskRef.value ?: return@LaunchedEffect
+            displayTasksState.value = displayTasksState.value.filter { it.id != ghost.id }
+        }
+    }
+
     val displayTasks = displayTasksState.value
 
-    // Shared drop logic used by all targets in this column.
-    // Same-column: use current display position (reflects drag reordering).
-    // Cross-column: append to end.
+    // Draw colors captured here so drawDragDecoration can close over them.
+    val cardBgColor = MaterialTheme.colorScheme.surfaceVariant
+    val cardBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+
     fun commitDrop(taskId: String): Boolean {
         val current = displayTasksState.value
         val finalIdx = current.indexOfFirst { it.id == taskId }
@@ -83,19 +97,29 @@ fun KanbanColumn(
             val maxOrder = current.maxOfOrNull { it.order } ?: 0.0
             onCardDroppedRef.value(taskId, column.id, maxOrder, maxOrder + 2.0)
         }
+        // If we hosted a ghost, mark it so Room can catch up before we clear the display.
+        if (foreignDraggedTaskRef.value != null) ghostDropped = true
         droppedSuccessfully = true
         onDragEndRef.value()
         return true
     }
 
-    // Catch drops in dead zones (gaps between cards, empty column). No onEntered —
-    // parent fires before children and causes indicator flicker (see prior fix).
+    // Column-level drop target: handles drops in gaps between cards, empty columns, and
+    // cross-column entry for inserting the ghost when there are no card targets to hover.
     val appendDropTarget = remember(column.id) {
         object : DragAndDropTarget {
             override fun onDrop(event: DragAndDropEvent): Boolean {
                 val taskId = event.toAndroidDragEvent().clipData?.getItemAt(0)?.text?.toString()
                     ?: return false
                 return commitDrop(taskId)
+            }
+            override fun onEntered(event: DragAndDropEvent) {
+                // Insert ghost into an empty column (card targets handle non-empty columns).
+                val ghost = foreignDraggedTaskRef.value ?: return
+                val current = displayTasksState.value
+                if (current.any { it.id == ghost.id }) return
+                ghostColumnId.value = column.id
+                displayTasksState.value = current + ghost
             }
             override fun onEnded(event: DragAndDropEvent) {
                 if (!droppedSuccessfully) displayTasksState.value = currentTasksRef.value
@@ -151,9 +175,30 @@ fun KanbanColumn(
                             val dragId = draggedTaskIdRef.value ?: return
                             val current = displayTasksState.value
                             val fromIdx = current.indexOfFirst { it.id == dragId }
-                            if (fromIdx < 0) return // cross-column drag — skip shifting
                             val tIdx = current.indexOfFirst { it.id == capturedTaskId }
-                            if (tIdx < 0 || tIdx == fromIdx) return
+                            if (tIdx < 0) return
+
+                            if (fromIdx < 0) {
+                                // Cross-column: insert or reorder the ghost.
+                                val ghost = foreignDraggedTaskRef.value ?: return
+                                ghostColumnId.value = column.id
+                                val ghostIdx = current.indexOfFirst { it.id == ghost.id }
+                                if (ghostIdx < 0) {
+                                    val mutable = current.toMutableList()
+                                    mutable.add(tIdx, ghost)
+                                    displayTasksState.value = mutable
+                                } else {
+                                    if (ghostIdx == tIdx) return
+                                    val mutable = current.toMutableList()
+                                    val item = mutable.removeAt(ghostIdx)
+                                    mutable.add(if (tIdx > ghostIdx) tIdx - 1 else tIdx, item)
+                                    displayTasksState.value = mutable
+                                }
+                                return
+                            }
+
+                            // Same-column reorder.
+                            if (tIdx == fromIdx) return
                             val mutable = current.toMutableList()
                             val item = mutable.removeAt(fromIdx)
                             mutable.add(if (tIdx > fromIdx) tIdx - 1 else tIdx, item)
@@ -172,7 +217,12 @@ fun KanbanColumn(
                         .animateItem()
                         .graphicsLayer { alpha = if (isDragging) 0.5f else 1f }
                         .dragAndDropTarget(shouldStartDragAndDrop = { true }, target = insertBeforeTarget)
-                        .dragAndDropSource(drawDragDecoration = {}) {
+                        .dragAndDropSource(drawDragDecoration = {
+                            val cr = CornerRadius(10.dp.toPx())
+                            drawRoundRect(color = cardBgColor, cornerRadius = cr)
+                            drawRoundRect(color = cardBorderColor, cornerRadius = cr,
+                                style = Stroke(width = 1.dp.toPx()))
+                        }) {
                             detectTapGestures(
                                 onTap = { onCardTapped(task.id) },
                                 onLongPress = {
@@ -189,7 +239,7 @@ fun KanbanColumn(
                 )
             }
 
-            // Trailing drop zone — moves dragged item to end of column on hover.
+            // Trailing drop zone: moves dragged item to end of column on hover.
             item {
                 val trailingTarget = remember(column.id) {
                     object : DragAndDropTarget {
@@ -202,8 +252,23 @@ fun KanbanColumn(
                             val dragId = draggedTaskIdRef.value ?: return
                             val current = displayTasksState.value
                             val fromIdx = current.indexOfFirst { it.id == dragId }
-                            if (fromIdx < 0) return // cross-column
-                            if (fromIdx == current.size - 1) return // already last
+
+                            if (fromIdx < 0) {
+                                val ghost = foreignDraggedTaskRef.value ?: return
+                                ghostColumnId.value = column.id
+                                val ghostIdx = current.indexOfFirst { it.id == ghost.id }
+                                if (ghostIdx < 0) {
+                                    displayTasksState.value = current + ghost
+                                } else {
+                                    if (ghostIdx == current.size - 1) return
+                                    val mutable = current.toMutableList()
+                                    mutable.add(mutable.removeAt(ghostIdx))
+                                    displayTasksState.value = mutable
+                                }
+                                return
+                            }
+
+                            if (fromIdx == current.size - 1) return
                             val mutable = current.toMutableList()
                             mutable.add(mutable.removeAt(fromIdx))
                             displayTasksState.value = mutable
