@@ -172,7 +172,7 @@ fun KanbanColumn(
                         .animateItem()
                         .graphicsLayer { alpha = if (isDragging) 0.5f else 1f }
                         .dragAndDropTarget(shouldStartDragAndDrop = { true }, target = insertBeforeTarget)
-                        .dragAndDropSource {
+                        .dragAndDropSource(drawDragDecoration = {}) {
                             detectTapGestures(
                                 onTap = { onCardTapped(task.id) },
                                 onLongPress = {
