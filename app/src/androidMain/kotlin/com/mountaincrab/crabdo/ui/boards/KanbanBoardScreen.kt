@@ -1,8 +1,7 @@
 package com.mountaincrab.crabdo.ui.boards
 
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.draganddrop.dragAndDropTarget
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -14,10 +13,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draganddrop.DragAndDropEvent
-import androidx.compose.ui.draganddrop.DragAndDropTarget
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -27,7 +23,7 @@ import com.mountaincrab.crabdo.ui.boards.components.KanbanColumn
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun KanbanBoardScreen(
     boardId: String,
@@ -44,6 +40,7 @@ fun KanbanBoardScreen(
     val draggedTask: TaskEntity? = if (draggedTaskId == null) null
         else tasksByColumn.values.flatten().firstOrNull { it.id == draggedTaskId }
     val ghostColumnId = remember { mutableStateOf<String?>(null) }
+    val columnBoundsMap = remember { mutableStateMapOf<String, Rect>() }
     LaunchedEffect(draggedTaskId) {
         if (draggedTaskId == null) ghostColumnId.value = null
     }
@@ -85,88 +82,45 @@ fun KanbanBoardScreen(
                     }
                 }
             }
-            val leftEdgeTarget = remember {
-                object : DragAndDropTarget {
-                    override fun onDrop(event: DragAndDropEvent) = false
-                    override fun onEntered(event: DragAndDropEvent) { edgeScrollState.intValue = -1 }
-                    override fun onExited(event: DragAndDropEvent) { edgeScrollState.intValue = 0 }
-                    override fun onEnded(event: DragAndDropEvent) { edgeScrollState.intValue = 0 }
-                }
-            }
-            val rightEdgeTarget = remember {
-                object : DragAndDropTarget {
-                    override fun onDrop(event: DragAndDropEvent) = false
-                    override fun onEntered(event: DragAndDropEvent) { edgeScrollState.intValue = 1 }
-                    override fun onExited(event: DragAndDropEvent) { edgeScrollState.intValue = 0 }
-                    override fun onEnded(event: DragAndDropEvent) { edgeScrollState.intValue = 0 }
-                }
-            }
-            // Catches drag-session end even when the drop lands outside any column target
-            // (e.g. top of screen, between columns) so the dragged card reappears.
-            val sessionEndTarget = remember {
-                object : DragAndDropTarget {
-                    override fun onDrop(event: DragAndDropEvent) = false
-                    override fun onEnded(event: DragAndDropEvent) { draggedTaskId = null }
-                }
-            }
 
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .dragAndDropTarget(shouldStartDragAndDrop = { true }, target = sessionEndTarget)
+            LazyRow(
+                state = lazyRowState,
+                flingBehavior = snapBehavior,
+                modifier = Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
             ) {
-                LazyRow(
-                    state = lazyRowState,
-                    flingBehavior = snapBehavior,
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
-                ) {
-                    items(columns, key = { it.id }) { column ->
-                        val columnTasks = tasksByColumn[column.id] ?: emptyList()
-                        KanbanColumn(
-                            column = column,
-                            tasks = columnTasks,
-                            draggedTaskId = draggedTaskId,
-                            // Non-null only when a task from a different column is being dragged
-                            foreignDraggedTask = if (columnTasks.any { it.id == draggedTaskId }) null else draggedTask,
-                            ghostColumnId = ghostColumnId,
-                            onDragStart = { draggedTaskId = it },
-                            onDragEnd = { draggedTaskId = null },
-                            onCardDropped = { taskId, targetColumnId, orderBefore, orderAfter ->
-                                viewModel.moveTask(taskId, targetColumnId, orderBefore, orderAfter)
-                                draggedTaskId = null
-                            },
-                            onCardTapped = { taskId ->
-                                navController.navigate(
-                                    com.mountaincrab.crabdo.ui.navigation.Screen.TaskDetail.createRoute(taskId)
-                                )
-                            },
-                            onAddCard = { title, description, reminderAt, style ->
-                                viewModel.createTask(column.id, title, description, reminderAt, style)
-                            },
-                            onReorder = { taskId, orderBefore, orderAfter ->
-                                viewModel.moveTask(taskId, column.id, orderBefore, orderAfter)
-                            },
-                            modifier = Modifier.fillParentMaxWidth(0.92f)
-                        )
-                    }
+                items(columns, key = { it.id }) { column ->
+                    val columnTasks = tasksByColumn[column.id] ?: emptyList()
+                    KanbanColumn(
+                        column = column,
+                        tasks = columnTasks,
+                        draggedTaskId = draggedTaskId,
+                        foreignDraggedTask = if (columnTasks.any { it.id == draggedTaskId }) null else draggedTask,
+                        ghostColumnId = ghostColumnId,
+                        findColumnIdAt = { x ->
+                            columnBoundsMap.entries.firstOrNull { (_, r) -> x >= r.left && x <= r.right }?.key
+                        },
+                        onBoundsChanged = { rect -> columnBoundsMap[column.id] = rect },
+                        edgeScrollState = edgeScrollState,
+                        onDragStart = { draggedTaskId = it },
+                        onDragEnd = { draggedTaskId = null },
+                        onCardDropped = { taskId, targetColumnId, orderBefore, orderAfter ->
+                            viewModel.moveTask(taskId, targetColumnId, orderBefore, orderAfter)
+                            draggedTaskId = null
+                        },
+                        onCardTapped = { taskId ->
+                            navController.navigate(
+                                com.mountaincrab.crabdo.ui.navigation.Screen.TaskDetail.createRoute(taskId)
+                            )
+                        },
+                        onAddCard = { title, description, reminderAt, style ->
+                            viewModel.createTask(column.id, title, description, reminderAt, style)
+                        },
+                        allTasksByColumn = tasksByColumn,
+                        modifier = Modifier.fillParentMaxWidth(0.92f)
+                    )
                 }
-                // Edge scroll zones — always present so they're in the view hierarchy at drag start
-                Box(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .width(56.dp)
-                        .align(Alignment.CenterStart)
-                        .dragAndDropTarget(shouldStartDragAndDrop = { true }, target = leftEdgeTarget)
-                )
-                Box(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .width(56.dp)
-                        .align(Alignment.CenterEnd)
-                        .dragAndDropTarget(shouldStartDragAndDrop = { true }, target = rightEdgeTarget)
-                )
             }
         }
     }

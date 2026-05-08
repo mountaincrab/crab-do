@@ -2,9 +2,7 @@ package com.mountaincrab.crabdo.ui.boards.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.draganddrop.dragAndDropSource
-import androidx.compose.foundation.draganddrop.dragAndDropTarget
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -14,16 +12,20 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draganddrop.DragAndDropEvent
-import androidx.compose.ui.draganddrop.DragAndDropTarget
-import androidx.compose.ui.draganddrop.DragAndDropTransferData
-import androidx.compose.ui.draganddrop.toAndroidDragEvent
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
+import androidx.compose.runtime.MutableIntState
 import com.mountaincrab.crabdo.data.local.entity.ColumnEntity
 import com.mountaincrab.crabdo.data.local.entity.TaskEntity
 
@@ -35,104 +37,68 @@ fun KanbanColumn(
     draggedTaskId: String?,
     foreignDraggedTask: TaskEntity?,
     ghostColumnId: MutableState<String?>,
+    findColumnIdAt: (Float) -> String?,
+    onBoundsChanged: (Rect) -> Unit,
+    edgeScrollState: MutableIntState,
     onDragStart: (taskId: String) -> Unit,
     onDragEnd: () -> Unit,
     onCardDropped: (taskId: String, targetColumnId: String, orderBefore: Double, orderAfter: Double) -> Unit,
     onCardTapped: (taskId: String) -> Unit,
     onAddCard: (title: String, description: String, reminderTimeMillis: Long?, reminderStyle: TaskEntity.ReminderStyle) -> Unit,
-    @Suppress("UNUSED_PARAMETER") onReorder: (taskId: String, orderBefore: Double, orderAfter: Double) -> Unit,
+    allTasksByColumn: Map<String, List<TaskEntity>>,
     modifier: Modifier = Modifier
 ) {
     var showAddCardDialog by remember { mutableStateOf(false) }
 
     val displayTasksState = remember { mutableStateOf(tasks) }
     val currentTasksRef = rememberUpdatedState(tasks)
-    val draggedTaskIdRef = rememberUpdatedState(draggedTaskId)
     val foreignDraggedTaskRef = rememberUpdatedState(foreignDraggedTask)
     val onCardDroppedRef = rememberUpdatedState(onCardDropped)
     val onDragEndRef = rememberUpdatedState(onDragEnd)
+    val allTasksByColumnRef = rememberUpdatedState(allTasksByColumn)
+    val findColumnIdAtRef = rememberUpdatedState(findColumnIdAt)
 
     var droppedSuccessfully by remember { mutableStateOf(false) }
-    // Set true when this column receives a cross-column drop; prevents premature ghost removal
-    // while waiting for Room to push the moved task into this column's task list.
-    var ghostDropped by remember { mutableStateOf(false) }
+    var dragOffsetY by remember { mutableFloatStateOf(0f) }
+    var cardHeightPx by remember { mutableFloatStateOf(0f) }
+    val density = LocalDensity.current
+    val cardSpacingPx = with(density) { 8.dp.toPx() }
+    val edgeThresholdPx = with(density) { 80.dp.toPx() }
+    val screenWidthPx = with(density) { LocalConfiguration.current.screenWidthDp.dp.toPx() }
+    val edgeScrollStateRef = rememberUpdatedState(edgeScrollState)
+    val haptic = LocalHapticFeedback.current
 
     LaunchedEffect(tasks) {
-        if (draggedTaskId == null) {
-            displayTasksState.value = tasks
-            ghostDropped = false
-        }
-    }
-    LaunchedEffect(draggedTaskId) {
-        if (draggedTaskId == null && !droppedSuccessfully) {
-            displayTasksState.value = currentTasksRef.value
-        }
-        droppedSuccessfully = false
+        if (draggedTaskId == null) displayTasksState.value = tasks
     }
 
-    // Remove ghost when another column takes over as ghost host.
+    LaunchedEffect(draggedTaskId) {
+        if (draggedTaskId == null) {
+            if (!droppedSuccessfully) displayTasksState.value = currentTasksRef.value
+            droppedSuccessfully = false
+            dragOffsetY = 0f
+        }
+    }
+
+    // Insert or remove ghost based on which column currently owns it.
     LaunchedEffect(ghostColumnId.value) {
-        if (ghostColumnId.value != column.id && !ghostDropped) {
-            val ghost = foreignDraggedTaskRef.value ?: return@LaunchedEffect
+        val ghost = foreignDraggedTaskRef.value ?: return@LaunchedEffect
+        if (ghostColumnId.value == column.id) {
+            if (displayTasksState.value.none { it.id == ghost.id }) {
+                displayTasksState.value = displayTasksState.value + ghost
+            }
+        } else {
             displayTasksState.value = displayTasksState.value.filter { it.id != ghost.id }
         }
     }
 
     val displayTasks = displayTasksState.value
-
-    // Draw colors captured here so drawDragDecoration can close over them.
-    val cardBgColor = MaterialTheme.colorScheme.surfaceVariant
-    val cardBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
-
-    fun commitDrop(taskId: String): Boolean {
-        val current = displayTasksState.value
-        val finalIdx = current.indexOfFirst { it.id == taskId }
-        if (finalIdx >= 0) {
-            val prevOrder = current.getOrNull(finalIdx - 1)?.order
-            val nextOrder = current.getOrNull(finalIdx + 1)?.order
-            onCardDroppedRef.value(taskId, column.id,
-                prevOrder ?: ((nextOrder ?: 1.0) - 2.0),
-                nextOrder ?: ((prevOrder ?: 0.0) + 2.0))
-        } else {
-            val maxOrder = current.maxOfOrNull { it.order } ?: 0.0
-            onCardDroppedRef.value(taskId, column.id, maxOrder, maxOrder + 2.0)
-        }
-        // If we hosted a ghost, mark it so Room can catch up before we clear the display.
-        if (foreignDraggedTaskRef.value != null) ghostDropped = true
-        droppedSuccessfully = true
-        onDragEndRef.value()
-        return true
-    }
-
-    // Column-level drop target: handles drops in gaps between cards, empty columns, and
-    // cross-column entry for inserting the ghost when there are no card targets to hover.
-    val appendDropTarget = remember(column.id) {
-        object : DragAndDropTarget {
-            override fun onDrop(event: DragAndDropEvent): Boolean {
-                val taskId = event.toAndroidDragEvent().clipData?.getItemAt(0)?.text?.toString()
-                    ?: return false
-                return commitDrop(taskId)
-            }
-            override fun onEntered(event: DragAndDropEvent) {
-                // Insert ghost into an empty column (card targets handle non-empty columns).
-                val ghost = foreignDraggedTaskRef.value ?: return
-                val current = displayTasksState.value
-                if (current.any { it.id == ghost.id }) return
-                ghostColumnId.value = column.id
-                displayTasksState.value = current + ghost
-            }
-            override fun onEnded(event: DragAndDropEvent) {
-                if (!droppedSuccessfully) displayTasksState.value = currentTasksRef.value
-            }
-        }
-    }
-
     val lazyListState = rememberLazyListState()
 
     Column(
         modifier = modifier
             .fillMaxHeight(0.9f)
-            .dragAndDropTarget(shouldStartDragAndDrop = { true }, target = appendDropTarget)
+            .onGloballyPositioned { onBoundsChanged(it.boundsInRoot()) }
     ) {
         Row(
             modifier = Modifier
@@ -163,126 +129,116 @@ fun KanbanColumn(
             itemsIndexed(displayTasks, key = { _, it -> it.id }) { _, task ->
                 val isDragging = task.id == draggedTaskId
                 val capturedTaskId = task.id
-
-                val insertBeforeTarget = remember(capturedTaskId) {
-                    object : DragAndDropTarget {
-                        override fun onDrop(event: DragAndDropEvent): Boolean {
-                            val taskId = event.toAndroidDragEvent().clipData?.getItemAt(0)?.text?.toString()
-                                ?: return false
-                            return commitDrop(taskId)
-                        }
-                        override fun onEntered(event: DragAndDropEvent) {
-                            val dragId = draggedTaskIdRef.value ?: return
-                            val current = displayTasksState.value
-                            val fromIdx = current.indexOfFirst { it.id == dragId }
-                            val tIdx = current.indexOfFirst { it.id == capturedTaskId }
-                            if (tIdx < 0) return
-
-                            if (fromIdx < 0) {
-                                // Cross-column: insert or reorder the ghost.
-                                val ghost = foreignDraggedTaskRef.value ?: return
-                                ghostColumnId.value = column.id
-                                val ghostIdx = current.indexOfFirst { it.id == ghost.id }
-                                if (ghostIdx < 0) {
-                                    val mutable = current.toMutableList()
-                                    mutable.add(tIdx, ghost)
-                                    displayTasksState.value = mutable
-                                } else {
-                                    if (ghostIdx == tIdx) return
-                                    val mutable = current.toMutableList()
-                                    val item = mutable.removeAt(ghostIdx)
-                                    mutable.add(if (tIdx > ghostIdx) tIdx - 1 else tIdx, item)
-                                    displayTasksState.value = mutable
-                                }
-                                return
-                            }
-
-                            // Same-column reorder.
-                            if (tIdx == fromIdx) return
-                            val mutable = current.toMutableList()
-                            val item = mutable.removeAt(fromIdx)
-                            mutable.add(if (tIdx > fromIdx) tIdx - 1 else tIdx, item)
-                            displayTasksState.value = mutable
-                        }
-                        override fun onEnded(event: DragAndDropEvent) {
-                            if (!droppedSuccessfully) displayTasksState.value = currentTasksRef.value
-                        }
-                    }
-                }
+                var cardAbsoluteLeft by remember { mutableFloatStateOf(0f) }
+                val cardAbsoluteLeftRef = rememberUpdatedState(cardAbsoluteLeft)
 
                 TaskCard(
                     task = task,
                     isDragging = isDragging,
                     modifier = Modifier
                         .animateItem()
-                        .graphicsLayer { alpha = if (isDragging) 0.5f else 1f }
-                        .dragAndDropTarget(shouldStartDragAndDrop = { true }, target = insertBeforeTarget)
-                        .dragAndDropSource(drawDragDecoration = {
-                            val cr = CornerRadius(10.dp.toPx())
-                            drawRoundRect(color = cardBgColor, cornerRadius = cr)
-                            drawRoundRect(color = cardBorderColor, cornerRadius = cr,
-                                style = Stroke(width = 1.dp.toPx()))
-                        }) {
-                            detectTapGestures(
-                                onTap = { onCardTapped(task.id) },
-                                onLongPress = {
-                                    onDragStart(task.id)
-                                    startTransfer(
-                                        DragAndDropTransferData(
-                                            clipData = android.content.ClipData.newPlainText("taskId", task.id)
-                                        )
-                                    )
+                        .zIndex(if (isDragging) 1f else 0f)
+                        .graphicsLayer {
+                            alpha = if (isDragging) 0.5f else 1f
+                            translationY = if (isDragging) dragOffsetY else 0f
+                        }
+                        .onSizeChanged { size ->
+                            if (size.height > 0) cardHeightPx = size.height.toFloat()
+                        }
+                        .onGloballyPositioned { coords ->
+                            cardAbsoluteLeft = coords.boundsInRoot().left
+                        }
+                        .pointerInput(capturedTaskId) {
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = { _ ->
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onDragStart(capturedTaskId)
+                                    dragOffsetY = 0f
+                                },
+                                onDrag = { change, dragAmount ->
+                                    change.consume()
+
+                                    // Edge scroll detection.
+                                    val absX = cardAbsoluteLeftRef.value + change.position.x
+                                    edgeScrollStateRef.value.intValue = when {
+                                        absX < edgeThresholdPx -> -1
+                                        absX > screenWidthPx - edgeThresholdPx -> 1
+                                        else -> 0
+                                    }
+
+                                    // Cross-column detection.
+                                    val targetColumn = findColumnIdAtRef.value(absX)
+                                    if (targetColumn != null && targetColumn != column.id) {
+                                        if (ghostColumnId.value != targetColumn) {
+                                            ghostColumnId.value = targetColumn
+                                            dragOffsetY = 0f
+                                        }
+                                        return@detectDragGesturesAfterLongPress
+                                    }
+
+                                    // Pointer returned to source column — clear ghost.
+                                    if (ghostColumnId.value != null && ghostColumnId.value != column.id) {
+                                        ghostColumnId.value = null
+                                        dragOffsetY = 0f
+                                    }
+
+                                    // Within-column: accumulate Y and reorder at midpoint.
+                                    dragOffsetY += dragAmount.y
+                                    val slotH = if (cardHeightPx > 0f) cardHeightPx + cardSpacingPx
+                                                else with(density) { 80.dp.toPx() }
+                                    var curIdx = displayTasksState.value.indexOfFirst { it.id == capturedTaskId }
+                                    if (curIdx < 0) return@detectDragGesturesAfterLongPress
+
+                                    while (dragOffsetY > slotH / 2f && curIdx < displayTasksState.value.size - 1) {
+                                        val m = displayTasksState.value.toMutableList()
+                                        m.add(curIdx + 1, m.removeAt(curIdx))
+                                        displayTasksState.value = m
+                                        dragOffsetY -= slotH
+                                        curIdx++
+                                    }
+                                    while (dragOffsetY < -slotH / 2f && curIdx > 0) {
+                                        val m = displayTasksState.value.toMutableList()
+                                        m.add(curIdx - 1, m.removeAt(curIdx))
+                                        displayTasksState.value = m
+                                        dragOffsetY += slotH
+                                        curIdx--
+                                    }
+                                },
+                                onDragEnd = {
+                                    val currentGhost = ghostColumnId.value
+                                    if (currentGhost != null && currentGhost != column.id) {
+                                        // Cross-column: append to end of target column.
+                                        val targetTasks = allTasksByColumnRef.value[currentGhost] ?: emptyList()
+                                        val maxOrder = targetTasks.maxOfOrNull { it.order } ?: 0.0
+                                        onCardDroppedRef.value(capturedTaskId, currentGhost, maxOrder, maxOrder + 2.0)
+                                    } else {
+                                        // Within-column: commit from current display order.
+                                        val current = displayTasksState.value
+                                        val idx = current.indexOfFirst { it.id == capturedTaskId }
+                                        if (idx >= 0) {
+                                            val prevOrder = current.getOrNull(idx - 1)?.order
+                                            val nextOrder = current.getOrNull(idx + 1)?.order
+                                            onCardDroppedRef.value(capturedTaskId, column.id,
+                                                prevOrder ?: ((nextOrder ?: 1.0) - 2.0),
+                                                nextOrder ?: ((prevOrder ?: 0.0) + 2.0))
+                                        }
+                                    }
+                                    droppedSuccessfully = true
+                                    dragOffsetY = 0f
+                                    ghostColumnId.value = null
+                                    edgeScrollStateRef.value.intValue = 0
+                                    onDragEndRef.value()
+                                },
+                                onDragCancel = {
+                                    dragOffsetY = 0f
+                                    ghostColumnId.value = null
+                                    edgeScrollStateRef.value.intValue = 0
+                                    displayTasksState.value = currentTasksRef.value
+                                    onDragEndRef.value()
                                 }
                             )
                         },
-                    onTap = { onCardTapped(task.id) }
-                )
-            }
-
-            // Trailing drop zone: moves dragged item to end of column on hover.
-            item {
-                val trailingTarget = remember(column.id) {
-                    object : DragAndDropTarget {
-                        override fun onDrop(event: DragAndDropEvent): Boolean {
-                            val taskId = event.toAndroidDragEvent().clipData?.getItemAt(0)?.text?.toString()
-                                ?: return false
-                            return commitDrop(taskId)
-                        }
-                        override fun onEntered(event: DragAndDropEvent) {
-                            val dragId = draggedTaskIdRef.value ?: return
-                            val current = displayTasksState.value
-                            val fromIdx = current.indexOfFirst { it.id == dragId }
-
-                            if (fromIdx < 0) {
-                                val ghost = foreignDraggedTaskRef.value ?: return
-                                ghostColumnId.value = column.id
-                                val ghostIdx = current.indexOfFirst { it.id == ghost.id }
-                                if (ghostIdx < 0) {
-                                    displayTasksState.value = current + ghost
-                                } else {
-                                    if (ghostIdx == current.size - 1) return
-                                    val mutable = current.toMutableList()
-                                    mutable.add(mutable.removeAt(ghostIdx))
-                                    displayTasksState.value = mutable
-                                }
-                                return
-                            }
-
-                            if (fromIdx == current.size - 1) return
-                            val mutable = current.toMutableList()
-                            mutable.add(mutable.removeAt(fromIdx))
-                            displayTasksState.value = mutable
-                        }
-                        override fun onEnded(event: DragAndDropEvent) {
-                            if (!droppedSuccessfully) displayTasksState.value = currentTasksRef.value
-                        }
-                    }
-                }
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(if (draggedTaskId != null) 32.dp else 0.dp)
-                        .dragAndDropTarget(shouldStartDragAndDrop = { true }, target = trailingTarget)
+                    onTap = { onCardTapped(capturedTaskId) }
                 )
             }
 

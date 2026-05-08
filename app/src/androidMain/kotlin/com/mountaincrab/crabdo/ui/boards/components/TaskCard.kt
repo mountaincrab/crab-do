@@ -27,6 +27,7 @@ fun TaskCard(
 ) {
     val cardBorder = LocalAppPalette.current.cardBorder
     Card(
+        onClick = onTap,
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(10.dp),
         elevation = CardDefaults.cardElevation(
