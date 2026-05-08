@@ -1,13 +1,10 @@
 package com.mountaincrab.crabdo.ui.boards
 
-import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -69,58 +66,61 @@ fun KanbanBoardScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            val lazyRowState = rememberLazyListState()
-            val snapBehavior = rememberSnapFlingBehavior(lazyRowState)
+            val pagerState = rememberPagerState(pageCount = { columns.size })
 
             val edgeScrollState = remember { mutableIntStateOf(0) }
             LaunchedEffect(edgeScrollState.intValue) {
                 if (edgeScrollState.intValue != 0) {
                     delay(700)
                     if (edgeScrollState.intValue != 0) {
-                        val target = (lazyRowState.firstVisibleItemIndex + edgeScrollState.intValue).coerceAtLeast(0)
-                        lazyRowState.animateScrollToItem(target)
+                        val target = (pagerState.currentPage + edgeScrollState.intValue)
+                            .coerceIn(0, columns.size - 1)
+                        pagerState.animateScrollToPage(target)
                     }
                 }
             }
 
-            LazyRow(
-                state = lazyRowState,
-                flingBehavior = snapBehavior,
+            // HorizontalPager with beyondViewportPageCount keeps all column composables
+            // in composition even when off-screen, so detectDragGesturesAfterLongPress
+            // is never cancelled by the edge scroll moving the source column out of view.
+            HorizontalPager(
+                state = pagerState,
+                beyondViewportPageCount = columns.size,
                 modifier = Modifier.fillMaxSize(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
-            ) {
-                items(columns, key = { it.id }) { column ->
-                    val columnTasks = tasksByColumn[column.id] ?: emptyList()
-                    KanbanColumn(
-                        column = column,
-                        tasks = columnTasks,
-                        draggedTaskId = draggedTaskId,
-                        foreignDraggedTask = if (columnTasks.any { it.id == draggedTaskId }) null else draggedTask,
-                        ghostColumnId = ghostColumnId,
-                        findColumnIdAt = { x ->
-                            columnBoundsMap.entries.firstOrNull { (_, r) -> x >= r.left && x <= r.right }?.key
-                        },
-                        onBoundsChanged = { rect -> columnBoundsMap[column.id] = rect },
-                        edgeScrollState = edgeScrollState,
-                        onDragStart = { draggedTaskId = it },
-                        onDragEnd = { draggedTaskId = null },
-                        onCardDropped = { taskId, targetColumnId, orderBefore, orderAfter ->
-                            viewModel.moveTask(taskId, targetColumnId, orderBefore, orderAfter)
-                            draggedTaskId = null
-                        },
-                        onCardTapped = { taskId ->
-                            navController.navigate(
-                                com.mountaincrab.crabdo.ui.navigation.Screen.TaskDetail.createRoute(taskId)
-                            )
-                        },
-                        onAddCard = { title, description, reminderAt, style ->
-                            viewModel.createTask(column.id, title, description, reminderAt, style)
-                        },
-                        allTasksByColumn = tasksByColumn,
-                        modifier = Modifier.fillParentMaxWidth(0.92f)
-                    )
-                }
+                pageSpacing = 8.dp,
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+                key = { index -> columns.getOrNull(index)?.id ?: index },
+            ) { pageIndex ->
+                val column = columns[pageIndex]
+                val columnTasks = tasksByColumn[column.id] ?: emptyList()
+                KanbanColumn(
+                    column = column,
+                    tasks = columnTasks,
+                    draggedTaskId = draggedTaskId,
+                    foreignDraggedTask = if (columnTasks.any { it.id == draggedTaskId }) null else draggedTask,
+                    ghostColumnId = ghostColumnId,
+                    findColumnIdAt = { x ->
+                        columnBoundsMap.entries.firstOrNull { (_, r) -> x >= r.left && x <= r.right }?.key
+                    },
+                    onBoundsChanged = { rect -> columnBoundsMap[column.id] = rect },
+                    edgeScrollState = edgeScrollState,
+                    onDragStart = { draggedTaskId = it },
+                    onDragEnd = { draggedTaskId = null },
+                    onCardDropped = { taskId, targetColumnId, orderBefore, orderAfter ->
+                        viewModel.moveTask(taskId, targetColumnId, orderBefore, orderAfter)
+                        draggedTaskId = null
+                    },
+                    onCardTapped = { taskId ->
+                        navController.navigate(
+                            com.mountaincrab.crabdo.ui.navigation.Screen.TaskDetail.createRoute(taskId)
+                        )
+                    },
+                    onAddCard = { title, description, reminderAt, style ->
+                        viewModel.createTask(column.id, title, description, reminderAt, style)
+                    },
+                    allTasksByColumn = tasksByColumn,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
     }

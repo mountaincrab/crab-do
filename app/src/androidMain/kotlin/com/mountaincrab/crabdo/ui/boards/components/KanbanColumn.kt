@@ -129,8 +129,7 @@ fun KanbanColumn(
             itemsIndexed(displayTasks, key = { _, it -> it.id }) { _, task ->
                 val isDragging = task.id == draggedTaskId
                 val capturedTaskId = task.id
-                var cardAbsoluteLeft by remember { mutableFloatStateOf(0f) }
-                val cardAbsoluteLeftRef = rememberUpdatedState(cardAbsoluteLeft)
+                val cardAbsoluteLeftState = remember { mutableFloatStateOf(0f) }
 
                 TaskCard(
                     task = task,
@@ -146,7 +145,7 @@ fun KanbanColumn(
                             if (size.height > 0) cardHeightPx = size.height.toFloat()
                         }
                         .onGloballyPositioned { coords ->
-                            cardAbsoluteLeft = coords.boundsInRoot().left
+                            cardAbsoluteLeftState.floatValue = coords.boundsInRoot().left
                         }
                         .pointerInput(capturedTaskId) {
                             detectDragGesturesAfterLongPress(
@@ -159,7 +158,7 @@ fun KanbanColumn(
                                     change.consume()
 
                                     // Edge scroll detection.
-                                    val absX = cardAbsoluteLeftRef.value + change.position.x
+                                    val absX = cardAbsoluteLeftState.floatValue + change.position.x
                                     edgeScrollStateRef.value.intValue = when {
                                         absX < edgeThresholdPx -> -1
                                         absX > screenWidthPx - edgeThresholdPx -> 1
@@ -168,18 +167,23 @@ fun KanbanColumn(
 
                                     // Cross-column detection.
                                     val targetColumn = findColumnIdAtRef.value(absX)
-                                    if (targetColumn != null && targetColumn != column.id) {
-                                        if (ghostColumnId.value != targetColumn) {
-                                            ghostColumnId.value = targetColumn
-                                            dragOffsetY = 0f
+                                    when {
+                                        targetColumn != null && targetColumn != column.id -> {
+                                            if (ghostColumnId.value != targetColumn) {
+                                                ghostColumnId.value = targetColumn
+                                                dragOffsetY = 0f
+                                            }
+                                            return@detectDragGesturesAfterLongPress
                                         }
-                                        return@detectDragGesturesAfterLongPress
-                                    }
-
-                                    // Pointer returned to source column — clear ghost.
-                                    if (ghostColumnId.value != null && ghostColumnId.value != column.id) {
-                                        ghostColumnId.value = null
-                                        dragOffsetY = 0f
+                                        targetColumn == column.id -> {
+                                            // Positively back in source column — clear ghost.
+                                            if (ghostColumnId.value != null && ghostColumnId.value != column.id) {
+                                                ghostColumnId.value = null
+                                                dragOffsetY = 0f
+                                            }
+                                        }
+                                        // targetColumn == null: pointer is in a gap or off-screen after
+                                        // scroll — preserve current ghost state rather than clearing it.
                                     }
 
                                     // Within-column: accumulate Y and reorder at midpoint.
