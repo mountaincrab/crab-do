@@ -37,6 +37,8 @@ fun KanbanColumn(
     draggedTaskId: String?,
     foreignDraggedTask: TaskEntity?,
     ghostColumnId: MutableState<String?>,
+    dragFingerYAbs: MutableFloatState,
+    ghostOrderBracket: MutableState<Pair<Double, Double>?>,
     findColumnIdAt: (Float) -> String?,
     onBoundsChanged: (Rect) -> Unit,
     edgeScrollState: MutableIntState,
@@ -89,6 +91,63 @@ fun KanbanColumn(
             }
         } else {
             displayTasksState.value = displayTasksState.value.filter { it.id != ghost.id }
+        }
+    }
+
+    // Per-card absolute Y (top, in root coords). Used by the target column to
+    // figure out where the finger is relative to its own cards, so the ghost
+    // can be reordered within the target while the source still owns the
+    // gesture. Each TaskCard updates its entry via onGloballyPositioned.
+    val cardYsState = remember { mutableStateMapOf<String, Float>() }
+
+    // Reorder the ghost within this column (when it's the active target) based
+    // on finger Y. The source column owns the drag gesture, so it writes
+    // dragFingerYAbs every tick; we observe it here. We also publish the
+    // resulting order bracket so the source's onDragEnd can drop at the right
+    // slot rather than always appending to the end.
+    LaunchedEffect(ghostColumnId.value, column.id) {
+        if (ghostColumnId.value != column.id) return@LaunchedEffect
+        snapshotFlow { dragFingerYAbs.floatValue }.collect { fingerY ->
+            val ghost = foreignDraggedTaskRef.value ?: return@collect
+            val current = displayTasksState.value
+            val curGhostIdx = current.indexOfFirst { it.id == ghost.id }
+            if (curGhostIdx < 0) return@collect
+            val effHeight = if (cardHeightPx > 0f) cardHeightPx
+                            else with(density) { 80.dp.toPx() }
+
+            // Find the first non-ghost card whose midpoint is below fingerY —
+            // that's where the ghost should be inserted. Default to end.
+            var newIdx = current.size
+            for ((i, task) in current.withIndex()) {
+                if (task.id == ghost.id) continue
+                val cardY = cardYsState[task.id] ?: continue
+                if (fingerY < cardY + effHeight / 2f) {
+                    newIdx = i
+                    break
+                }
+            }
+
+            // If the ghost was before the insertion point, removing it shifts
+            // the target index left by one.
+            val target = if (curGhostIdx < newIdx) (newIdx - 1) else newIdx
+            val targetCoerced = target.coerceIn(0, current.size - 1)
+            if (targetCoerced != curGhostIdx) {
+                val m = current.toMutableList()
+                m.removeAt(curGhostIdx)
+                m.add(targetCoerced.coerceIn(0, m.size), ghost)
+                displayTasksState.value = m
+            }
+
+            val updated = displayTasksState.value
+            val gIdx = updated.indexOfFirst { it.id == ghost.id }
+            if (gIdx >= 0) {
+                val prevOrder = updated.getOrNull(gIdx - 1)?.order
+                val nextOrder = updated.getOrNull(gIdx + 1)?.order
+                ghostOrderBracket.value = Pair(
+                    prevOrder ?: ((nextOrder ?: 1.0) - 2.0),
+                    nextOrder ?: ((prevOrder ?: 0.0) + 2.0)
+                )
+            }
         }
     }
 
@@ -153,7 +212,9 @@ fun KanbanColumn(
                             if (size.height > 0) cardHeightPx = size.height.toFloat()
                         }
                         .onGloballyPositioned { coords ->
-                            cardAbsoluteLeftState.floatValue = coords.boundsInRoot().left
+                            val r = coords.boundsInRoot()
+                            cardAbsoluteLeftState.floatValue = r.left
+                            cardYsState[task.id] = r.top
                         }
                         .pointerInput(capturedTaskId) {
                             detectDragGesturesAfterLongPress(
@@ -165,8 +226,18 @@ fun KanbanColumn(
                                 onDrag = { change, dragAmount ->
                                     change.consume()
 
-                                    // Edge scroll detection.
+                                    // Absolute pointer coords in root space.
+                                    // graphicsLayer translation doesn't affect
+                                    // layout, so the source card's stored
+                                    // top/left reflect its layout slot, not
+                                    // its rendered position — so adding
+                                    // change.position gives the real finger
+                                    // location.
                                     val absX = cardAbsoluteLeftState.floatValue + change.position.x
+                                    val absY = (cardYsState[capturedTaskId] ?: 0f) + change.position.y
+                                    dragFingerYAbs.floatValue = absY
+
+                                    // Edge scroll detection.
                                     edgeScrollStateRef.value.intValue = when {
                                         absX < edgeThresholdPx -> -1
                                         absX > screenWidthPx - edgeThresholdPx -> 1
@@ -226,10 +297,19 @@ fun KanbanColumn(
                                 onDragEnd = {
                                     val currentGhost = ghostColumnId.value
                                     if (currentGhost != null && currentGhost != column.id) {
-                                        // Cross-column: append to end of target column.
-                                        val targetTasks = allTasksByColumnRef.value[currentGhost] ?: emptyList()
-                                        val maxOrder = targetTasks.maxOfOrNull { it.order } ?: 0.0
-                                        onCardDroppedRef.value(capturedTaskId, currentGhost, maxOrder, maxOrder + 2.0)
+                                        // Cross-column: drop at the slot the
+                                        // target column has positioned us in.
+                                        // Falls back to appending if the
+                                        // target hasn't yet computed a bracket
+                                        // (e.g. instant release after entry).
+                                        val bracket = ghostOrderBracket.value
+                                        if (bracket != null) {
+                                            onCardDroppedRef.value(capturedTaskId, currentGhost, bracket.first, bracket.second)
+                                        } else {
+                                            val targetTasks = allTasksByColumnRef.value[currentGhost] ?: emptyList()
+                                            val maxOrder = targetTasks.maxOfOrNull { it.order } ?: 0.0
+                                            onCardDroppedRef.value(capturedTaskId, currentGhost, maxOrder, maxOrder + 2.0)
+                                        }
                                     } else {
                                         // Within-column: commit from current display order.
                                         val current = displayTasksState.value

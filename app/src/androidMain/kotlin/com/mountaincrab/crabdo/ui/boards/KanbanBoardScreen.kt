@@ -39,9 +39,19 @@ fun KanbanBoardScreen(
     val sourceColumnId: String? = if (draggedTaskId == null) null
         else tasksByColumn.entries.firstOrNull { (_, ts) -> ts.any { it.id == draggedTaskId } }?.key
     val ghostColumnId = remember { mutableStateOf<String?>(null) }
+    // Absolute finger Y in root coords during a drag. Source column writes it
+    // every onDrag tick; target column observes it to reorder the ghost.
+    val dragFingerYAbs = remember { mutableFloatStateOf(0f) }
+    // Order bracket for the ghost's current slot in the target column. Written
+    // by the target's reorder effect; read by the source's onDragEnd to drop
+    // at the right slot instead of appending to the end.
+    val ghostOrderBracket = remember { mutableStateOf<Pair<Double, Double>?>(null) }
     val columnBoundsMap = remember { mutableStateMapOf<String, Rect>() }
     LaunchedEffect(draggedTaskId) {
-        if (draggedTaskId == null) ghostColumnId.value = null
+        if (draggedTaskId == null) {
+            ghostColumnId.value = null
+            ghostOrderBracket.value = null
+        }
     }
 
     Scaffold(
@@ -128,6 +138,8 @@ fun KanbanBoardScreen(
                     draggedTaskId = draggedTaskId,
                     foreignDraggedTask = if (columnTasks.any { it.id == draggedTaskId }) null else draggedTask,
                     ghostColumnId = ghostColumnId,
+                    dragFingerYAbs = dragFingerYAbs,
+                    ghostOrderBracket = ghostOrderBracket,
                     findColumnIdAt = { x ->
                         columnBoundsMap.entries.firstOrNull { (_, r) -> x >= r.left && x <= r.right }?.key
                     },
