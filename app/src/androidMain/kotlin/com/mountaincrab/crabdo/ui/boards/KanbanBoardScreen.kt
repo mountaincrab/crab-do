@@ -36,6 +36,8 @@ fun KanbanBoardScreen(
     var draggedTaskId by remember { mutableStateOf<String?>(null) }
     val draggedTask: TaskEntity? = if (draggedTaskId == null) null
         else tasksByColumn.values.flatten().firstOrNull { it.id == draggedTaskId }
+    val sourceColumnId: String? = if (draggedTaskId == null) null
+        else tasksByColumn.entries.firstOrNull { (_, ts) -> ts.any { it.id == draggedTaskId } }?.key
     val ghostColumnId = remember { mutableStateOf<String?>(null) }
     val columnBoundsMap = remember { mutableStateMapOf<String, Rect>() }
     LaunchedEffect(draggedTaskId) {
@@ -69,13 +71,40 @@ fun KanbanBoardScreen(
             val pagerState = rememberPagerState(pageCount = { columns.size })
 
             val edgeScrollState = remember { mutableIntStateOf(0) }
+            // While the finger is at a screen edge, keep advancing the pager one page
+            // at a time. The 700ms delay between scrolls is what gives the user a
+            // chance to release; if they're still at the edge after the page settles,
+            // we scroll again.
             LaunchedEffect(edgeScrollState.intValue) {
-                if (edgeScrollState.intValue != 0) {
+                while (edgeScrollState.intValue != 0) {
                     delay(700)
-                    if (edgeScrollState.intValue != 0) {
-                        val target = (pagerState.currentPage + edgeScrollState.intValue)
-                            .coerceIn(0, columns.size - 1)
-                        pagerState.animateScrollToPage(target)
+                    if (edgeScrollState.intValue == 0) break
+                    val current = pagerState.currentPage
+                    val target = (current + edgeScrollState.intValue)
+                        .coerceIn(0, columns.size - 1)
+                    if (target == current) break  // already at edge column
+                    pagerState.animateScrollToPage(target)
+                }
+            }
+
+            // When the pager scrolls *during* a drag, set ghostColumnId to the new
+            // centered column. This is the fix for: user drags to right edge, pager
+            // scrolls to next column, but the user's finger is still at the screen
+            // edge (outside any column's bounds), so the in-onDrag findColumnIdAt
+            // lookup returns null and never sets the ghost. Driving the ghost from
+            // pager state means the dragged task visibly "follows" into the new column.
+            //
+            // We snapshot the page at drag start and only react to *changes* from
+            // there — otherwise long-pressing a peeking card (sourceColumn != centered)
+            // would immediately spawn a ghost in the centered column before the user
+            // has dragged anywhere.
+            val dragStartPage = remember(draggedTaskId) { pagerState.currentPage }
+            LaunchedEffect(pagerState.currentPage, draggedTaskId, sourceColumnId) {
+                if (draggedTaskId != null && pagerState.currentPage != dragStartPage) {
+                    val centeredColumnId = columns.getOrNull(pagerState.currentPage)?.id
+                    if (centeredColumnId != null) {
+                        ghostColumnId.value = if (centeredColumnId == sourceColumnId) null
+                                              else centeredColumnId
                     }
                 }
             }

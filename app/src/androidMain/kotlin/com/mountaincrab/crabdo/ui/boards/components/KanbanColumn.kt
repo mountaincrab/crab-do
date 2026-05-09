@@ -131,11 +131,19 @@ fun KanbanColumn(
                 val capturedTaskId = task.id
                 val cardAbsoluteLeftState = remember { mutableFloatStateOf(0f) }
 
+                // Don't apply animateItem to the dragged card. When the card swaps slots
+                // we compensate dragOffsetY by -slotH so the visual position stays under
+                // the finger, but animateItem would interpolate from old slot to new slot
+                // — at t=0 the card visibly jumps up by slotH and animates back to the
+                // finger over ~150ms. Snapping the dragged card's slot makes the
+                // compensation exact and the card stays glued to the finger. Other cards
+                // still animate via animateItem, so they slide around the dragged card.
+                val itemModifier = if (isDragging) Modifier else Modifier.animateItem()
+
                 TaskCard(
                     task = task,
                     isDragging = isDragging,
-                    modifier = Modifier
-                        .animateItem()
+                    modifier = itemModifier
                         .zIndex(if (isDragging) 1f else 0f)
                         .graphicsLayer {
                             alpha = if (isDragging) 0.5f else 1f
@@ -182,8 +190,15 @@ fun KanbanColumn(
                                                 dragOffsetY = 0f
                                             }
                                         }
-                                        // targetColumn == null: pointer is in a gap or off-screen after
-                                        // scroll — preserve current ghost state rather than clearing it.
+                                        else -> {
+                                            // targetColumn == null: pointer is in a gap or off-screen.
+                                            // If a ghost is already active in another column, don't
+                                            // re-arrange the source column underneath the user's feet —
+                                            // they've committed to the target column.
+                                            if (ghostColumnId.value != null && ghostColumnId.value != column.id) {
+                                                return@detectDragGesturesAfterLongPress
+                                            }
+                                        }
                                     }
 
                                     // Within-column: accumulate Y and reorder at midpoint.
