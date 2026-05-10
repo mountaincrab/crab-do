@@ -35,7 +35,7 @@ class TaskRepository(
         )
         taskDao.upsert(task)
         if (reminderTimeMillis != null && reminderTimeMillis > System.currentTimeMillis()) {
-            alarmScheduler.scheduleTaskReminder(task.id, reminderTimeMillis, reminderStyle)
+            alarmScheduler.scheduleTaskReminder(task.id, task.title, reminderTimeMillis, reminderStyle)
         }
         enqueueSyncWork()
         return task
@@ -47,7 +47,7 @@ class TaskRepository(
             syncStatus = SyncStatus.PENDING
         ))
         task.reminderTimeMillis?.let { time ->
-            alarmScheduler.scheduleTaskReminder(task.id, time, task.reminderStyle)
+            alarmScheduler.scheduleTaskReminder(task.id, task.title, time, task.reminderStyle)
         } ?: alarmScheduler.cancelTaskReminder(task.id)
         enqueueSyncWork()
     }
@@ -76,7 +76,7 @@ class TaskRepository(
         taskDao.getTasksWithReminders().forEach { task ->
             task.reminderTimeMillis?.let { time ->
                 if (time > System.currentTimeMillis()) {
-                    alarmScheduler.scheduleTaskReminder(task.id, time, task.reminderStyle)
+                    alarmScheduler.scheduleTaskReminder(task.id, task.title, time, task.reminderStyle)
                 }
             }
         }

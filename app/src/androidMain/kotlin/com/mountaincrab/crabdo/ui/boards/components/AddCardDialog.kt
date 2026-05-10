@@ -7,6 +7,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -18,6 +19,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.mountaincrab.crabdo.data.local.entity.TaskEntity
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -42,16 +45,49 @@ fun AddCardDialog(
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
-    AlertDialog(
+    Dialog(
         onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surface,
-        titleContentColor = MaterialTheme.colorScheme.onSurface,
-        textContentColor = MaterialTheme.colorScheme.onSurface,
-        shape = RoundedCornerShape(20.dp),
-        title = { Text("New Card", fontWeight = FontWeight.Bold) },
-        text = {
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnClickOutside = false,
+            dismissOnBackPress = true
+        )
+    ) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("New Card", fontWeight = FontWeight.Bold) },
+                    navigationIcon = {
+                        IconButton(onClick = onDismiss) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Cancel")
+                        }
+                    },
+                    actions = {
+                        TextButton(
+                            onClick = {
+                                if (title.isNotBlank()) {
+                                    onAdd(
+                                        title.trim(),
+                                        description.trim(),
+                                        if (reminderEnabled) reminderMillis else null,
+                                        reminderStyle
+                                    )
+                                }
+                            },
+                            enabled = title.isNotBlank()
+                        ) {
+                            Text("Add", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                )
+            }
+        ) { padding ->
             Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 SectionLabel("TASK TITLE")
@@ -189,26 +225,8 @@ fun AddCardDialog(
                     }
                 }
             }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    if (title.isNotBlank()) {
-                        onAdd(
-                            title.trim(),
-                            description.trim(),
-                            if (reminderEnabled) reminderMillis else null,
-                            reminderStyle
-                        )
-                    }
-                },
-                enabled = title.isNotBlank()
-            ) { Text("Add", fontWeight = FontWeight.Bold) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
         }
-    )
+    }
 
     if (showDatePicker) {
         val datePickerState = rememberDatePickerState(

@@ -19,11 +19,11 @@ class AlarmScheduler(private val context: Context) {
         )
     }
 
-    fun scheduleTaskReminder(taskId: String, triggerMillis: Long, style: TaskEntity.ReminderStyle) {
+    fun scheduleTaskReminder(taskId: String, title: String, triggerMillis: Long, style: TaskEntity.ReminderStyle) {
         schedule(
             requestCode = taskRequestCode(taskId),
             triggerMillis = triggerMillis,
-            intent = buildTaskReminderIntent(taskId, style)
+            intent = buildTaskReminderIntent(taskId, title, style)
         )
     }
 
@@ -89,10 +89,11 @@ class AlarmScheduler(private val context: Context) {
             putExtra(ReminderReceiver.EXTRA_STYLE, styleName)
         }
 
-    private fun buildTaskReminderIntent(taskId: String, style: TaskEntity.ReminderStyle) =
+    private fun buildTaskReminderIntent(taskId: String, title: String, style: TaskEntity.ReminderStyle) =
         Intent(context, ReminderReceiver::class.java).apply {
             action = ReminderReceiver.ACTION_FIRE_REMINDER
             putExtra(ReminderReceiver.EXTRA_REMINDER_ID, taskId)
+            putExtra(ReminderReceiver.EXTRA_TITLE, title)
             putExtra(ReminderReceiver.EXTRA_TYPE, "task")
             putExtra(ReminderReceiver.EXTRA_STYLE, style.name)
         }
