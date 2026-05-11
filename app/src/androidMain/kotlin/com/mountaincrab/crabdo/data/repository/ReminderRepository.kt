@@ -151,11 +151,19 @@ class ReminderRepository(
         val rule = RecurrenceRule.fromJson(reminder.recurrenceRuleJson)
         val (hour, minute) = parseReminderTime(reminder.reminderTime)
         val now = System.currentTimeMillis()
-        // If nextFireAt is stale (past), catch up to the real next firing first;
-        // otherwise dismiss starts from the currently-scheduled occurrence.
-        val currentNext = if (reminder.nextFireAt > now) reminder.nextFireAt
-            else RecurrenceEngine.nextTriggerAfter(rule, now, hour, minute) ?: return
-        val newNext = RecurrenceEngine.nextTriggerAfter(rule, currentNext, hour, minute) ?: return
+
+        // If there's an active snooze, onReminderFired already advanced nextFireAt to the
+        // next occurrence when the alarm originally fired. Dismissing the snooze just means
+        // cancelling it — nextFireAt is already correct, so don't advance again.
+        val newNext: Long = if (reminder.snoozedUntilMillis != null && reminder.snoozedUntilMillis > now) {
+            reminder.nextFireAt
+        } else {
+            // No active snooze — advance past the current occurrence.
+            // If nextFireAt is stale (past), catch up first so we don't skip an extra occurrence.
+            val currentNext = if (reminder.nextFireAt > now) reminder.nextFireAt
+                else RecurrenceEngine.nextTriggerAfter(rule, now, hour, minute) ?: return
+            RecurrenceEngine.nextTriggerAfter(rule, currentNext, hour, minute) ?: return
+        }
         recurringDao.advanceToNext(id, newNext)
         alarmScheduler.cancelReminder(id)
         if (reminder.isEnabled) {
