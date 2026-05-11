@@ -11,12 +11,9 @@
 local.properties
 google-services.json
 
-# Gradle wrapper jar (regenerate with: gradle wrapper --gradle-version 8.9)
-gradle/wrapper/gradle-wrapper.jar
-
 # Kotlin
 *.class
-*.jar (not wrapper)
+*.jar
 
 # Cloud Functions
 functions/lib/
