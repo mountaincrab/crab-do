@@ -2,11 +2,14 @@ package com.mountaincrab.crabdo.ui.boards.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
@@ -22,12 +25,16 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.compose.runtime.MutableIntState
+import com.mountaincrab.crabdo.data.local.dao.SubtaskCountAggregate
 import com.mountaincrab.crabdo.data.local.entity.ColumnEntity
 import com.mountaincrab.crabdo.data.local.entity.TaskEntity
+import com.mountaincrab.crabdo.ui.theme.LocalAppPalette
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -48,6 +55,7 @@ fun KanbanColumn(
     onCardTapped: (taskId: String) -> Unit,
     onAddCard: (title: String, description: String, reminderTimeMillis: Long?, reminderStyle: TaskEntity.ReminderStyle) -> Unit,
     allTasksByColumn: Map<String, List<TaskEntity>>,
+    subtaskCounts: Map<String, SubtaskCountAggregate> = emptyMap(),
     modifier: Modifier = Modifier
 ) {
     var showAddCardDialog by remember { mutableStateOf(false) }
@@ -64,7 +72,7 @@ fun KanbanColumn(
     var dragOffsetY by remember { mutableFloatStateOf(0f) }
     var cardHeightPx by remember { mutableFloatStateOf(0f) }
     val density = LocalDensity.current
-    val cardSpacingPx = with(density) { 8.dp.toPx() }
+    val cardSpacingPx = with(density) { 4.dp.toPx() }
     val edgeThresholdPx = with(density) { 80.dp.toPx() }
     val screenWidthPx = with(density) { LocalConfiguration.current.screenWidthDp.dp.toPx() }
     val edgeScrollStateRef = rememberUpdatedState(edgeScrollState)
@@ -159,23 +167,41 @@ fun KanbanColumn(
             .fillMaxHeight(0.9f)
             .onGloballyPositioned { onBoundsChanged(it.boundsInRoot()) }
     ) {
+        // Uppercase tracked column label + count chip — matches the design
+        // system's .col-head pattern (eyebrow-style header, count in a
+        // surface-high pill).
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 10.dp),
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                .padding(horizontal = 10.dp, vertical = 10.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = column.title,
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                text = column.title.uppercase(),
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.6.sp,
+                ),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             if (tasks.isNotEmpty()) {
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = tasks.size.toString(),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(LocalAppPalette.current.surfaceHigh)
+                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = tasks.size.toString(),
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
 
@@ -183,12 +209,13 @@ fun KanbanColumn(
             state = lazyListState,
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(horizontal = 4.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             itemsIndexed(displayTasks, key = { _, it -> it.id }) { _, task ->
                 val isDragging = task.id == draggedTaskId
                 val capturedTaskId = task.id
                 val cardAbsoluteLeftState = remember { mutableFloatStateOf(0f) }
+                val counts = subtaskCounts[task.id]
 
                 // Don't apply animateItem to the dragged card. When the card swaps slots
                 // we compensate dragOffsetY by -slotH so the visual position stays under
@@ -201,6 +228,8 @@ fun KanbanColumn(
 
                 TaskCard(
                     task = task,
+                    subtaskCount = counts?.total ?: 0,
+                    completedSubtaskCount = counts?.completed ?: 0,
                     isDragging = isDragging,
                     modifier = itemModifier
                         .zIndex(if (isDragging) 1f else 0f)
@@ -342,20 +371,25 @@ fun KanbanColumn(
             }
 
             item {
-                OutlinedButton(
-                    onClick = { showAddCardDialog = true },
+                // Flat left-aligned "+ Add task" — matches .add-task in the
+                // design system (no outlined surface, just muted text).
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 4.dp, vertical = 4.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        contentColor = MaterialTheme.colorScheme.onSurface
-                    )
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable { showAddCardDialog = true }
+                        .padding(horizontal = 8.dp, vertical = 10.dp),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.width(4.dp))
-                    Text("Add task")
+                    Text(
+                        text = "+ Add task",
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            letterSpacing = 0.sp,
+                            fontSize = 13.sp,
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }

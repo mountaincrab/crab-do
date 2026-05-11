@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeft, MoreHorizontal, ChevronRight } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useBoard } from '../hooks/useBoard'
 import { Column, Task } from '../types'
@@ -22,7 +23,7 @@ export default function KanbanBoardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-surface flex items-center justify-center text-slate-500">
+      <div className="min-h-screen bg-bg flex items-center justify-center text-fg-faint">
         Loading…
       </div>
     )
@@ -42,20 +43,18 @@ export default function KanbanBoardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-surface text-white flex flex-col">
-      {/* Header */}
-      <header className="border-b border-white/10 px-6 py-3 flex items-center gap-4 shrink-0">
+    <div className="min-h-screen bg-bg text-fg flex flex-col">
+      <header className="border-b border-DEFAULT bg-surface px-6 py-3 flex items-center gap-4 shrink-0">
         <button
           onClick={() => navigate('/')}
-          className="text-slate-400 hover:text-white transition-colors"
+          className="flex items-center gap-1 text-fg-muted hover:text-fg transition-colors text-sm font-semibold"
           aria-label="Back"
         >
-          ← Back
+          <ArrowLeft size={16} /> Back
         </button>
-        <h1 className="font-semibold text-lg">{board?.title ?? '…'}</h1>
+        <h1 className="font-bold text-lg tracking-tightish">{board?.title ?? '…'}</h1>
       </header>
 
-      {/* Board */}
       <div className="flex-1 overflow-x-auto">
         <div className="flex gap-4 p-6 h-full items-start" style={{ minHeight: 'calc(100vh - 57px)' }}>
           {columns.map((col) => (
@@ -76,10 +75,9 @@ export default function KanbanBoardPage() {
             />
           ))}
 
-          {/* Add column */}
           <div className="shrink-0 w-64">
             {showAddColumn ? (
-              <div className="bg-surface-raised rounded-xl p-3">
+              <div className="bg-surface-raised border border-DEFAULT rounded-xl p-3">
                 <input
                   autoFocus
                   value={newColTitle}
@@ -89,18 +87,18 @@ export default function KanbanBoardPage() {
                     if (e.key === 'Escape') { setShowAddColumn(false); setNewColTitle('') }
                   }}
                   placeholder="Column name"
-                  className="w-full bg-surface-high border border-white/10 rounded-lg px-3 py-2 text-white placeholder-slate-500 outline-none focus:border-indigo-500 text-sm mb-2"
+                  className="w-full bg-surface-raised border border-DEFAULT rounded-lg px-3 py-2 text-fg placeholder:text-fg-faint outline-none focus:border-accent text-sm mb-2 transition-colors"
                 />
                 <div className="flex gap-2">
                   <button
                     onClick={handleAddColumn}
-                    className="px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors"
+                    className="px-3 py-1.5 bg-accent hover:bg-accent-hover text-accent-fg rounded-xl text-sm font-semibold transition-colors"
                   >
                     Add
                   </button>
                   <button
                     onClick={() => { setShowAddColumn(false); setNewColTitle('') }}
-                    className="px-3 py-1.5 text-slate-400 hover:text-white rounded-lg text-sm transition-colors"
+                    className="px-3 py-1.5 text-fg-muted hover:text-fg rounded-xl text-sm font-semibold transition-colors"
                   >
                     Cancel
                   </button>
@@ -109,7 +107,7 @@ export default function KanbanBoardPage() {
             ) : (
               <button
                 onClick={() => setShowAddColumn(true)}
-                className="w-full text-left text-slate-400 hover:text-white px-3 py-2.5 rounded-xl hover:bg-surface-raised transition-colors text-sm"
+                className="w-full text-left text-fg-muted hover:text-fg px-3 py-2.5 rounded-xl hover:bg-surface-raised transition-colors text-sm font-semibold"
               >
                 + Add column
               </button>
@@ -118,21 +116,20 @@ export default function KanbanBoardPage() {
         </div>
       </div>
 
-      {/* Rename dialog */}
       {renamingCol && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-surface-raised rounded-2xl p-6 w-full max-w-sm shadow-2xl">
-            <h2 className="text-lg font-semibold mb-4">Rename Column</h2>
+          <div className="bg-surface-raised border border-DEFAULT rounded-2xl p-6 w-full max-w-sm shadow-dialog">
+            <h2 className="text-lg font-bold mb-4 text-fg">Rename Column</h2>
             <input
               autoFocus
               value={renameValue}
               onChange={(e) => setRenameValue(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') handleRenameSubmit() }}
-              className="w-full bg-surface-high border border-white/10 rounded-lg px-3 py-2.5 text-white outline-none focus:border-indigo-500 mb-4"
+              className="w-full bg-surface-raised border border-DEFAULT rounded-lg px-3 py-2.5 text-fg outline-none focus:border-accent mb-4 transition-colors"
             />
             <div className="flex justify-end gap-2">
-              <button onClick={() => setRenamingCol(null)} className="px-4 py-2 text-slate-400 hover:text-white text-sm rounded-lg">Cancel</button>
-              <button onClick={handleRenameSubmit} className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white text-sm rounded-lg font-medium">Save</button>
+              <button onClick={() => setRenamingCol(null)} className="px-4 py-2 text-fg-muted hover:text-fg text-sm rounded-xl font-semibold transition-colors">Cancel</button>
+              <button onClick={handleRenameSubmit} className="px-4 py-2 bg-accent hover:bg-accent-hover text-accent-fg text-sm rounded-xl font-semibold transition-colors">Save</button>
             </div>
           </div>
         </div>
@@ -141,9 +138,6 @@ export default function KanbanBoardPage() {
   )
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-/** Compute a new order value for inserting at gap index `gap` in `tasks`. */
 function orderForGap(gap: number, tasks: Task[]): number {
   const prev = tasks[gap - 1]
   const next = tasks[gap]
@@ -153,17 +147,13 @@ function orderForGap(gap: number, tasks: Task[]): number {
   return (prev.order + next.order) / 2
 }
 
-// ─── Drop indicator ──────────────────────────────────────────────────────────
-
 function DropIndicator() {
   return (
     <div className="py-0.5 pointer-events-none">
-      <div className="h-[3px] w-full rounded-full bg-[#4F7CFF]" />
+      <div className="h-[3px] w-full rounded-full bg-accent" />
     </div>
   )
 }
-
-// ─── Column component ────────────────────────────────────────────────────────
 
 interface ColumnViewProps {
   column: Column
@@ -194,7 +184,6 @@ function KanbanColumnView({
   const [hoverGap, setHoverGap] = useState<number | null>(null)
   const tasksRef = useRef<HTMLDivElement>(null)
 
-  // Hide the dragged card from this column's visible list so gaps close around it
   const visibleTasks = draggingTaskId
     ? tasks.filter((t) => t.id !== draggingTaskId)
     : tasks
@@ -245,36 +234,35 @@ function KanbanColumnView({
   return (
     <div
       className={`shrink-0 w-64 flex flex-col gap-2 rounded-xl p-1 transition-colors ${
-        isDragging && hoverGap !== null ? 'bg-indigo-500/5 ring-1 ring-[#4F7CFF]/30' : ''
+        isDragging && hoverGap !== null ? 'bg-accent-soft ring-1 ring-accent/30' : ''
       }`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {/* Column header */}
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2">
-          <span className="font-medium text-sm text-slate-200">{column.title}</span>
-          <span className="text-xs text-slate-500 bg-surface-high px-1.5 py-0.5 rounded-full">{tasks.length}</span>
+          <span className="font-bold text-sm text-fg">{column.title}</span>
+          <span className="text-xs text-fg-muted bg-surface-high px-2 py-0.5 rounded-full font-semibold">{tasks.length}</span>
         </div>
         <div className="relative">
           <button
             onClick={() => setShowColMenu((v) => !v)}
-            className="text-slate-500 hover:text-white p-1 rounded transition-colors text-lg leading-none"
+            className="text-fg-faint hover:text-fg p-1 rounded transition-colors leading-none"
           >
-            ⋯
+            <MoreHorizontal size={16} />
           </button>
           {showColMenu && (
-            <div className="absolute right-0 top-full mt-1 bg-surface-high border border-white/10 rounded-lg shadow-xl z-20 min-w-32 py-1">
+            <div className="absolute right-0 top-full mt-1 bg-surface-high border border-DEFAULT rounded-lg shadow-dialog z-20 min-w-32 py-1">
               <button
                 onClick={() => { onRename(); setShowColMenu(false) }}
-                className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-white/5 hover:text-white transition-colors"
+                className="w-full text-left px-4 py-2 text-sm text-fg hover:bg-white/5 transition-colors"
               >
                 Rename
               </button>
               <button
                 onClick={() => { onDelete(); setShowColMenu(false) }}
-                className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-white/5 transition-colors"
+                className="w-full text-left px-4 py-2 text-sm text-danger-text hover:bg-white/5 transition-colors"
               >
                 Delete column
               </button>
@@ -283,7 +271,6 @@ function KanbanColumnView({
         </div>
       </div>
 
-      {/* Tasks with inline drop indicators */}
       <div ref={tasksRef} className="flex flex-col gap-2">
         {visibleTasks.map((task, i) => (
           <div key={task.id}>
@@ -301,39 +288,38 @@ function KanbanColumnView({
         ))}
         {isDragging && hoverGap === visibleTasks.length && <DropIndicator />}
         {isDragging && visibleTasks.length === 0 && hoverGap === null && (
-          <div className="h-16 rounded-lg border-2 border-dashed border-[#4F7CFF]/25 flex items-center justify-center text-xs text-[#4F7CFF]/40">
+          <div className="h-16 rounded-lg border-2 border-dashed border-accent/25 flex items-center justify-center text-xs text-accent/50">
             Drop here
           </div>
         )}
       </div>
 
-      {/* Add task */}
       {showAdd ? (
-        <div className="bg-surface-raised rounded-xl p-3 mt-1">
+        <div className="bg-surface-raised border border-DEFAULT rounded-xl p-3 mt-1">
           <input
             autoFocus
             value={newTaskTitle}
             onChange={(e) => setNewTaskTitle(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Escape') { setShowAdd(false); setNewTaskTitle(''); setNewTaskDesc('') } }}
             placeholder="Task title"
-            className="w-full bg-surface-high border border-white/10 rounded-lg px-3 py-2 text-white placeholder-slate-500 outline-none focus:border-indigo-500 text-sm mb-2"
+            className="w-full bg-surface-raised border border-DEFAULT rounded-lg px-3 py-2 text-fg placeholder:text-fg-faint outline-none focus:border-accent text-sm mb-2 transition-colors"
           />
           <textarea
             value={newTaskDesc}
             onChange={(e) => setNewTaskDesc(e.target.value)}
             placeholder="Description (optional)"
             rows={2}
-            className="w-full bg-surface-high border border-white/10 rounded-lg px-3 py-2 text-white placeholder-slate-500 outline-none focus:border-indigo-500 text-sm mb-2 resize-none"
+            className="w-full bg-surface-raised border border-DEFAULT rounded-lg px-3 py-2 text-fg placeholder:text-fg-faint outline-none focus:border-accent text-sm mb-2 resize-none transition-colors"
           />
           <div className="flex gap-2">
-            <button onClick={handleAddTask} className="px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors">Add</button>
-            <button onClick={() => { setShowAdd(false); setNewTaskTitle(''); setNewTaskDesc('') }} className="px-3 py-1.5 text-slate-400 hover:text-white rounded-lg text-sm transition-colors">Cancel</button>
+            <button onClick={handleAddTask} className="px-3 py-1.5 bg-accent hover:bg-accent-hover text-accent-fg rounded-xl text-sm font-semibold transition-colors">Add</button>
+            <button onClick={() => { setShowAdd(false); setNewTaskTitle(''); setNewTaskDesc('') }} className="px-3 py-1.5 text-fg-muted hover:text-fg rounded-xl text-sm font-semibold transition-colors">Cancel</button>
           </div>
         </div>
       ) : (
         <button
           onClick={() => setShowAdd(true)}
-          className="w-full text-left text-slate-500 hover:text-slate-300 px-2 py-1.5 rounded-lg hover:bg-surface-raised transition-colors text-sm mt-1"
+          className="w-full text-left text-fg-faint hover:text-fg px-2 py-1.5 rounded-lg hover:bg-surface-raised transition-colors text-sm font-semibold mt-1"
         >
           + Add task
         </button>
@@ -341,8 +327,6 @@ function KanbanColumnView({
     </div>
   )
 }
-
-// ─── Task card ───────────────────────────────────────────────────────────────
 
 interface TaskCardProps {
   task: Task
@@ -363,7 +347,6 @@ function TaskCardView({ task, allColumns, onDragStart, onDragEnd, onMove, onDele
     e.dataTransfer.effectAllowed = 'move'
     e.dataTransfer.setData('taskId', task.id)
     e.dataTransfer.setData('sourceColumnId', task.columnId)
-    // Delay so browser captures ghost before card is hidden from source column
     setTimeout(() => onDragStart(task.id), 0)
   }
 
@@ -373,43 +356,42 @@ function TaskCardView({ task, allColumns, onDragStart, onDragEnd, onMove, onDele
       draggable
       onDragStart={handleDragStart}
       onDragEnd={onDragEnd}
-      className="bg-surface-raised hover:bg-surface-high rounded-xl p-3 cursor-grab active:cursor-grabbing transition-colors relative group select-none"
+      className="bg-surface-raised hover:bg-surface-high border border-DEFAULT rounded-xl p-3 cursor-grab active:cursor-grabbing transition-colors relative group select-none"
       onClick={onClick}
     >
-      <p className="text-sm text-white leading-snug">{task.title}</p>
+      <p className="text-sm text-fg leading-snug font-medium">{task.title}</p>
       {task.description && (
-        <p className="text-xs text-slate-500 mt-1 line-clamp-2">{task.description}</p>
+        <p className="text-xs text-fg-faint mt-1 line-clamp-2">{task.description}</p>
       )}
 
-      {/* Card action menu */}
       <div
         className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
         onClick={(e) => e.stopPropagation()}
       >
         <button
           onClick={() => { setShowMenu((v) => !v); setShowMoveMenu(false) }}
-          className="text-slate-500 hover:text-white p-1 rounded text-sm leading-none"
+          className="text-fg-faint hover:text-fg p-1 rounded leading-none"
         >
-          ⋯
+          <MoreHorizontal size={14} />
         </button>
 
         {showMenu && (
-          <div className="absolute right-0 top-full mt-1 bg-surface-high border border-white/10 rounded-lg shadow-xl z-20 min-w-36 py-1">
+          <div className="absolute right-0 top-full mt-1 bg-surface-high border border-DEFAULT rounded-lg shadow-dialog z-20 min-w-36 py-1">
             {otherColumns.length > 0 && (
               <div className="relative">
                 <button
                   onClick={() => setShowMoveMenu((v) => !v)}
-                  className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-white/5 transition-colors flex items-center justify-between"
+                  className="w-full text-left px-4 py-2 text-sm text-fg hover:bg-white/5 transition-colors flex items-center justify-between"
                 >
-                  Move to <span className="text-slate-500">›</span>
+                  Move to <ChevronRight size={14} className="text-fg-faint" />
                 </button>
                 {showMoveMenu && (
-                  <div className="absolute left-full top-0 ml-1 bg-surface-high border border-white/10 rounded-lg shadow-xl z-30 min-w-36 py-1">
+                  <div className="absolute left-full top-0 ml-1 bg-surface-high border border-DEFAULT rounded-lg shadow-dialog z-30 min-w-36 py-1">
                     {otherColumns.map((col) => (
                       <button
                         key={col.id}
                         onClick={() => { onMove(task.id, col.id); setShowMenu(false); setShowMoveMenu(false) }}
-                        className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-white/5 transition-colors"
+                        className="w-full text-left px-4 py-2 text-sm text-fg hover:bg-white/5 transition-colors"
                       >
                         {col.title}
                       </button>
@@ -420,7 +402,7 @@ function TaskCardView({ task, allColumns, onDragStart, onDragEnd, onMove, onDele
             )}
             <button
               onClick={() => { onDelete(task.id); setShowMenu(false) }}
-              className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-white/5 transition-colors"
+              className="w-full text-left px-4 py-2 text-sm text-danger-text hover:bg-white/5 transition-colors"
             >
               Delete
             </button>

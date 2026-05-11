@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeft, Check, X } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useTask } from '../hooks/useTask'
 import { Subtask } from '../types'
@@ -42,7 +43,6 @@ export default function TaskDetailPage() {
     setNewSubtaskTitle('')
   }
 
-  // Sort: incomplete first (by order), completed last (by order)
   const sortedSubtasks = [...subtasks].sort(
     (a, b) => (a.isCompleted ? 1 : 0) - (b.isCompleted ? 1 : 0) || a.order - b.order,
   )
@@ -87,62 +87,57 @@ export default function TaskDetailPage() {
   const completedCount = subtasks.filter((s) => s.isCompleted).length
 
   return (
-    <div className="min-h-screen bg-surface text-white flex flex-col">
-      {/* Header */}
-      <header className="border-b border-white/10 px-6 py-3 flex items-center gap-4 shrink-0">
+    <div className="min-h-screen bg-bg text-fg flex flex-col">
+      <header className="border-b border-DEFAULT bg-surface px-6 py-3 flex items-center gap-4 shrink-0">
         <button
           onClick={() => navigate(-1)}
-          className="text-slate-400 hover:text-white transition-colors"
+          className="flex items-center gap-1 text-fg-muted hover:text-fg transition-colors text-sm font-semibold"
         >
-          ← Back
+          <ArrowLeft size={16} /> Back
         </button>
-        <span className="font-semibold flex-1 truncate">{task?.title ?? '…'}</span>
+        <span className="font-bold flex-1 truncate text-fg">{task?.title ?? '…'}</span>
       </header>
 
       <div className="flex-1 max-w-2xl mx-auto w-full px-6 py-8 flex flex-col gap-6">
-        {/* Title */}
         <div>
-          <label className="text-xs text-slate-500 uppercase tracking-wider mb-1.5 block">Title</label>
+          <label className="ds-eyebrow mb-1.5 block">Title</label>
           <input
             value={titleDraft}
             onChange={(e) => { setTitleDraft(e.target.value); setDirty(true) }}
-            className="w-full bg-surface-raised border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-indigo-500 transition-colors"
+            className="w-full bg-surface-raised border border-DEFAULT rounded-xl px-4 py-3 text-fg outline-none focus:border-accent transition-colors"
           />
         </div>
 
-        {/* Description */}
         <div>
-          <label className="text-xs text-slate-500 uppercase tracking-wider mb-1.5 block">Description</label>
+          <label className="ds-eyebrow mb-1.5 block">Description</label>
           <textarea
             value={descDraft}
             onChange={(e) => { setDescDraft(e.target.value); setDirty(true) }}
             rows={4}
             placeholder="Add a description…"
-            className="w-full bg-surface-raised border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-600 outline-none focus:border-indigo-500 transition-colors resize-none"
+            className="w-full bg-surface-raised border border-DEFAULT rounded-xl px-4 py-3 text-fg placeholder:text-fg-faint outline-none focus:border-accent transition-colors resize-none"
           />
         </div>
 
-        {/* Save button */}
         {dirty && (
           <div className="flex justify-end">
             <button
               onClick={handleSave}
               disabled={saving || !titleDraft.trim()}
-              className="px-5 py-2 bg-indigo-500 hover:bg-indigo-600 disabled:opacity-40 text-white rounded-lg text-sm font-medium transition-colors"
+              className="px-5 py-2 bg-accent hover:bg-accent-hover disabled:opacity-40 text-accent-fg rounded-xl text-sm font-semibold transition-colors"
             >
               {saving ? 'Saving…' : 'Save changes'}
             </button>
           </div>
         )}
 
-        <hr className="border-white/10" />
+        <hr className="border-DEFAULT" />
 
-        {/* Checklist */}
         <div>
           <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-medium text-slate-300">Checklist</span>
+            <span className="text-sm font-bold text-fg">Checklist</span>
             {subtasks.length > 0 && (
-              <span className="text-xs text-slate-500">
+              <span className="text-xs text-fg-muted font-mono">
                 {completedCount}/{subtasks.length}
               </span>
             )}
@@ -151,13 +146,12 @@ export default function TaskDetailPage() {
           {subtasks.length > 0 && (
             <div className="mb-3 h-1 bg-surface-high rounded-full overflow-hidden">
               <div
-                className="h-full bg-indigo-500 rounded-full transition-all"
+                className="h-full bg-accent rounded-full transition-all"
                 style={{ width: `${(completedCount / subtasks.length) * 100}%` }}
               />
             </div>
           )}
 
-          {/* Subtask list with drag-and-drop */}
           <div
             ref={subtaskListRef}
             className="flex flex-col"
@@ -185,19 +179,18 @@ export default function TaskDetailPage() {
             {draggingSubtaskId && hoverGap === visibleSubtasks.length && <SubtaskDropIndicator />}
           </div>
 
-          {/* New subtask */}
           <div className="flex gap-2 mt-3">
             <input
               value={newSubtaskTitle}
               onChange={(e) => setNewSubtaskTitle(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') handleAddSubtask() }}
               placeholder="Add checklist item…"
-              className="flex-1 bg-surface-raised border border-white/10 rounded-lg px-3 py-2 text-white placeholder-slate-600 outline-none focus:border-indigo-500 text-sm transition-colors"
+              className="flex-1 bg-surface-raised border border-DEFAULT rounded-lg px-3 py-2 text-fg placeholder:text-fg-faint outline-none focus:border-accent text-sm transition-colors"
             />
             <button
               onClick={handleAddSubtask}
               disabled={!newSubtaskTitle.trim()}
-              className="px-3 py-2 bg-surface-high hover:bg-surface-raised disabled:opacity-40 text-slate-300 rounded-lg text-sm transition-colors border border-white/10"
+              className="px-3 py-2 bg-surface-high hover:bg-surface-raised disabled:opacity-40 text-fg rounded-lg text-sm font-semibold transition-colors border border-DEFAULT"
             >
               Add
             </button>
@@ -211,7 +204,7 @@ export default function TaskDetailPage() {
 function SubtaskDropIndicator() {
   return (
     <div className="py-0.5 pointer-events-none">
-      <div className="h-[3px] w-full rounded-full bg-[#4F7CFF]" />
+      <div className="h-[3px] w-full rounded-full bg-accent" />
     </div>
   )
 }
@@ -254,17 +247,14 @@ function SubtaskRow({ subtask, onToggle, onDelete, onRename, onDragStart, onDrag
       <button
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => { e.stopPropagation(); onToggle() }}
-        className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
+        className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 transition-colors ${
           subtask.isCompleted
-            ? 'bg-indigo-500 border-indigo-500'
-            : 'border-slate-600 hover:border-slate-400'
+            ? 'bg-accent border-accent text-accent-fg'
+            : 'border-fg-muted hover:border-fg-faint'
         }`}
+        style={subtask.isCompleted ? undefined : { borderWidth: '1.5px' }}
       >
-        {subtask.isCompleted && (
-          <svg viewBox="0 0 10 8" className="w-3 h-3 fill-none stroke-white stroke-2">
-            <path d="M1 4l3 3 5-6" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        )}
+        {subtask.isCompleted && <Check size={12} strokeWidth={3} />}
       </button>
 
       {editing ? (
@@ -278,7 +268,7 @@ function SubtaskRow({ subtask, onToggle, onDelete, onRename, onDragStart, onDrag
             if (e.key === 'Escape') { setEditValue(subtask.title); setEditing(false) }
           }}
           onMouseDown={(e) => e.stopPropagation()}
-          className="flex-1 bg-transparent border-b border-indigo-500 outline-none text-sm text-white py-0.5"
+          className="flex-1 bg-transparent border-b border-accent outline-none text-sm text-fg py-0.5"
         />
       ) : (
         <span
@@ -288,7 +278,7 @@ function SubtaskRow({ subtask, onToggle, onDelete, onRename, onDragStart, onDrag
             if (!subtask.isCompleted) { setEditValue(subtask.title); setEditing(true) }
           }}
           className={`flex-1 text-sm cursor-text ${
-            subtask.isCompleted ? 'line-through text-slate-500' : 'text-slate-200'
+            subtask.isCompleted ? 'line-through text-fg-faint' : 'text-fg'
           }`}
         >
           {subtask.title}
@@ -298,10 +288,10 @@ function SubtaskRow({ subtask, onToggle, onDelete, onRename, onDragStart, onDrag
       <button
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => { e.stopPropagation(); onDelete() }}
-        className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 transition-all text-xs px-1"
+        className="opacity-0 group-hover:opacity-100 text-fg-faint hover:text-danger-text transition-all p-0.5"
         aria-label="Remove"
       >
-        ✕
+        <X size={14} />
       </button>
     </div>
   )

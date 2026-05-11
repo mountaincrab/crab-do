@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { ThemeProvider } from './contexts/ThemeContext'
 import LoginPage from './pages/LoginPage'
 import BoardListPage from './pages/BoardListPage'
 import KanbanBoardPage from './pages/KanbanBoardPage'
@@ -9,14 +10,14 @@ import SettingsPage from './pages/SettingsPage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
-  if (loading) return <div className="min-h-screen bg-surface" />
+  if (loading) return <div className="min-h-screen bg-bg" />
   if (!user) return <Navigate to="/login" replace />
   return <>{children}</>
 }
 
 function AppRoutes() {
   const { user, loading } = useAuth()
-  if (loading) return <div className="min-h-screen bg-surface" />
+  if (loading) return <div className="min-h-screen bg-bg" />
 
   return (
     <Routes>
@@ -33,10 +34,12 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <AppRoutes />
-      </BrowserRouter>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </AuthProvider>
+    </ThemeProvider>
   )
 }

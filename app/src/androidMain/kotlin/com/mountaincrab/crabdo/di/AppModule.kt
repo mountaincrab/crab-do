@@ -97,7 +97,12 @@ val appModule = module {
         )
     }
     viewModel { (boardId: String) ->
-        KanbanBoardViewModel(boardId = boardId, boardRepository = get(), taskRepository = get())
+        KanbanBoardViewModel(
+            boardId = boardId,
+            boardRepository = get(),
+            taskRepository = get(),
+            subtaskRepository = get(),
+        )
     }
     viewModel { (taskId: String) ->
         TaskDetailViewModel(

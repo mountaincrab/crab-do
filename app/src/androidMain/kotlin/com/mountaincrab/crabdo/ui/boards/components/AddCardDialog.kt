@@ -7,6 +7,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccessAlarm
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.*
@@ -22,6 +23,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.mountaincrab.crabdo.data.local.entity.TaskEntity
+import com.mountaincrab.crabdo.ui.theme.PillButton
+import com.mountaincrab.crabdo.ui.theme.PillGroup
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -154,24 +157,18 @@ fun AddCardDialog(
 
                         if (reminderEnabled) {
                             Spacer(Modifier.height(12.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                val chipColors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-                                )
-                                FilterChip(
+                            PillGroup {
+                                PillButton(
                                     selected = reminderStyle == TaskEntity.ReminderStyle.NOTIFICATION,
                                     onClick = { reminderStyle = TaskEntity.ReminderStyle.NOTIFICATION },
-                                    label = { Text("📳 Push") },
-                                    colors = chipColors,
-                                    modifier = Modifier.weight(1f)
+                                    icon = Icons.Default.Notifications,
+                                    text = "Notification",
                                 )
-                                FilterChip(
+                                PillButton(
                                     selected = reminderStyle == TaskEntity.ReminderStyle.ALARM,
                                     onClick = { reminderStyle = TaskEntity.ReminderStyle.ALARM },
-                                    label = { Text("🔔 Alarm") },
-                                    colors = chipColors,
-                                    modifier = Modifier.weight(1f)
+                                    icon = Icons.Default.AccessAlarm,
+                                    text = "Alarm",
                                 )
                             }
 

@@ -1,9 +1,12 @@
 package com.mountaincrab.crabdo.ui.boards
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
@@ -20,13 +23,16 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.mountaincrab.crabdo.data.local.entity.BoardEntity
 import com.mountaincrab.crabdo.data.model.Invitation
 import com.mountaincrab.crabdo.ui.navigation.Screen
+import com.mountaincrab.crabdo.ui.theme.LocalAppPalette
 import org.koin.compose.viewmodel.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -115,7 +121,8 @@ fun BoardListScreen(
                             },
                             onDelete = { viewModel.deleteBoard(board.id) },
                             onRename = { viewModel.renameBoard(board, it) },
-                            onShare = { shareBoardTarget = board }
+                            onShare = { shareBoardTarget = board },
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                         )
                     }
                 }
@@ -174,58 +181,91 @@ private fun BoardRow(
     onPin: () -> Unit,
     onDelete: () -> Unit,
     onRename: (String) -> Unit,
-    onShare: () -> Unit
+    onShare: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     var showMenu by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
     var renameText by remember { mutableStateOf(board.title) }
+    val palette = LocalAppPalette.current
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onTap)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically
+    // Card row — matches .board-row in the design system: surface-raised
+    // background, subtle border, 14dp radius, hash icon in a surface-high
+    // tile colored with accent-text.
+    Surface(
+        onClick = onTap,
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
     ) {
-        Icon(
-            imageVector = Icons.Default.Tag,
-            contentDescription = null,
-            tint = if (isPinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(22.dp)
-        )
-        Spacer(Modifier.width(14.dp))
-        Text(
-            text = board.title,
-            style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.weight(1f)
-        )
-        if (board.isShared) {
-            Icon(
-                imageVector = Icons.Filled.People,
-                contentDescription = "Shared",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(16.dp)
-            )
-            Spacer(Modifier.width(4.dp))
-        }
-        if (isPinned) {
-            Icon(
-                imageVector = Icons.Filled.Star,
-                contentDescription = "Pinned",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(16.dp)
-            )
-            Spacer(Modifier.width(8.dp))
-        }
-        Box {
-            IconButton(
-                onClick = { showMenu = true },
-                modifier = Modifier.size(32.dp)
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(palette.surfaceHigh),
+                contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.MoreVert, contentDescription = "More options",
-                    modifier = Modifier.size(18.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(
+                    imageVector = Icons.Default.Tag,
+                    contentDescription = null,
+                    tint = palette.accentText,
+                    modifier = Modifier.size(18.dp)
+                )
             }
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = board.title,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                val metaText = buildString {
+                    if (isPinned) append("Pinned")
+                    if (board.isShared) {
+                        if (isNotEmpty()) append(" · ")
+                        append("Shared")
+                    }
+                }
+                if (metaText.isNotEmpty()) {
+                    Text(
+                        text = metaText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            if (board.isShared) {
+                Icon(
+                    imageVector = Icons.Filled.People,
+                    contentDescription = "Shared",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(4.dp))
+            }
+            if (isPinned) {
+                Icon(
+                    imageVector = Icons.Filled.Star,
+                    contentDescription = "Pinned",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(Modifier.width(4.dp))
+            }
+            Box {
+                IconButton(
+                    onClick = { showMenu = true },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(Icons.Default.MoreVert, contentDescription = "More options",
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
                 DropdownMenuItem(
                     text = { Text(if (isPinned) "Unpin" else "Pin") },
@@ -247,6 +287,7 @@ private fun BoardRow(
                     text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
                     onClick = { showMenu = false; onDelete() }
                 )
+            }
             }
         }
     }

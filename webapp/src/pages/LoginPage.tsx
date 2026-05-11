@@ -1,17 +1,18 @@
 import { useAuth } from '../contexts/AuthContext'
+import CrabMark from '../components/CrabMark'
 
 export default function LoginPage() {
   const { signInWithGoogle } = useAuth()
 
   return (
-    <div className="min-h-screen bg-surface flex items-center justify-center">
-      <div className="bg-surface-raised rounded-2xl p-10 flex flex-col items-center gap-6 shadow-xl w-80">
-        <div className="text-5xl">🦀</div>
-        <h1 className="text-white text-2xl font-bold tracking-tight">Crab Do</h1>
-        <p className="text-slate-400 text-sm text-center">Sign in to access your boards</p>
+    <div className="min-h-screen bg-bg flex items-center justify-center p-6">
+      <div className="bg-surface-raised border border-DEFAULT rounded-2xl p-10 flex flex-col items-center gap-6 shadow-dialog w-full max-w-sm">
+        <CrabMark size={72} />
+        <h1 className="text-fg text-3xl font-extrabold tracking-tightish">Crab Do</h1>
+        <p className="text-fg-muted text-sm text-center">Sign in to access your boards</p>
         <button
           onClick={signInWithGoogle}
-          className="w-full flex items-center justify-center gap-3 bg-white text-gray-800 font-medium rounded-lg px-4 py-3 hover:bg-gray-100 transition-colors"
+          className="w-full flex items-center justify-center gap-3 bg-white text-gray-800 font-semibold rounded-xl px-4 py-3 hover:bg-gray-100 transition-colors"
         >
           <GoogleIcon />
           Sign in with Google

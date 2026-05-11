@@ -2,10 +2,12 @@ package com.mountaincrab.crabdo.ui.boards
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mountaincrab.crabdo.data.local.dao.SubtaskCountAggregate
 import com.mountaincrab.crabdo.data.local.entity.BoardEntity
 import com.mountaincrab.crabdo.data.local.entity.ColumnEntity
 import com.mountaincrab.crabdo.data.local.entity.TaskEntity
 import com.mountaincrab.crabdo.data.repository.BoardRepository
+import com.mountaincrab.crabdo.data.repository.SubtaskRepository
 import com.mountaincrab.crabdo.data.repository.TaskRepository
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -14,7 +16,8 @@ import android.util.Log
 class KanbanBoardViewModel(
     private val boardId: String,
     private val boardRepository: BoardRepository,
-    private val taskRepository: TaskRepository
+    private val taskRepository: TaskRepository,
+    private val subtaskRepository: SubtaskRepository,
 ) : ViewModel() {
 
     private val _isRefreshing = MutableStateFlow(false)
@@ -36,6 +39,11 @@ class KanbanBoardViewModel(
                     .map { tasks -> col.id to tasks }
             }) { pairs -> pairs.toMap() }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    val subtaskCounts: StateFlow<Map<String, SubtaskCountAggregate>> =
+        subtaskRepository.observeSubtaskCountsForBoard(boardId)
+            .map { list -> list.associateBy { it.taskId } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     fun createTask(
         columnId: String,

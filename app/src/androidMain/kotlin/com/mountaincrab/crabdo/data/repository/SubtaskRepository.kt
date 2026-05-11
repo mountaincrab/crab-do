@@ -13,6 +13,9 @@ class SubtaskRepository(
 ) {
     fun observeSubtasks(taskId: String) = subtaskDao.observeSubtasks(taskId)
 
+    fun observeSubtaskCountsForBoard(boardId: String) =
+        subtaskDao.observeSubtaskCountsForBoard(boardId)
+
     suspend fun createSubtask(taskId: String, title: String): SubtaskEntity {
         val existing = subtaskDao.getSubtasksByTask(taskId)
         val maxOrder = existing.maxOfOrNull { it.order } ?: 0.0

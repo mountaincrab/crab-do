@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Bell, AlarmClock, Repeat, Pencil, Trash2, ChevronRight } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useReminders } from '../hooks/useReminders'
 import { Reminder, RecurringReminder } from '../types'
+import AppHeader from '../components/AppHeader'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -75,7 +76,7 @@ function EnableToggle({ enabled, onToggle }: { enabled: boolean; onToggle: () =>
       onClick={onToggle}
       title={enabled ? 'Disable' : 'Enable'}
       className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ${
-        enabled ? 'bg-indigo-500' : 'bg-slate-600'
+        enabled ? 'bg-accent' : 'bg-fg-disabled'
       }`}
     >
       <span
@@ -84,6 +85,30 @@ function EnableToggle({ enabled, onToggle }: { enabled: boolean; onToggle: () =>
         }`}
       />
     </button>
+  )
+}
+
+// ── Reminder style icon tile ─────────────────────────────────────────────────
+
+function StyleTile({ style }: { style: 'ALARM' | 'NOTIFICATION' | 'RECURRING' }) {
+  if (style === 'ALARM') {
+    return (
+      <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-[rgba(245,158,11,0.10)] text-warning">
+        <AlarmClock size={16} />
+      </span>
+    )
+  }
+  if (style === 'RECURRING') {
+    return (
+      <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-surface-high text-fg-muted">
+        <Repeat size={16} />
+      </span>
+    )
+  }
+  return (
+    <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-accent-soft text-accent-text">
+      <Bell size={16} />
+    </span>
   )
 }
 
@@ -112,8 +137,8 @@ function ReminderDialog({ initial, onSave, onClose }: ReminderDialogProps) {
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-surface-raised rounded-2xl p-6 w-full max-w-sm shadow-2xl">
-        <h2 className="text-lg font-semibold mb-4">{initial ? 'Edit Reminder' : 'New Reminder'}</h2>
+      <div className="bg-surface-raised border border-DEFAULT rounded-2xl p-6 w-full max-w-sm shadow-dialog">
+        <h2 className="text-lg font-bold mb-4 text-fg">{initial ? 'Edit Reminder' : 'New Reminder'}</h2>
 
         <div className="space-y-3 mb-5">
           <input
@@ -123,28 +148,29 @@ function ReminderDialog({ initial, onSave, onClose }: ReminderDialogProps) {
             onChange={(e) => setTitle(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') handleSave() }}
             placeholder="Reminder title"
-            className="w-full bg-surface-high border border-white/10 rounded-lg px-3 py-2.5 text-white placeholder-slate-500 outline-none focus:border-indigo-500"
+            className="w-full bg-surface-raised border border-DEFAULT rounded-lg px-3 py-2.5 text-fg placeholder:text-fg-faint outline-none focus:border-accent transition-colors"
           />
 
           <input
             type="datetime-local"
             value={datetime}
             onChange={(e) => setDatetime(e.target.value)}
-            className="w-full bg-surface-high border border-white/10 rounded-lg px-3 py-2.5 text-white outline-none focus:border-indigo-500 [color-scheme:dark]"
+            className="w-full bg-surface-raised border border-DEFAULT rounded-lg px-3 py-2.5 text-fg outline-none focus:border-accent transition-colors [color-scheme:dark]"
           />
 
-          <div className="flex gap-3">
+          <div className="flex gap-2">
             {(['NOTIFICATION', 'ALARM'] as const).map((s) => (
               <button
                 key={s}
                 onClick={() => setStyle(s)}
-                className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                className={`flex-1 py-2 rounded-lg text-sm font-semibold border transition-colors flex items-center justify-center gap-1.5 ${
                   style === s
-                    ? 'bg-indigo-500 border-indigo-500 text-white'
-                    : 'border-white/10 text-slate-400 hover:text-white'
+                    ? 'bg-accent border-accent text-accent-fg'
+                    : 'border-DEFAULT text-fg-muted hover:text-fg'
                 }`}
               >
-                {s === 'NOTIFICATION' ? '🔔 Notification' : '⏰ Alarm'}
+                {s === 'NOTIFICATION' ? <Bell size={14} /> : <AlarmClock size={14} />}
+                {s === 'NOTIFICATION' ? 'Notification' : 'Alarm'}
               </button>
             ))}
           </div>
@@ -153,14 +179,14 @@ function ReminderDialog({ initial, onSave, onClose }: ReminderDialogProps) {
         <div className="flex justify-end gap-2">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-lg text-slate-400 hover:text-white transition-colors text-sm"
+            className="px-4 py-2 rounded-xl text-fg-muted hover:text-fg transition-colors text-sm font-semibold"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={saving || !title.trim() || !datetime}
-            className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 disabled:opacity-40 text-white rounded-lg text-sm font-medium transition-colors"
+            className="px-4 py-2 bg-accent hover:bg-accent-hover disabled:opacity-40 text-accent-fg rounded-xl text-sm font-semibold transition-colors"
           >
             {saving ? 'Saving…' : 'Save'}
           </button>
@@ -181,43 +207,36 @@ function OneOffReminderRow({ reminder, onEdit, onDelete, dimmed }: OneOffRowProp
   const now = Date.now()
   const isSnoozed = reminder.snoozedUntilMillis != null && reminder.snoozedUntilMillis > now
   const isPast = !isSnoozed && reminder.scheduledAt < now
-  const styleIcon = reminder.reminderStyle === 'ALARM' ? '⏰' : '🔔'
 
   return (
-    <div className={`bg-surface-raised rounded-xl px-4 py-3 flex items-center gap-3 group ${dimmed ? 'opacity-50' : ''}`}>
+    <div className={`bg-surface-raised border border-transparent hover:border-DEFAULT rounded-xl px-3 py-2.5 flex items-center gap-3 group transition-colors ${dimmed ? 'opacity-50' : ''}`}>
+      <StyleTile style={reminder.reminderStyle === 'ALARM' ? 'ALARM' : 'NOTIFICATION'} />
       <div className="flex-1 min-w-0">
-        <p className="font-medium truncate text-white">
-          {reminder.title}
-        </p>
+        <p className="font-semibold truncate text-fg">{reminder.title}</p>
         {isSnoozed ? (
-          <p className="text-sm mt-0.5 text-emerald-400">
+          <p className="text-xs mt-0.5 text-success-text font-medium font-mono">
             Snoozing until {new Date(reminder.snoozedUntilMillis!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </p>
         ) : (
-          <p className={`text-sm mt-0.5 ${isPast ? 'text-red-400' : 'text-slate-400'}`}>
+          <p className={`text-xs mt-0.5 font-mono ${isPast ? 'text-danger-text' : 'text-fg-muted'}`}>
             {formatTriggerTime(reminder.scheduledAt)}
           </p>
         )}
       </div>
-      <span className="text-xs text-slate-500 shrink-0">{styleIcon}</span>
       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         <button
           onClick={onEdit}
-          className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-surface-high transition-colors"
+          className="p-1.5 rounded-lg text-fg-muted hover:text-fg hover:bg-surface-high transition-colors"
           title="Edit"
         >
-          <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-          </svg>
+          <Pencil size={14} />
         </button>
         <button
           onClick={onDelete}
-          className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-surface-high transition-colors"
+          className="p-1.5 rounded-lg text-fg-muted hover:text-danger-text hover:bg-surface-high transition-colors"
           title="Delete"
         >
-          <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-          </svg>
+          <Trash2 size={14} />
         </button>
       </div>
     </div>
@@ -237,21 +256,19 @@ function RecurringReminderRow({ reminder, onDelete, onToggleEnabled, dimmed }: R
   const recurrenceDesc = describeRecurrence(reminder.recurrenceRuleJson, reminder.reminderTime)
 
   return (
-    <div className={`bg-surface-raised rounded-xl px-4 py-3 flex items-center gap-3 group ${dimmed ? 'opacity-50' : ''}`}>
+    <div className={`bg-surface-raised border border-transparent hover:border-DEFAULT rounded-xl px-3 py-2.5 flex items-center gap-3 group transition-colors ${dimmed ? 'opacity-50' : ''}`}>
+      <StyleTile style="RECURRING" />
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <span className="text-xs text-slate-500 shrink-0">🔄</span>
-          <p className={`font-medium truncate ${reminder.isEnabled ? 'text-white' : 'text-slate-500'}`}>
-            {reminder.title}
-          </p>
-        </div>
-        <p className="text-sm mt-0.5 text-slate-400 truncate">{recurrenceDesc}</p>
+        <p className={`font-semibold truncate ${reminder.isEnabled ? 'text-fg' : 'text-fg-faint'}`}>
+          {reminder.title}
+        </p>
+        <p className="text-xs mt-0.5 text-fg-muted truncate font-mono">{recurrenceDesc}</p>
         {isSnoozed ? (
-          <p className="text-sm mt-0.5 text-emerald-400">
+          <p className="text-xs mt-0.5 text-success-text font-medium font-mono">
             Snoozing until {new Date(reminder.snoozedUntilMillis!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </p>
         ) : (
-          <p className="text-sm mt-0.5 text-indigo-400">
+          <p className="text-xs mt-0.5 text-accent-text font-medium font-mono">
             Next: {formatTriggerTime(reminder.nextFireAt)}
           </p>
         )}
@@ -260,12 +277,10 @@ function RecurringReminderRow({ reminder, onDelete, onToggleEnabled, dimmed }: R
       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         <button
           onClick={onDelete}
-          className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-surface-high transition-colors"
+          className="p-1.5 rounded-lg text-fg-muted hover:text-danger-text hover:bg-surface-high transition-colors"
           title="Delete"
         >
-          <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-          </svg>
+          <Trash2 size={14} />
         </button>
       </div>
     </div>
@@ -279,7 +294,7 @@ type ActiveEntry =
   | { kind: 'recurring'; sortKey: number; data: RecurringReminder }
 
 export default function RemindersPage() {
-  const { user, signOut } = useAuth()
+  const { user } = useAuth()
   const {
     reminders,
     completedReminders,
@@ -312,64 +327,31 @@ export default function RemindersPage() {
   const isEmpty = activeEntries.length === 0 && completedReminders.length === 0
 
   return (
-    <div className="min-h-screen bg-surface text-white">
-      <header className="border-b border-white/10 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">🦀</span>
-            <span className="font-semibold text-lg">Crab Do</span>
-          </div>
-          <nav className="flex items-center gap-1 ml-2">
-            <Link
-              to="/"
-              className="text-sm text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-surface-high"
-            >
-              Boards
-            </Link>
-            <span className="text-sm text-white font-medium px-3 py-1.5 rounded-lg bg-surface-high">
-              Reminders
-            </span>
-            <Link
-              to="/settings"
-              className="text-sm text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-surface-high"
-            >
-              Settings
-            </Link>
-          </nav>
-        </div>
-        <div className="flex items-center gap-4">
-          <span className="text-slate-400 text-sm">{user?.email}</span>
-          <button
-            onClick={signOut}
-            className="text-sm text-slate-400 hover:text-white transition-colors"
-          >
-            Sign out
-          </button>
-        </div>
-      </header>
+    <div className="min-h-screen bg-bg text-fg">
+      <AppHeader active="reminders" />
 
       <main className="max-w-2xl mx-auto px-6 py-10">
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-2xl font-bold">Reminders</h1>
+          <h1 className="text-3xl font-extrabold tracking-tightish">Reminders</h1>
           <button
             onClick={() => setShowCreate(true)}
-            className="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            className="bg-accent hover:bg-accent-hover text-accent-fg px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
           >
             + New reminder
           </button>
         </div>
 
         {loading ? (
-          <div className="text-slate-500 text-center py-20">Loading…</div>
+          <div className="text-fg-faint text-center py-20">Loading…</div>
         ) : isEmpty ? (
-          <div className="text-slate-500 text-center py-20">
-            <p className="text-4xl mb-4">🔔</p>
+          <div className="text-fg-muted text-center py-20">
+            <Bell size={40} className="mx-auto mb-4 text-fg-faint" />
             <p>No reminders yet. Create your first one.</p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             {activeEntries.length === 0 ? (
-              <p className="text-slate-500 text-center py-8">No upcoming reminders.</p>
+              <p className="text-fg-faint text-center py-8">No upcoming reminders.</p>
             ) : (
               activeEntries.map((entry) =>
                 entry.kind === 'one-off' ? (
@@ -394,23 +376,16 @@ export default function RemindersPage() {
               <div className="pt-4">
                 <button
                   onClick={() => setShowCompleted((v) => !v)}
-                  className="text-sm text-slate-500 hover:text-slate-300 transition-colors flex items-center gap-1 mb-2"
+                  className="text-sm text-fg-faint hover:text-fg-muted transition-colors flex items-center gap-1 mb-2 font-semibold"
                 >
-                  <svg
-                    className={`w-3 h-3 transition-transform ${showCompleted ? 'rotate-90' : ''}`}
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
+                  <ChevronRight
+                    size={14}
+                    className={`transition-transform ${showCompleted ? 'rotate-90' : ''}`}
+                  />
                   Completed ({completedReminders.length})
                 </button>
                 {showCompleted && (
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     {completedReminders.map((r) => (
                       <OneOffReminderRow
                         key={r.id}

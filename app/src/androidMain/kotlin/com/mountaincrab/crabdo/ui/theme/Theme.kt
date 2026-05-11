@@ -28,17 +28,29 @@ enum class AppTheme(val displayName: String) {
     }
 }
 
-// ── Shared accents ───────────────────────────────────────────────────────────
+// ── Brand-constant accent palette (used in gradients and theme defs) ─────────
 val AccentBlue = Color(0xFF4F7CFF)
 val AccentPurple = Color(0xFF8B5CF6)
+val AccentCyan = Color(0xFF06B6D4)
 val AccentRed = Color(0xFFEF4444)
 val AccentGreen = Color(0xFF10B981)
+val AccentAmber = Color(0xFFF59E0B)
 
 data class AppPalette(
     val gradientStart: Color,
     val gradientEnd: Color,
     val cardBorder: Color,
     val alarmTint: Color,
+    // Lighter accent shade for inline accent text / icon-on-tile.
+    // Equivalent to --accent-text in the design system tokens.
+    val accentText: Color,
+    // Translucent accent fill for active-tab pills + colored leading tiles
+    // (matches --accent-soft, ~18% accent).
+    val accentSoft: Color,
+    // Green used for "Snoozing until …" text (matches --success-text).
+    val successText: Color,
+    // Surface used for input fields and chips/pills (matches --surface-high).
+    val surfaceHigh: Color,
 )
 
 val LocalAppPalette = compositionLocalOf {
@@ -46,7 +58,11 @@ val LocalAppPalette = compositionLocalOf {
         gradientStart = AccentPurple,
         gradientEnd = AccentBlue,
         cardBorder = Color(0x1AFFFFFF),
-        alarmTint = Color(0xFFF59E0B),
+        alarmTint = AccentAmber,
+        accentText = Color(0xFFA5B4FC),
+        accentSoft = Color(0x2E4F7CFF),
+        successText = Color(0xFF34D399),
+        surfaceHigh = Color(0xFF2A3250),
     )
 }
 
@@ -57,19 +73,26 @@ fun accentGradient(): Brush {
 }
 
 // ── Color schemes ────────────────────────────────────────────────────────────
+//
+// Each theme gets its own primary accent (per the design system).
+// Deep Navy uses indigo; Charcoal uses cyan; Slate keeps indigo (legacy);
+// Retro uses magenta.
 private fun buildScheme(
+    primary: Color,
+    onPrimary: Color,
+    secondary: Color,
     background: Color,
     surface: Color,
     surfaceVariant: Color,
     outline: Color,
 ) = darkColorScheme(
-    primary = AccentBlue,
-    onPrimary = Color.White,
-    primaryContainer = AccentBlue.copy(alpha = 0.18f),
+    primary = primary,
+    onPrimary = onPrimary,
+    primaryContainer = primary.copy(alpha = 0.18f),
     onPrimaryContainer = Color.White,
-    secondary = AccentPurple,
+    secondary = secondary,
     onSecondary = Color.White,
-    secondaryContainer = AccentPurple.copy(alpha = 0.18f),
+    secondaryContainer = secondary.copy(alpha = 0.18f),
     onSecondaryContainer = Color.White,
     tertiary = AccentGreen,
     onTertiary = Color.White,
@@ -87,10 +110,13 @@ private fun buildScheme(
     outlineVariant = outline.copy(alpha = 0.4f),
     inverseSurface = Color(0xFFF3F4F6),
     inverseOnSurface = background,
-    inversePrimary = AccentBlue,
+    inversePrimary = primary,
 )
 
 private val DeepNavyScheme = buildScheme(
+    primary = AccentBlue,
+    onPrimary = Color.White,
+    secondary = AccentPurple,
     background = Color(0xFF0A1020),
     surface = Color(0xFF131A2E),
     surfaceVariant = Color(0xFF1C2340),
@@ -98,6 +124,9 @@ private val DeepNavyScheme = buildScheme(
 )
 
 private val CharcoalScheme = buildScheme(
+    primary = AccentCyan,
+    onPrimary = Color.White,
+    secondary = Color(0xFF3B82F6),
     background = Color(0xFF0A0A0A),
     surface = Color(0xFF141414),
     surfaceVariant = Color(0xFF1E1E1E),
@@ -105,6 +134,9 @@ private val CharcoalScheme = buildScheme(
 )
 
 private val SlateScheme = buildScheme(
+    primary = AccentBlue,
+    onPrimary = Color.White,
+    secondary = AccentPurple,
     background = Color(0xFF161820),
     surface = Color(0xFF20232E),
     surfaceVariant = Color(0xFF2A2E3C),
@@ -133,10 +165,10 @@ private val RetroScheme = darkColorScheme(
     onErrorContainer = Color(0xFFFCA5A5),
     background = Color(0xFF0D0015),
     onBackground = Color(0xFFFFFFFF),
-    surface = Color(0xFF1A0028),
+    surface = Color(0xFF15001E),
     onSurface = Color(0xFFFFFFFF),
-    surfaceVariant = Color(0xFF2D0050),
-    onSurfaceVariant = Color(0xFFCC99FF),
+    surfaceVariant = Color(0xFF1E0030),
+    onSurfaceVariant = Color(0xFFC9A0E0),
     outline = Color(0xFF4A0080),
     outlineVariant = Color(0xFF4A0080).copy(alpha = 0.4f),
     inverseSurface = Color(0xFFFFFFFF),
@@ -149,45 +181,63 @@ private fun paletteFor(theme: AppTheme): AppPalette = when (theme) {
         gradientStart = AccentPurple,
         gradientEnd = AccentBlue,
         cardBorder = Color(0x408B9CFF),
-        alarmTint = Color(0xFFF59E0B),
+        alarmTint = AccentAmber,
+        accentText = Color(0xFFA5B4FC),
+        accentSoft = Color(0x2E4F7CFF),
+        successText = Color(0xFF34D399),
+        surfaceHigh = Color(0xFF2A3250),
     )
     AppTheme.CHARCOAL -> AppPalette(
-        gradientStart = AccentPurple,
-        gradientEnd = AccentBlue,
+        gradientStart = AccentCyan,
+        gradientEnd = Color(0xFF3B82F6),
         cardBorder = Color(0x40FFFFFF),
-        alarmTint = Color(0xFFF59E0B),
+        alarmTint = AccentAmber,
+        accentText = Color(0xFF67E8F9),
+        accentSoft = Color(0x2E06B6D4),
+        successText = Color(0xFF34D399),
+        surfaceHigh = Color(0xFF2A2A2A),
     )
     AppTheme.SLATE -> AppPalette(
         gradientStart = AccentPurple,
         gradientEnd = AccentBlue,
         cardBorder = Color(0x40BFC7E0),
-        alarmTint = Color(0xFFF59E0B),
+        alarmTint = AccentAmber,
+        accentText = Color(0xFFA5B4FC),
+        accentSoft = Color(0x2E4F7CFF),
+        successText = Color(0xFF34D399),
+        surfaceHigh = Color(0xFF2A2E3C),
     )
     AppTheme.RETRO -> AppPalette(
         gradientStart = RetroMagenta,
         gradientEnd = RetroCyan,
         cardBorder = Color(0x50FF00CC),
         alarmTint = RetroYellow,
+        accentText = Color(0xFFFF66DD),
+        accentSoft = Color(0x2EFF00CC),
+        successText = Color(0xFF66FFF5),
+        surfaceHigh = Color(0xFF2E0048),
     )
 }
 
 // ── Typography ───────────────────────────────────────────────────────────────
+// Bolder than Material defaults — matches the design system's bigger weight
+// scale. Display sizes are deliberately black + tracked tight.
 private val CrabbanTypography = Typography(
-    displayLarge = TextStyle(fontWeight = FontWeight.Black, letterSpacing = (-1).sp),
-    displayMedium = TextStyle(fontWeight = FontWeight.Black, letterSpacing = (-0.5).sp),
-    displaySmall = TextStyle(fontWeight = FontWeight.ExtraBold),
-    headlineLarge = TextStyle(fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.5).sp),
-    headlineMedium = TextStyle(fontWeight = FontWeight.Bold),
-    headlineSmall = TextStyle(fontWeight = FontWeight.Bold),
-    titleLarge = TextStyle(fontWeight = FontWeight.Bold, fontSize = 22.sp),
-    titleMedium = TextStyle(fontWeight = FontWeight.Bold, fontSize = 16.sp),
-    titleSmall = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 14.sp),
-    bodyLarge = TextStyle(fontWeight = FontWeight.Normal, fontSize = 16.sp),
-    bodyMedium = TextStyle(fontWeight = FontWeight.Normal, fontSize = 14.sp),
-    bodySmall = TextStyle(fontWeight = FontWeight.Normal, fontSize = 12.sp),
-    labelLarge = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, letterSpacing = 1.sp),
-    labelMedium = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 12.sp, letterSpacing = 1.sp),
-    labelSmall = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 11.sp, letterSpacing = 1.2.sp),
+    displayLarge = TextStyle(fontSize = 56.sp, fontWeight = FontWeight.Black, letterSpacing = (-1.68).sp),
+    displayMedium = TextStyle(fontSize = 44.sp, fontWeight = FontWeight.Black, letterSpacing = (-1.0).sp),
+    displaySmall = TextStyle(fontSize = 36.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.5).sp),
+    headlineLarge = TextStyle(fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.5).sp),
+    headlineMedium = TextStyle(fontSize = 28.sp, fontWeight = FontWeight.Bold),
+    headlineSmall = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.Bold),
+    titleLarge = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.Bold),
+    titleMedium = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold),
+    titleSmall = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
+    bodyLarge = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Normal),
+    bodyMedium = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Normal),
+    bodySmall = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Normal),
+    labelLarge = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
+    labelMedium = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
+    labelSmall = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp),
 )
 
 @Composable

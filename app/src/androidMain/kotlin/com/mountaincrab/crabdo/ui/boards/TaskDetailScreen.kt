@@ -6,6 +6,7 @@ import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccessAlarm
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
@@ -36,6 +37,9 @@ import androidx.navigation.NavController
 import com.mountaincrab.crabdo.data.local.entity.TaskEntity
 import com.mountaincrab.crabdo.ui.boards.components.SubtaskItem
 import com.mountaincrab.crabdo.ui.reminders.ReminderTimePickerDialog
+import com.mountaincrab.crabdo.ui.theme.Eyebrow
+import com.mountaincrab.crabdo.ui.theme.PillButton
+import com.mountaincrab.crabdo.ui.theme.PillGroup
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.TimeZone
@@ -96,20 +100,24 @@ fun TaskDetailScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {
+                Eyebrow("Title")
+                Spacer(Modifier.height(6.dp))
                 OutlinedTextField(
                     value = titleText,
                     onValueChange = { titleText = it },
-                    label = { Text("Title") },
+                    placeholder = { Text("Task title") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
                 )
             }
             item {
+                Eyebrow("Description")
+                Spacer(Modifier.height(6.dp))
                 OutlinedTextField(
                     value = descriptionText,
                     onValueChange = { descriptionText = it },
-                    label = { Text("Description") },
+                    placeholder = { Text("Add details or notes…") },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 3,
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
@@ -133,8 +141,7 @@ fun TaskDetailScreen(
             item {
                 HorizontalDivider()
                 Spacer(Modifier.height(4.dp))
-                Text("Reminder", style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Eyebrow("Reminder")
             }
             item {
                 task?.reminderTimeMillis?.let { millis ->
@@ -171,12 +178,7 @@ fun TaskDetailScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        "Checklist",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.weight(1f)
-                    )
+                    Eyebrow("Checklist", modifier = Modifier.weight(1f))
                     TextButton(onClick = { showAddSubtaskSheet = true }) {
                         Icon(Icons.Default.Add, contentDescription = null,
                             modifier = Modifier.size(16.dp))
@@ -369,16 +371,18 @@ private fun TaskReminderDialog(
                         }
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = selectedStyle == TaskEntity.ReminderStyle.ALARM,
-                        onClick = { selectedStyle = TaskEntity.ReminderStyle.ALARM },
-                        label = { Text("🔔 Alarm") }
-                    )
-                    FilterChip(
+                PillGroup {
+                    PillButton(
                         selected = selectedStyle == TaskEntity.ReminderStyle.NOTIFICATION,
                         onClick = { selectedStyle = TaskEntity.ReminderStyle.NOTIFICATION },
-                        label = { Text("📳 Notification") }
+                        icon = Icons.Default.Notifications,
+                        text = "Notification",
+                    )
+                    PillButton(
+                        selected = selectedStyle == TaskEntity.ReminderStyle.ALARM,
+                        onClick = { selectedStyle = TaskEntity.ReminderStyle.ALARM },
+                        icon = Icons.Default.AccessAlarm,
+                        text = "Alarm",
                     )
                 }
             }

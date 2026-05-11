@@ -12,6 +12,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mountaincrab.crabdo.ui.boards.BoardListViewModel
+import com.mountaincrab.crabdo.ui.theme.LocalAppPalette
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.*
@@ -78,6 +79,14 @@ fun AppNavigation(
         contentWindowInsets = WindowInsets(0),
         bottomBar = {
             if (showBottomBar) {
+                val palette = LocalAppPalette.current
+                val itemColors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = palette.accentText,
+                    selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    indicatorColor = palette.accentSoft,
+                )
                 NavigationBar(
                     containerColor = MaterialTheme.colorScheme.surface,
                     tonalElevation = 0.dp
@@ -90,7 +99,8 @@ fun AppNavigation(
                             }
                         },
                         icon = { Icon(Icons.Default.Star, contentDescription = "Pinned Board") },
-                        label = { Text(pinnedBoardTitle, maxLines = 1) }
+                        label = { Text(pinnedBoardTitle, maxLines = 1) },
+                        colors = itemColors,
                     )
                     NavigationBarItem(
                         selected = currentRoute == Screen.BoardList.route,
@@ -102,7 +112,8 @@ fun AppNavigation(
                             }
                         },
                         icon = { Icon(Icons.Default.GridView, contentDescription = "All Boards") },
-                        label = { Text("Boards") }
+                        label = { Text("Boards") },
+                        colors = itemColors,
                     )
                     NavigationBarItem(
                         selected = currentRoute == Screen.Reminders.route,
@@ -114,7 +125,8 @@ fun AppNavigation(
                             }
                         },
                         icon = { Icon(Icons.Default.Notifications, contentDescription = "Reminders") },
-                        label = { Text("Reminders") }
+                        label = { Text("Reminders") },
+                        colors = itemColors,
                     )
                     NavigationBarItem(
                         selected = currentRoute == Screen.Settings.route,
@@ -126,7 +138,8 @@ fun AppNavigation(
                             }
                         },
                         icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
-                        label = { Text("Settings") }
+                        label = { Text("Settings") },
+                        colors = itemColors,
                     )
                 }
             }

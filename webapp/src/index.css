@@ -1,9 +1,152 @@
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&family=Geist+Mono:wght@400;500;600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ──────────────────────────────────────────────────────────────────────────
+   Crab Do — Design tokens (semantic theming)
+   Source: design system bundle (claude.ai/design).
+   Three dark themes: deep-navy (default), charcoal, retro.
+   Components reference SEMANTIC tokens only — never raw hex.
+   ────────────────────────────────────────────────────────────────────────── */
+
+:root,
+[data-theme="deep-navy"] {
+  --bg: #0A1020;
+  --surface: #131A2E;
+  --surface-raised: #1C2340;
+  --surface-high: #2A3250;
+
+  --fg: #F3F4F6;
+  --fg-muted: #9CA3AF;
+  --fg-faint: #64748B;
+  --fg-disabled: #475569;
+
+  --border: rgba(255, 255, 255, 0.10);
+  --border-subtle: rgba(255, 255, 255, 0.05);
+  --border-strong: rgba(255, 255, 255, 0.20);
+
+  --accent: #4F7CFF;
+  --accent-hover: #4063D6;
+  --accent-soft: rgba(79, 124, 255, 0.18);
+  --accent-fg: #FFFFFF;
+  --accent-text: #A5B4FC;
+
+  --success: #10B981;
+  --success-text: #34D399;
+  --danger: #EF4444;
+  --danger-text: #F87171;
+  --warning: #FBBF24;
+
+  --grad-accent: linear-gradient(135deg, #8B5CF6 0%, #4F7CFF 100%);
+
+  --shadow-card: 0 1px 2px rgba(0,0,0,0.20);
+  --shadow-raised: 0 4px 16px rgba(0,0,0,0.35);
+  --shadow-dialog: 0 20px 50px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.04);
+  --shadow-fab: 0 6px 20px rgba(79,124,255,0.40);
+
+  color-scheme: dark;
+}
+
+[data-theme="charcoal"] {
+  --bg: #0A0A0A;
+  --surface: #141414;
+  --surface-raised: #1E1E1E;
+  --surface-high: #2A2A2A;
+
+  --fg: #FAFAFA;
+  --fg-muted: #A1A1AA;
+  --fg-faint: #71717A;
+  --fg-disabled: #52525B;
+
+  --border: rgba(255, 255, 255, 0.10);
+  --border-subtle: rgba(255, 255, 255, 0.05);
+  --border-strong: rgba(255, 255, 255, 0.20);
+
+  --accent: #06B6D4;
+  --accent-hover: #0891B2;
+  --accent-soft: rgba(6, 182, 212, 0.18);
+  --accent-fg: #FFFFFF;
+  --accent-text: #67E8F9;
+
+  --success: #10B981;
+  --success-text: #34D399;
+  --danger: #EF4444;
+  --danger-text: #F87171;
+  --warning: #FBBF24;
+
+  --grad-accent: linear-gradient(135deg, #06B6D4 0%, #3B82F6 100%);
+
+  --shadow-card: 0 1px 2px rgba(0,0,0,0.30);
+  --shadow-raised: 0 4px 16px rgba(0,0,0,0.50);
+  --shadow-dialog: 0 20px 50px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.04);
+  --shadow-fab: 0 6px 20px rgba(6,182,212,0.40);
+
+  color-scheme: dark;
+}
+
+[data-theme="retro"] {
+  --bg: #0D0015;
+  --surface: #15001E;
+  --surface-raised: #1E0030;
+  --surface-high: #2E0048;
+
+  --fg: #FFFFFF;
+  --fg-muted: #C9A0E0;
+  --fg-faint: #8B6BA8;
+  --fg-disabled: #5C4778;
+
+  --border: rgba(255, 0, 204, 0.18);
+  --border-subtle: rgba(255, 0, 204, 0.08);
+  --border-strong: rgba(255, 0, 204, 0.32);
+
+  --accent: #FF00CC;
+  --accent-hover: #E000B3;
+  --accent-soft: rgba(255, 0, 204, 0.18);
+  --accent-fg: #000000;
+  --accent-text: #FF66DD;
+
+  --success: #00FFEE;
+  --success-text: #66FFF5;
+  --danger: #FF4400;
+  --danger-text: #FF7755;
+  --warning: #FFEE00;
+
+  --grad-accent: linear-gradient(135deg, #FF00CC 0%, #00FFEE 100%);
+
+  --shadow-card: 0 1px 2px rgba(0,0,0,0.40);
+  --shadow-raised: 0 4px 16px rgba(0,0,0,0.60);
+  --shadow-dialog: 0 20px 50px rgba(0,0,0,0.75), 0 0 0 1px rgba(255,0,204,0.10);
+  --shadow-fab: 0 6px 20px rgba(255,0,204,0.45);
+
+  color-scheme: dark;
+}
+
 @layer base {
   html {
-    background-color: #1e1e2e;
+    background-color: var(--bg);
+  }
+  body {
+    font-family: 'Geist', ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+                 Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: var(--fg);
+    background: var(--bg);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer utilities {
+  .font-mono {
+    font-family: 'Geist Mono', ui-monospace, SFMono-Regular, "SF Mono", Menlo,
+                 Consolas, "Liberation Mono", monospace;
+  }
+  .ds-eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    color: var(--fg-muted);
   }
 }

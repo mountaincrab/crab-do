@@ -193,6 +193,13 @@ fun SettingsScreen(
             SectionLabel("ABOUT")
             SectionCard {
                 ListItem(
+                    leadingContent = {
+                        androidx.compose.foundation.Image(
+                            painter = androidx.compose.ui.res.painterResource(id = com.mountaincrab.crabdo.R.drawable.ic_crab_mark),
+                            contentDescription = null,
+                            modifier = Modifier.size(40.dp)
+                        )
+                    },
                     headlineContent = { Text("Crab Do", fontWeight = FontWeight.Bold) },
                     supportingContent = { Text("Version 1.0") },
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent)

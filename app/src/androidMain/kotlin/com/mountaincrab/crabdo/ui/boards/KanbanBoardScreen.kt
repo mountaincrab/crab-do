@@ -31,6 +31,7 @@ fun KanbanBoardScreen(
     val board by viewModel.board.collectAsStateWithLifecycle()
     val columns by viewModel.columns.collectAsStateWithLifecycle()
     val tasksByColumn by viewModel.tasksByColumn.collectAsStateWithLifecycle()
+    val subtaskCounts by viewModel.subtaskCounts.collectAsStateWithLifecycle()
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     var showColumnConfig by remember { mutableStateOf(false) }
     var draggedTaskId by remember { mutableStateOf<String?>(null) }
@@ -160,6 +161,7 @@ fun KanbanBoardScreen(
                         viewModel.createTask(column.id, title, description, reminderAt, style)
                     },
                     allTasksByColumn = tasksByColumn,
+                    subtaskCounts = subtaskCounts,
                     modifier = Modifier.fillMaxWidth()
                 )
             }

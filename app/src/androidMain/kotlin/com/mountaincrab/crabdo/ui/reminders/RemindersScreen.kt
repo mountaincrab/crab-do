@@ -1,5 +1,6 @@
 package com.mountaincrab.crabdo.ui.reminders
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -25,6 +26,8 @@ import com.mountaincrab.crabdo.data.local.entity.RecurringReminderEntity
 import com.mountaincrab.crabdo.ui.navigation.Screen
 import com.mountaincrab.crabdo.ui.reminders.components.OneOffReminderItem
 import com.mountaincrab.crabdo.ui.reminders.components.RecurringReminderItem
+import com.mountaincrab.crabdo.ui.theme.Eyebrow
+import com.mountaincrab.crabdo.ui.theme.LocalAppPalette
 import java.util.*
 import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
@@ -50,16 +53,25 @@ fun RemindersScreen(
         topBar = {
             Column {
                 TopAppBar(title = { Text("Reminders") })
-                TabRow(selectedTabIndex = pagerState.currentPage) {
+                val palette = LocalAppPalette.current
+                TabRow(
+                    selectedTabIndex = pagerState.currentPage,
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = palette.accentText,
+                ) {
                     Tab(
                         selected = pagerState.currentPage == 0,
                         onClick = { scope.launch { pagerState.animateScrollToPage(0) } },
-                        text = { Text("One-off") }
+                        text = { Text("One-off", fontWeight = FontWeight.SemiBold) },
+                        selectedContentColor = palette.accentText,
+                        unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Tab(
                         selected = pagerState.currentPage == 1,
                         onClick = { scope.launch { pagerState.animateScrollToPage(1) } },
-                        text = { Text("Recurring") }
+                        text = { Text("Recurring", fontWeight = FontWeight.SemiBold) },
+                        selectedContentColor = palette.accentText,
+                        unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
@@ -163,13 +175,11 @@ private fun OneOffTab(
             if (showCompleted) {
                 item { SectionHeader("Completed") }
                 items(completedReminders, key = { it.id }) { reminder ->
-                    Surface(color = MaterialTheme.colorScheme.surface) {
-                        OneOffReminderItem(
-                            reminder = reminder,
-                            onDelete = { viewModel.deleteOneOff(reminder.id) },
-                            completed = true
-                        )
-                    }
+                    OneOffReminderItem(
+                        reminder = reminder,
+                        onDelete = { viewModel.deleteOneOff(reminder.id) },
+                        completed = true
+                    )
                 }
             }
         }
@@ -209,12 +219,46 @@ private fun RecurringTab(
         return
     }
 
+    val todayStart = Calendar.getInstance().apply {
+        set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
+    val tomorrowStart = todayStart + 86_400_000L
+    val dayAfterStart = tomorrowStart + 86_400_000L
+
+    fun effectiveFireAt(r: RecurringReminderEntity): Long {
+        val snooze = r.snoozedUntilMillis
+        return if (snooze != null && snooze > System.currentTimeMillis()) snooze else r.nextFireAt
+    }
+
+    val todayItems = reminders.filter { effectiveFireAt(it) in todayStart until tomorrowStart }
+    val tomorrowItems = reminders.filter { effectiveFireAt(it) in tomorrowStart until dayAfterStart }
+    val laterItems = reminders.filter {
+        val e = effectiveFireAt(it)
+        e < todayStart || e >= dayAfterStart
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 88.dp)
     ) {
-        items(reminders, key = { it.id }) { reminder ->
-            RecurringRow(reminder, navController, viewModel)
+        if (todayItems.isNotEmpty()) {
+            item { SectionHeader("Today") }
+            items(todayItems, key = { it.id }) { reminder ->
+                RecurringRow(reminder, navController, viewModel)
+            }
+        }
+        if (tomorrowItems.isNotEmpty()) {
+            item { SectionHeader("Tomorrow") }
+            items(tomorrowItems, key = { it.id }) { reminder ->
+                RecurringRow(reminder, navController, viewModel)
+            }
+        }
+        if (laterItems.isNotEmpty()) {
+            item { SectionHeader("Later") }
+            items(laterItems, key = { it.id }) { reminder ->
+                RecurringRow(reminder, navController, viewModel)
+            }
         }
         if (deletedReminders.isNotEmpty()) {
             item {
@@ -243,15 +287,13 @@ private fun OneOffRow(
     navController: NavController,
     viewModel: RemindersViewModel
 ) {
-    Surface(
-        onClick = { navController.navigate(Screen.AddEditOneOffReminder.createRoute(reminder.id)) },
-        color = MaterialTheme.colorScheme.surface
-    ) {
-        OneOffReminderItem(
-            reminder = reminder,
-            onDelete = { viewModel.deleteOneOff(reminder.id) }
-        )
-    }
+    OneOffReminderItem(
+        reminder = reminder,
+        onDelete = { viewModel.deleteOneOff(reminder.id) },
+        modifier = Modifier.clickable {
+            navController.navigate(Screen.AddEditOneOffReminder.createRoute(reminder.id))
+        }
+    )
 }
 
 @Composable
@@ -260,17 +302,15 @@ private fun RecurringRow(
     navController: NavController,
     viewModel: RemindersViewModel
 ) {
-    Surface(
-        onClick = { navController.navigate(Screen.AddEditRecurringReminder.createRoute(reminder.id)) },
-        color = MaterialTheme.colorScheme.surface
-    ) {
-        RecurringReminderItem(
-            reminder = reminder,
-            onToggleEnabled = { viewModel.toggleRecurringEnabled(reminder) },
-            onDelete = { viewModel.deleteRecurring(reminder.id) },
-            onDismiss = { viewModel.dismissRecurring(reminder.id) }
-        )
-    }
+    RecurringReminderItem(
+        reminder = reminder,
+        onToggleEnabled = { viewModel.toggleRecurringEnabled(reminder) },
+        onDelete = { viewModel.deleteRecurring(reminder.id) },
+        onDismiss = { viewModel.dismissRecurring(reminder.id) },
+        modifier = Modifier.clickable {
+            navController.navigate(Screen.AddEditRecurringReminder.createRoute(reminder.id))
+        }
+    )
 }
 
 @Composable
@@ -334,11 +374,9 @@ private fun DeletedRecurringRow(
 
 @Composable
 private fun SectionHeader(title: String) {
-    Text(
+    Eyebrow(
         text = title,
-        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-        color = MaterialTheme.colorScheme.onSurface,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)
+        modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 10.dp)
     )
 }
 

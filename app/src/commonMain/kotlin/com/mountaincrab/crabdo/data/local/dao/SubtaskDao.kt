@@ -5,10 +5,27 @@ import com.mountaincrab.crabdo.data.local.entity.SubtaskEntity
 import com.mountaincrab.crabdo.util.currentTimeMillis
 import kotlinx.coroutines.flow.Flow
 
+data class SubtaskCountAggregate(
+    val taskId: String,
+    val total: Int,
+    val completed: Int,
+)
+
 @Dao
 interface SubtaskDao {
     @Query("SELECT * FROM subtasks WHERE taskId = :taskId AND isDeleted = 0 ORDER BY `order`")
     fun observeSubtasks(taskId: String): Flow<List<SubtaskEntity>>
+
+    @Query("""
+        SELECT s.taskId AS taskId,
+               COUNT(*) AS total,
+               SUM(CASE WHEN s.isCompleted = 1 THEN 1 ELSE 0 END) AS completed
+        FROM subtasks s
+        INNER JOIN tasks t ON t.id = s.taskId
+        WHERE t.boardId = :boardId AND s.isDeleted = 0 AND t.isDeleted = 0
+        GROUP BY s.taskId
+    """)
+    fun observeSubtaskCountsForBoard(boardId: String): Flow<List<SubtaskCountAggregate>>
 
     @Query("SELECT * FROM subtasks WHERE taskId = :taskId AND isDeleted = 0 ORDER BY `order`")
     suspend fun getSubtasksByTask(taskId: String): List<SubtaskEntity>

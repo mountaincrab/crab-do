@@ -14,8 +14,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccessAlarm
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -31,6 +33,9 @@ import androidx.navigation.NavController
 import com.mountaincrab.crabdo.data.local.entity.ReminderStyle
 import com.mountaincrab.crabdo.domain.RecurrenceEngine
 import com.mountaincrab.crabdo.ui.reminders.components.RecurrencePicker
+import com.mountaincrab.crabdo.ui.theme.Eyebrow
+import com.mountaincrab.crabdo.ui.theme.PillButton
+import com.mountaincrab.crabdo.ui.theme.PillGroup
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -102,15 +107,17 @@ fun AddEditRecurringReminderScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            Eyebrow("Title")
             OutlinedTextField(
                 value = viewModel.title,
                 onValueChange = { viewModel.title = it },
-                label = { Text("Title") },
+                placeholder = { Text("E.g., Take medication…") },
                 modifier = Modifier.fillMaxWidth().focusRequester(titleFocusRequester),
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next, capitalization = KeyboardCapitalization.Sentences)
             )
 
+            Eyebrow("Starting from")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedCard(onClick = { showDatePicker = true }, modifier = Modifier.weight(1f)) {
                     Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
@@ -141,24 +148,19 @@ fun AddEditRecurringReminderScreen(
                 }
             }
 
-            Text("Reminder style", style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                val chipSelectedColors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = MaterialTheme.colorScheme.primary,
-                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-                )
-                FilterChip(
-                    selected = viewModel.selectedStyle == ReminderStyle.ALARM,
-                    onClick = { viewModel.selectedStyle = ReminderStyle.ALARM },
-                    label = { Text("🔔 Alarm") },
-                    colors = chipSelectedColors
-                )
-                FilterChip(
+            Eyebrow("Reminder style")
+            PillGroup {
+                PillButton(
                     selected = viewModel.selectedStyle == ReminderStyle.NOTIFICATION,
                     onClick = { viewModel.selectedStyle = ReminderStyle.NOTIFICATION },
-                    label = { Text("📳 Notification") },
-                    colors = chipSelectedColors
+                    icon = Icons.Default.Notifications,
+                    text = "Notification",
+                )
+                PillButton(
+                    selected = viewModel.selectedStyle == ReminderStyle.ALARM,
+                    onClick = { viewModel.selectedStyle = ReminderStyle.ALARM },
+                    icon = Icons.Default.AccessAlarm,
+                    text = "Alarm",
                 )
             }
 
