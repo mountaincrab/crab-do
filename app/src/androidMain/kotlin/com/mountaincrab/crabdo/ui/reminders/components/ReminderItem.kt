@@ -105,13 +105,9 @@ fun RecurringReminderItem(
 
     ReminderRow(
         modifier = modifier,
-        // The whole list is recurring — a Repeat icon on every row is pure
-        // noise. Only show a leading tile when something is genuinely
-        // different about this row (currently: snoozed).
-        leadingIcon = if (isSnoozed) Icons.Default.Snooze else null,
-        leadingTileBg = if (isSnoozed) palette.accentSoft else palette.surfaceHigh,
-        leadingTileFg = if (isSnoozed) palette.accentText
-                        else MaterialTheme.colorScheme.onSurfaceVariant,
+        leadingIcon = null,
+        leadingTileBg = palette.surfaceHigh,
+        leadingTileFg = MaterialTheme.colorScheme.onSurfaceVariant,
         title = reminder.title,
         titleColor = if (!reminder.isEnabled) MaterialTheme.colorScheme.onSurfaceVariant
                      else MaterialTheme.colorScheme.onSurface,
