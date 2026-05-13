@@ -40,7 +40,11 @@ data class AppPalette(
     val gradientStart: Color,
     val gradientEnd: Color,
     val cardBorder: Color,
+    // Foreground tint for alarm-style leading icons. Amber on the default
+    // themes, yellow on retro (per the design system's --warning token).
     val alarmTint: Color,
+    // Translucent fill behind alarm leading icons (~10% of alarmTint).
+    val alarmTileBg: Color,
     // Lighter accent shade for inline accent text / icon-on-tile.
     // Equivalent to --accent-text in the design system tokens.
     val accentText: Color,
@@ -59,6 +63,7 @@ val LocalAppPalette = compositionLocalOf {
         gradientEnd = AccentBlue,
         cardBorder = Color(0x1AFFFFFF),
         alarmTint = AccentAmber,
+        alarmTileBg = Color(0x1AF59E0B),
         accentText = Color(0xFFA5B4FC),
         accentSoft = Color(0x2E4F7CFF),
         successText = Color(0xFF34D399),
@@ -148,6 +153,10 @@ private val RetroMagenta = Color(0xFFFF00CC)
 private val RetroCyan = Color(0xFF00FFEE)
 private val RetroYellow = Color(0xFFFFEE00)
 
+// Retro surface ladder (per design system tokens):
+//   bg #1A0B1E · surface #29153A · surface-raised #2E1438 · surface-high #3F1F50
+// The previous values were noticeably darker and lost contrast at low brightness;
+// the new ladder is slightly lighter and gives muted text room to read.
 private val RetroScheme = darkColorScheme(
     primary = RetroMagenta,
     onPrimary = Color.Black,
@@ -163,18 +172,27 @@ private val RetroScheme = darkColorScheme(
     onError = Color.White,
     errorContainer = Color(0xFFFF4400).copy(alpha = 0.18f),
     onErrorContainer = Color(0xFFFCA5A5),
-    background = Color(0xFF0D0015),
+    background = Color(0xFF1A0B1E),
     onBackground = Color(0xFFFFFFFF),
-    surface = Color(0xFF15001E),
+    surface = Color(0xFF29153A),
     onSurface = Color(0xFFFFFFFF),
-    surfaceVariant = Color(0xFF1E0030),
-    onSurfaceVariant = Color(0xFFC9A0E0),
-    outline = Color(0xFF4A0080),
-    outlineVariant = Color(0xFF4A0080).copy(alpha = 0.4f),
+    surfaceVariant = Color(0xFF2E1438),
+    // Muted text bumped from #C9A0E0 → #DCC4EC for low-brightness legibility
+    // (saturated purple-on-purple loses contrast as OLED dims).
+    onSurfaceVariant = Color(0xFFDCC4EC),
+    // Magenta-tinted border (rgba(255,0,204,0.22)) replaces the dark purple
+    // outline so borders pick up the theme's accent rather than disappearing.
+    outline = Color(0x38FF00CC),
+    outlineVariant = Color(0x1AFF00CC),
     inverseSurface = Color(0xFFFFFFFF),
-    inverseOnSurface = Color(0xFF0D0015),
+    inverseOnSurface = Color(0xFF1A0B1E),
     inversePrimary = RetroMagenta,
 )
+
+// Translucent alarm-tile background ≈ 10% of the alarm tint, used behind the
+// alarm leading icon on reminder rows.
+private val AmberTileBg = Color(0x1AF59E0B)
+private val RetroYellowTileBg = Color(0x1AFFEE00)
 
 private fun paletteFor(theme: AppTheme): AppPalette = when (theme) {
     AppTheme.DEEP_NAVY -> AppPalette(
@@ -182,6 +200,7 @@ private fun paletteFor(theme: AppTheme): AppPalette = when (theme) {
         gradientEnd = AccentBlue,
         cardBorder = Color(0x408B9CFF),
         alarmTint = AccentAmber,
+        alarmTileBg = AmberTileBg,
         accentText = Color(0xFFA5B4FC),
         accentSoft = Color(0x2E4F7CFF),
         successText = Color(0xFF34D399),
@@ -192,6 +211,7 @@ private fun paletteFor(theme: AppTheme): AppPalette = when (theme) {
         gradientEnd = Color(0xFF3B82F6),
         cardBorder = Color(0x40FFFFFF),
         alarmTint = AccentAmber,
+        alarmTileBg = AmberTileBg,
         accentText = Color(0xFF67E8F9),
         accentSoft = Color(0x2E06B6D4),
         successText = Color(0xFF34D399),
@@ -202,6 +222,7 @@ private fun paletteFor(theme: AppTheme): AppPalette = when (theme) {
         gradientEnd = AccentBlue,
         cardBorder = Color(0x40BFC7E0),
         alarmTint = AccentAmber,
+        alarmTileBg = AmberTileBg,
         accentText = Color(0xFFA5B4FC),
         accentSoft = Color(0x2E4F7CFF),
         successText = Color(0xFF34D399),
@@ -210,12 +231,18 @@ private fun paletteFor(theme: AppTheme): AppPalette = when (theme) {
     AppTheme.RETRO -> AppPalette(
         gradientStart = RetroMagenta,
         gradientEnd = RetroCyan,
-        cardBorder = Color(0x50FF00CC),
+        // border-strong = rgba(255,0,204,0.40)
+        cardBorder = Color(0x66FF00CC),
+        // Yellow alarm tint pulls cyan/yellow into the retro palette so alarms
+        // and snooze states actually use the theme's semantic accents instead
+        // of bleeding amber from the default palette.
         alarmTint = RetroYellow,
+        alarmTileBg = RetroYellowTileBg,
         accentText = Color(0xFFFF66DD),
         accentSoft = Color(0x2EFF00CC),
         successText = Color(0xFF66FFF5),
-        surfaceHigh = Color(0xFF2E0048),
+        // surface-high #3F1F50 — lighter chip / input surface
+        surfaceHigh = Color(0xFF3F1F50),
     )
 }
 

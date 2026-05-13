@@ -87,60 +87,69 @@ fun AppNavigation(
                     unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     indicatorColor = palette.accentSoft,
                 )
-                NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 0.dp
-                ) {
-                    NavigationBarItem(
-                        selected = currentRoute == Screen.PinnedBoard.route,
-                        onClick = {
-                            navController.navigate(Screen.PinnedBoard.route) {
-                                popUpTo(navController.graph.startDestinationId) { inclusive = true }
-                            }
-                        },
-                        icon = { Icon(Icons.Default.Star, contentDescription = "Pinned Board") },
-                        label = { Text(pinnedBoardTitle, maxLines = 1) },
-                        colors = itemColors,
+                // 1dp top border matches the design system's
+                // `.crab-tab-bar { border-top: 1px solid var(--border) }`
+                // — separates the nav bar from scrolling content above.
+                Column {
+                    HorizontalDivider(
+                        thickness = 1.dp,
+                        color = MaterialTheme.colorScheme.outline,
                     )
-                    NavigationBarItem(
-                        selected = currentRoute == Screen.BoardList.route,
-                        onClick = {
-                            navController.navigate(Screen.BoardList.route) {
-                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        icon = { Icon(Icons.Default.GridView, contentDescription = "All Boards") },
-                        label = { Text("Boards") },
-                        colors = itemColors,
-                    )
-                    NavigationBarItem(
-                        selected = currentRoute == Screen.Reminders.route,
-                        onClick = {
-                            navController.navigate(Screen.Reminders.route) {
-                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        icon = { Icon(Icons.Default.Notifications, contentDescription = "Reminders") },
-                        label = { Text("Reminders") },
-                        colors = itemColors,
-                    )
-                    NavigationBarItem(
-                        selected = currentRoute == Screen.Settings.route,
-                        onClick = {
-                            navController.navigate(Screen.Settings.route) {
-                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
-                        label = { Text("Settings") },
-                        colors = itemColors,
-                    )
+                    NavigationBar(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 0.dp
+                    ) {
+                        NavigationBarItem(
+                            selected = currentRoute == Screen.PinnedBoard.route,
+                            onClick = {
+                                navController.navigate(Screen.PinnedBoard.route) {
+                                    popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                                }
+                            },
+                            icon = { Icon(Icons.Default.Star, contentDescription = "Pinned Board") },
+                            label = { Text(pinnedBoardTitle, maxLines = 1) },
+                            colors = itemColors,
+                        )
+                        NavigationBarItem(
+                            selected = currentRoute == Screen.BoardList.route,
+                            onClick = {
+                                navController.navigate(Screen.BoardList.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
+                            icon = { Icon(Icons.Default.GridView, contentDescription = "All Boards") },
+                            label = { Text("Boards") },
+                            colors = itemColors,
+                        )
+                        NavigationBarItem(
+                            selected = currentRoute == Screen.Reminders.route,
+                            onClick = {
+                                navController.navigate(Screen.Reminders.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
+                            icon = { Icon(Icons.Default.Notifications, contentDescription = "Reminders") },
+                            label = { Text("Reminders") },
+                            colors = itemColors,
+                        )
+                        NavigationBarItem(
+                            selected = currentRoute == Screen.Settings.route,
+                            onClick = {
+                                navController.navigate(Screen.Settings.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
+                            icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
+                            label = { Text("Settings") },
+                            colors = itemColors,
+                        )
+                    }
                 }
             }
         }

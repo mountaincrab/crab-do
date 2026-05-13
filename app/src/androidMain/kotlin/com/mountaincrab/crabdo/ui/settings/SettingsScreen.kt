@@ -240,17 +240,20 @@ private fun ThemeSwatch(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // Thumbnail surfaces — should mirror each theme's surface ladder.
+    // Retro picks up the slightly lighter ladder from the updated design
+    // system tokens so the swatch matches what the user actually sees.
     val bg = when (theme) {
         AppTheme.DEEP_NAVY -> Color(0xFF131A2E)
         AppTheme.CHARCOAL -> Color(0xFF141414)
         AppTheme.SLATE -> Color(0xFF20232E)
-        AppTheme.RETRO -> Color(0xFF1A0028)
+        AppTheme.RETRO -> Color(0xFF29153A)
     }
     val inner = when (theme) {
         AppTheme.DEEP_NAVY -> Color(0xFF1C2340)
         AppTheme.CHARCOAL -> Color(0xFF1E1E1E)
         AppTheme.SLATE -> Color(0xFF2A2E3C)
-        AppTheme.RETRO -> Color(0xFF2D0050)
+        AppTheme.RETRO -> Color(0xFF2E1438)
     }
     Column(
         modifier = modifier,

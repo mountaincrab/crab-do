@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -42,9 +43,16 @@ fun TaskCard(
         border = BorderStroke(1.dp, cardBorder)
     ) {
         Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)) {
+            // Title uses strong --fg (onSurface) at SemiBold weight to match
+            // the reminder-row text hierarchy. The default content colour for a
+            // Card with surfaceVariant container is onSurfaceVariant (--fg-muted),
+            // which would render the title at the muted weight — set the colour
+            // explicitly so the title reads as the row's primary text.
             Text(
                 text = task.title,
                 style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
