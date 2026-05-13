@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -74,12 +75,26 @@ fun TaskDetailScreen(
         if (draggingSubtaskId == null) dragList = subtasks
     }
 
+    val onBack = {
+        if (titleText.isNotBlank()) {
+            viewModel.updateTitle(titleText.trim())
+            viewModel.updateDescription(descriptionText.trim())
+        }
+        navController.popBackStack()
+        Unit
+    }
+
+    // Save title/description when the user presses the system back gesture,
+    // but only when no dialog or sheet is intercepting (those BackHandlers are
+    // composed later and therefore take priority over this one).
+    BackHandler(onBack = onBack)
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Task") },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 },
@@ -106,7 +121,9 @@ fun TaskDetailScreen(
                     value = titleText,
                     onValueChange = { titleText = it },
                     placeholder = { Text("Task title") },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onFocusChanged { if (!it.isFocused && titleText.isNotBlank()) viewModel.updateTitle(titleText.trim()) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
                 )
@@ -118,25 +135,12 @@ fun TaskDetailScreen(
                     value = descriptionText,
                     onValueChange = { descriptionText = it },
                     placeholder = { Text("Add details or notes…") },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onFocusChanged { if (!it.isFocused) viewModel.updateDescription(descriptionText.trim()) },
                     minLines = 3,
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
                 )
-            }
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Spacer(Modifier.weight(1f))
-                    TextButton(onClick = {
-                        if (titleText.isNotBlank()) {
-                            viewModel.updateTitle(titleText.trim())
-                            viewModel.updateDescription(descriptionText.trim())
-                        }
-                    }) { Text("Save changes") }
-                }
             }
             item {
                 HorizontalDivider()
