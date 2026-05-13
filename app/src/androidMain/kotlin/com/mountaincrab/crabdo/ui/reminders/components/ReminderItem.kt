@@ -27,11 +27,6 @@ import com.mountaincrab.crabdo.ui.theme.LocalAppPalette
 import java.text.SimpleDateFormat
 import java.util.*
 
-// Translucent amber background used behind the alarm style indicator —
-// matches the design system token rgba(245,158,11,.10).
-private val AlarmTileBg = Color(0x1AF59E0B)
-private val AlarmTileFg = Color(0xFFFBBF24)
-
 @Composable
 fun OneOffReminderItem(
     reminder: OneOffReminderEntity,
@@ -52,13 +47,13 @@ fun OneOffReminderItem(
             else -> Icons.Default.Notifications
         },
         leadingTileBg = when {
-            isAlarm && !completed -> AlarmTileBg
+            isAlarm && !completed -> palette.alarmTileBg
             !completed -> palette.accentSoft
             else -> palette.surfaceHigh
         },
         leadingTileFg = when {
             completed -> MaterialTheme.colorScheme.onSurfaceVariant
-            isAlarm -> AlarmTileFg
+            isAlarm -> palette.alarmTint
             else -> palette.accentText
         },
         title = reminder.title,

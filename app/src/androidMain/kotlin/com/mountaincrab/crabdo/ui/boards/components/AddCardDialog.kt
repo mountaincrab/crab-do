@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.mountaincrab.crabdo.data.local.entity.TaskEntity
+import com.mountaincrab.crabdo.ui.theme.Eyebrow
 import com.mountaincrab.crabdo.ui.theme.PillButton
 import com.mountaincrab.crabdo.ui.theme.PillGroup
 import java.text.SimpleDateFormat
@@ -91,9 +92,11 @@ fun AddCardDialog(
                     .padding(padding)
                     .padding(horizontal = 16.dp, vertical = 8.dp)
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                // Section spacing matches AddEditOneOffReminderScreen so the
+                // two task/reminder edit surfaces feel like one family.
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                SectionLabel("TASK TITLE")
+                Eyebrow("Task title")
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
@@ -106,7 +109,7 @@ fun AddCardDialog(
                     shape = RoundedCornerShape(12.dp)
                 )
 
-                SectionLabel("DESCRIPTION")
+                Eyebrow("Description")
                 OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },
@@ -118,14 +121,15 @@ fun AddCardDialog(
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
                 )
 
-                // Reminder card
+                // Reminder card — 16dp padding matches the design system's
+                // standard card padding (--space-4).
                 Surface(
                     shape = RoundedCornerShape(16.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant,
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
+                    Column(modifier = Modifier.padding(16.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Surface(
                                 shape = RoundedCornerShape(10.dp),
@@ -156,6 +160,10 @@ fun AddCardDialog(
                         }
 
                         if (reminderEnabled) {
+                            // Vertical spacing inside the reminder card is
+                            // 12dp throughout (one step on the design system's
+                            // spacing scale), so each control sits the same
+                            // distance from its neighbour.
                             Spacer(Modifier.height(12.dp))
                             PillGroup {
                                 PillButton(
@@ -172,26 +180,26 @@ fun AddCardDialog(
                                 )
                             }
 
-                            Spacer(Modifier.height(10.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Spacer(Modifier.height(12.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 QuickChip("Later") { reminderMillis = quickPreset(QuickPreset.LATER_TODAY) }
                                 QuickChip("Tomorrow") { reminderMillis = quickPreset(QuickPreset.TOMORROW) }
                                 QuickChip("Next Wk") { reminderMillis = quickPreset(QuickPreset.NEXT_WEEK) }
                             }
 
-                            Spacer(Modifier.height(10.dp))
+                            Spacer(Modifier.height(12.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 OutlinedCard(
                                     onClick = { showDatePicker = true },
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
                                         Text(
                                             "Date",
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
-                                        Spacer(Modifier.height(2.dp))
+                                        Spacer(Modifier.height(4.dp))
                                         Text(
                                             text = SimpleDateFormat("EEE, d MMM", Locale.getDefault())
                                                 .format(Date(reminderMillis)),
@@ -203,13 +211,13 @@ fun AddCardDialog(
                                     onClick = { showTimePicker = true },
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
                                         Text(
                                             "Time",
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
-                                        Spacer(Modifier.height(2.dp))
+                                        Spacer(Modifier.height(4.dp))
                                         Text(
                                             text = SimpleDateFormat("HH:mm", Locale.getDefault())
                                                 .format(Date(reminderMillis)),
@@ -284,15 +292,6 @@ fun AddCardDialog(
             }
         )
     }
-}
-
-@Composable
-private fun SectionLabel(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
-    )
 }
 
 @Composable
