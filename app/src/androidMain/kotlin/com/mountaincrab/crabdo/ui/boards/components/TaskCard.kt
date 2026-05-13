@@ -1,6 +1,7 @@
 package com.mountaincrab.crabdo.ui.boards.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -10,6 +11,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -30,9 +34,18 @@ fun TaskCard(
     onTap: () -> Unit
 ) {
     val cardBorder = LocalAppPalette.current.cardBorder
+    // NOTE: deliberately not using Card(onClick = …). Material3 Surface (which
+    // Card uses internally for the onClick variant) applies
+    // Modifier.minimumInteractiveComponentSize(), forcing every card to a
+    // 48dp minimum height — that creates dead space inside short cards and
+    // makes the list look stretched out even with tight LazyColumn spacing.
+    // Using a non-clickable Card with our own .clickable lets the card hug
+    // its content.
     Card(
-        onClick = onTap,
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .semantics { role = Role.Button }
+            .clickable(onClick = onTap),
         shape = RoundedCornerShape(10.dp),
         elevation = CardDefaults.cardElevation(
             defaultElevation = if (isDragging) 4.dp else 0.dp

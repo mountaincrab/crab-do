@@ -72,7 +72,7 @@ fun KanbanColumn(
     var dragOffsetY by remember { mutableFloatStateOf(0f) }
     var cardHeightPx by remember { mutableFloatStateOf(0f) }
     val density = LocalDensity.current
-    val cardSpacingPx = with(density) { 4.dp.toPx() }
+    val cardSpacingPx = with(density) { 6.dp.toPx() }
     val edgeThresholdPx = with(density) { 80.dp.toPx() }
     val screenWidthPx = with(density) { LocalConfiguration.current.screenWidthDp.dp.toPx() }
     val edgeScrollStateRef = rememberUpdatedState(edgeScrollState)
@@ -209,7 +209,7 @@ fun KanbanColumn(
             state = lazyListState,
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(horizontal = 4.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             itemsIndexed(displayTasks, key = { _, it -> it.id }) { _, task ->
                 val isDragging = task.id == draggedTaskId
