@@ -19,7 +19,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.content.getSystemService
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mountaincrab.crabdo.ui.theme.CrabbanTheme
@@ -116,35 +115,11 @@ private fun AlarmAlertScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // Alarm icon tile
-            Box(
-                modifier = Modifier
-                    .size(88.dp)
-                    .background(
-                        color = palette.alarmTileBg,
-                        shape = RoundedCornerShape(24.dp)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(text = "⏰", fontSize = 44.sp)
-            }
-
-            Spacer(modifier = Modifier.height(28.dp))
-
             Text(
                 text = title,
                 style = MaterialTheme.typography.headlineLarge,
                 textAlign = TextAlign.Center,
                 color = colors.onSurface,
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "alarm reminder",
-                style = MaterialTheme.typography.labelSmall,
-                color = palette.alarmTint,
-                letterSpacing = 1.2.sp,
             )
         }
 

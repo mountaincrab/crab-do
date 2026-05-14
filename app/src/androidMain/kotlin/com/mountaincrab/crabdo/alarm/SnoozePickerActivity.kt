@@ -15,14 +15,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mountaincrab.crabdo.data.local.entity.ReminderStyle
 import com.mountaincrab.crabdo.data.repository.ReminderRepository
 import com.mountaincrab.crabdo.ui.theme.CrabbanTheme
+import com.mountaincrab.crabdo.ui.theme.ThemeViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
+import org.koin.compose.viewmodel.koinViewModel
 
 class SnoozePickerActivity : ComponentActivity() {
 
@@ -60,7 +63,9 @@ class SnoozePickerActivity : ComponentActivity() {
 
         val activityScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         setContent {
-            CrabbanTheme {
+            val themeViewModel: ThemeViewModel = koinViewModel()
+            val appTheme by themeViewModel.appTheme.collectAsStateWithLifecycle()
+            CrabbanTheme(appTheme = appTheme) {
                 SnoozePickerDialog(
                     onSnooze = { minutes ->
                         val snoozeMillis = System.currentTimeMillis() + minutes * 60_000L
