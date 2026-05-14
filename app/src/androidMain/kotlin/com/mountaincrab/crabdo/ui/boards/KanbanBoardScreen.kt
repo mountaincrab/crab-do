@@ -95,6 +95,11 @@ fun KanbanBoardScreen(
                         .coerceIn(0, columns.size - 1)
                     if (target == current) break  // already at edge column
                     pagerState.animateScrollToPage(target)
+                    // Reset after each scroll. onDrag will set it back to non-zero
+                    // if the finger is still at the edge on the next drag event.
+                    // Without this, holding still (no onDrag events) leaves the
+                    // value at 1 and the loop keeps advancing past the target column.
+                    edgeScrollState.intValue = 0
                 }
             }
 

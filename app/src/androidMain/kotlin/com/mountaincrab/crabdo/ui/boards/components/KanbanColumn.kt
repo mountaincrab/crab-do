@@ -90,72 +90,65 @@ fun KanbanColumn(
         }
     }
 
-    // Insert or remove ghost based on which column currently owns it.
-    LaunchedEffect(ghostColumnId.value) {
-        val ghost = foreignDraggedTaskRef.value ?: return@LaunchedEffect
-        if (ghostColumnId.value == column.id) {
-            if (displayTasksState.value.none { it.id == ghost.id }) {
-                displayTasksState.value = displayTasksState.value + ghost
-            }
-        } else {
-            displayTasksState.value = displayTasksState.value.filter { it.id != ghost.id }
-        }
-    }
-
     // Per-card absolute Y (top, in root coords). Used by the target column to
     // figure out where the finger is relative to its own cards, so the ghost
     // can be reordered within the target while the source still owns the
     // gesture. Each TaskCard updates its entry via onGloballyPositioned.
     val cardYsState = remember { mutableStateMapOf<String, Float>() }
 
-    // Reorder the ghost within this column (when it's the active target) based
-    // on finger Y. The source column owns the drag gesture, so it writes
-    // dragFingerYAbs every tick; we observe it here. We also publish the
-    // resulting order bracket so the source's onDragEnd can drop at the right
-    // slot rather than always appending to the end.
-    LaunchedEffect(ghostColumnId.value, column.id) {
-        if (ghostColumnId.value != column.id) return@LaunchedEffect
-        snapshotFlow { dragFingerYAbs.floatValue }.collect { fingerY ->
-            val ghost = foreignDraggedTaskRef.value ?: return@collect
-            val current = displayTasksState.value
-            val curGhostIdx = current.indexOfFirst { it.id == ghost.id }
-            if (curGhostIdx < 0) return@collect
-            val effHeight = if (cardHeightPx > 0f) cardHeightPx
-                            else with(density) { 80.dp.toPx() }
+    // Insert/remove the ghost and track its vertical position within this column.
+    // Insertion and the snapshotFlow collection are combined in one effect so the
+    // ghost is guaranteed to be in displayTasksState before the first fingerY
+    // emission — previously the two were separate effects and the flow fired
+    // before insertion, leaving the ghost stranded at the bottom until the next
+    // drag event.
+    LaunchedEffect(ghostColumnId.value) {
+        val ghost = foreignDraggedTaskRef.value ?: return@LaunchedEffect
+        if (ghostColumnId.value == column.id) {
+            if (displayTasksState.value.none { it.id == ghost.id }) {
+                displayTasksState.value = displayTasksState.value + ghost
+            }
+            // Now start tracking — ghost is in the list so the first emission
+            // can position it immediately rather than bailing with curGhostIdx=-1.
+            snapshotFlow { dragFingerYAbs.floatValue }.collect { fingerY ->
+                val current = displayTasksState.value
+                val curGhostIdx = current.indexOfFirst { it.id == ghost.id }
+                if (curGhostIdx < 0) return@collect
+                val effHeight = if (cardHeightPx > 0f) cardHeightPx
+                                else with(density) { 80.dp.toPx() }
 
-            // Find the first non-ghost card whose midpoint is below fingerY —
-            // that's where the ghost should be inserted. Default to end.
-            var newIdx = current.size
-            for ((i, task) in current.withIndex()) {
-                if (task.id == ghost.id) continue
-                val cardY = cardYsState[task.id] ?: continue
-                if (fingerY < cardY + effHeight / 2f) {
-                    newIdx = i
-                    break
+                var newIdx = current.size
+                for ((i, task) in current.withIndex()) {
+                    if (task.id == ghost.id) continue
+                    val cardY = cardYsState[task.id] ?: continue
+                    if (fingerY < cardY + effHeight / 2f) {
+                        newIdx = i
+                        break
+                    }
+                }
+
+                val target = if (curGhostIdx < newIdx) (newIdx - 1) else newIdx
+                val targetCoerced = target.coerceIn(0, current.size - 1)
+                if (targetCoerced != curGhostIdx) {
+                    val m = current.toMutableList()
+                    m.removeAt(curGhostIdx)
+                    m.add(targetCoerced.coerceIn(0, m.size), ghost)
+                    displayTasksState.value = m
+                }
+
+                val updated = displayTasksState.value
+                val gIdx = updated.indexOfFirst { it.id == ghost.id }
+                if (gIdx >= 0) {
+                    val prevOrder = updated.getOrNull(gIdx - 1)?.order
+                    val nextOrder = updated.getOrNull(gIdx + 1)?.order
+                    ghostOrderBracket.value = Pair(
+                        prevOrder ?: ((nextOrder ?: 1.0) - 2.0),
+                        nextOrder ?: ((prevOrder ?: 0.0) + 2.0)
+                    )
                 }
             }
-
-            // If the ghost was before the insertion point, removing it shifts
-            // the target index left by one.
-            val target = if (curGhostIdx < newIdx) (newIdx - 1) else newIdx
-            val targetCoerced = target.coerceIn(0, current.size - 1)
-            if (targetCoerced != curGhostIdx) {
-                val m = current.toMutableList()
-                m.removeAt(curGhostIdx)
-                m.add(targetCoerced.coerceIn(0, m.size), ghost)
-                displayTasksState.value = m
-            }
-
-            val updated = displayTasksState.value
-            val gIdx = updated.indexOfFirst { it.id == ghost.id }
-            if (gIdx >= 0) {
-                val prevOrder = updated.getOrNull(gIdx - 1)?.order
-                val nextOrder = updated.getOrNull(gIdx + 1)?.order
-                ghostOrderBracket.value = Pair(
-                    prevOrder ?: ((nextOrder ?: 1.0) - 2.0),
-                    nextOrder ?: ((prevOrder ?: 0.0) + 2.0)
-                )
-            }
+        } else {
+            displayTasksState.value = displayTasksState.value.filter { it.id != ghost.id }
         }
     }
 
