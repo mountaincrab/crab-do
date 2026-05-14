@@ -26,6 +26,7 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.mountaincrab.crabdo.MainActivity
+import com.mountaincrab.crabdo.ui.theme.AppTheme
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -37,42 +38,80 @@ data class WidgetReminderItem(
     val snoozedUntilMillis: Long?
 )
 
+data class WidgetColors(
+    val bodyBg: ColorProvider,
+    val headerBg: ColorProvider,
+    val textColor: ColorProvider,
+    val subtextColor: ColorProvider,
+    val accentColor: ColorProvider,
+    val dividerColor: ColorProvider,
+)
+
+fun widgetColorsForTheme(theme: AppTheme): WidgetColors = when (theme) {
+    AppTheme.DEEP_NAVY -> WidgetColors(
+        bodyBg = ColorProvider(Color(0x99131A2E)),
+        headerBg = ColorProvider(Color(0xFF0A1020)),
+        textColor = ColorProvider(Color(0xFFF3F4F6)),
+        subtextColor = ColorProvider(Color(0xFF9CA3AF)),
+        accentColor = ColorProvider(Color(0xFF4F7CFF)),
+        dividerColor = ColorProvider(Color(0x22FFFFFF)),
+    )
+    AppTheme.CHARCOAL -> WidgetColors(
+        bodyBg = ColorProvider(Color(0x99141414)),
+        headerBg = ColorProvider(Color(0xFF0A0A0A)),
+        textColor = ColorProvider(Color(0xFFFAFAFA)),
+        subtextColor = ColorProvider(Color(0xFFA1A1AA)),
+        accentColor = ColorProvider(Color(0xFF06B6D4)),
+        dividerColor = ColorProvider(Color(0x22FFFFFF)),
+    )
+    AppTheme.SLATE -> WidgetColors(
+        bodyBg = ColorProvider(Color(0x9920232E)),
+        headerBg = ColorProvider(Color(0xFF161820)),
+        textColor = ColorProvider(Color(0xFFF3F4F6)),
+        subtextColor = ColorProvider(Color(0xFF9CA3AF)),
+        accentColor = ColorProvider(Color(0xFF4F7CFF)),
+        dividerColor = ColorProvider(Color(0x22FFFFFF)),
+    )
+    AppTheme.RETRO -> WidgetColors(
+        bodyBg = ColorProvider(Color(0x9929153A)),
+        headerBg = ColorProvider(Color(0xFF1A0B1E)),
+        textColor = ColorProvider(Color(0xFFFFFFFF)),
+        subtextColor = ColorProvider(Color(0xFFDCC4EC)),
+        accentColor = ColorProvider(Color(0xFFFF00CC)),
+        dividerColor = ColorProvider(Color(0x22FF00CC)),
+    )
+}
+
 @Composable
 internal fun ReminderWidgetBody(
     context: Context,
     header: String,
     reminderType: String,
     reminders: List<WidgetReminderItem>,
+    colors: WidgetColors,
 ) {
-    val bodyBg = ColorProvider(Color(0x991A2A6E))
-    val headerBg = ColorProvider(Color(0xFF0D1840))
-    val textColor = ColorProvider(Color(0xFFF3F4F6))
-    val subtextColor = ColorProvider(Color(0xFF9CA3AF))
-    val accentColor = ColorProvider(Color(0xFF4F7CFF))
-    val dividerColor = ColorProvider(Color(0x22FFFFFF))
-
     val addIntent = Intent(context, MainActivity::class.java).apply {
         putExtra("open_add_reminder", true)
         putExtra("reminder_type", reminderType)
         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
     }
 
-    Column(modifier = GlanceModifier.fillMaxSize().background(bodyBg)) {
+    Column(modifier = GlanceModifier.fillMaxSize().background(colors.bodyBg)) {
         Row(
             modifier = GlanceModifier
                 .fillMaxWidth()
-                .background(headerBg)
+                .background(colors.headerBg)
                 .padding(horizontal = 10.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = header,
-                style = TextStyle(fontWeight = FontWeight.Bold, fontSize = 11.sp, color = textColor),
+                style = TextStyle(fontWeight = FontWeight.Bold, fontSize = 11.sp, color = colors.textColor),
                 modifier = GlanceModifier.defaultWeight()
             )
             Box(
                 modifier = GlanceModifier
-                    .background(accentColor)
+                    .background(colors.accentColor)
                     .cornerRadius(6.dp)
                     .padding(horizontal = 9.dp, vertical = 3.dp)
                     .clickable(actionStartActivity(addIntent)),
@@ -87,7 +126,7 @@ internal fun ReminderWidgetBody(
 
         if (reminders.isEmpty()) {
             Box(modifier = GlanceModifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(text = "No reminders", style = TextStyle(fontSize = 12.sp, color = subtextColor))
+                Text(text = "No reminders", style = TextStyle(fontSize = 12.sp, color = colors.subtextColor))
             }
         } else {
             LazyColumn(modifier = GlanceModifier.fillMaxSize()) {
@@ -99,9 +138,9 @@ internal fun ReminderWidgetBody(
                     }
                     ReminderWidgetRow(
                         reminder = reminder,
-                        textColor = textColor,
-                        subtextColor = subtextColor,
-                        dividerColor = dividerColor,
+                        textColor = colors.textColor,
+                        subtextColor = colors.subtextColor,
+                        dividerColor = colors.dividerColor,
                         modifier = GlanceModifier.clickable(actionStartActivity(editIntent))
                     )
                 }

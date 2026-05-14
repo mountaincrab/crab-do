@@ -8,7 +8,10 @@ import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.provideContent
 import com.google.firebase.auth.FirebaseAuth
 import com.mountaincrab.crabdo.data.local.dao.RecurringReminderDao
+import com.mountaincrab.crabdo.preferences.UserPreferencesRepository
 import com.mountaincrab.crabdo.ui.navigation.ReminderTarget
+import com.mountaincrab.crabdo.ui.theme.AppTheme
+import kotlinx.coroutines.flow.first
 import org.koin.core.context.GlobalContext
 
 class RecurringRemindersWidget : GlanceAppWidget() {
@@ -17,6 +20,9 @@ class RecurringRemindersWidget : GlanceAppWidget() {
         val koin = GlobalContext.get()
         val recurringDao = koin.get<RecurringReminderDao>()
         val userId = koin.get<FirebaseAuth>().currentUser?.uid ?: ""
+        val prefs = koin.get<UserPreferencesRepository>()
+        val theme = AppTheme.fromName(prefs.appTheme.first())
+        val colors = widgetColorsForTheme(theme)
 
         val remindersFlow = recurringDao.observeAllActive(userId)
 
@@ -40,6 +46,7 @@ class RecurringRemindersWidget : GlanceAppWidget() {
                 header = "RECURRING REMINDERS",
                 reminderType = ReminderTarget.RECURRING.name,
                 reminders = items,
+                colors = colors,
             )
         }
     }
