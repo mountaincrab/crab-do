@@ -64,7 +64,8 @@ class AddEditOneOffReminderViewModel(
                 reminderRepository.updateOneOff(existing.copy(
                     title = title,
                     scheduledAt = selectedDateTime,
-                    reminderStyle = selectedStyle
+                    reminderStyle = selectedStyle,
+                    snoozedUntilMillis = null
                 ))
             }
             onSuccess()
