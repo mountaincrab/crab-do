@@ -96,7 +96,7 @@ private fun SnoozePickerDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(5, 10, 15, 20, 30).forEach { minutes ->
-                    FilledTonalButton(
+                    Button(
                         onClick = { onSnooze(minutes) },
                         modifier = Modifier.fillMaxWidth()
                     ) {

@@ -128,7 +128,9 @@ private fun AlarmAlertScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .padding(horizontal = 32.dp, vertical = 48.dp),
+                .navigationBarsPadding()
+                .padding(horizontal = 32.dp)
+                .padding(bottom = 80.dp, top = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Button(
