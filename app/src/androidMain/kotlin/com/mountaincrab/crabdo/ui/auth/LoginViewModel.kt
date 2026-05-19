@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.mountaincrab.crabdo.R
 import com.mountaincrab.crabdo.auth.AuthRepository
 import com.mountaincrab.crabdo.data.repository.BoardRepository
+import com.mountaincrab.crabdo.preferences.UserPreferencesRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -13,7 +14,8 @@ import kotlinx.coroutines.launch
 
 class LoginViewModel(
     private val authRepository: AuthRepository,
-    private val boardRepository: BoardRepository
+    private val boardRepository: BoardRepository,
+    private val prefsRepository: UserPreferencesRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<LoginUiState>(LoginUiState.Idle)
@@ -26,6 +28,7 @@ class LoginViewModel(
             val result = authRepository.signInWithGoogle(context, clientId)
             _uiState.value = result.fold(
                 onSuccess = {
+                    prefsRepository.clearSyncState()
                     boardRepository.triggerSync()
                     onSuccess()
                     LoginUiState.Idle

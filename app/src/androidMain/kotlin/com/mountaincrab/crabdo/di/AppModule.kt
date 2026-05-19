@@ -88,7 +88,7 @@ val appModule = module {
     }
 
     // ViewModels
-    viewModel { LoginViewModel(authRepository = get(), boardRepository = get()) }
+    viewModel { LoginViewModel(authRepository = get(), boardRepository = get(), prefsRepository = get()) }
     viewModel {
         BoardListViewModel(
             boardRepository = get(), authRepository = get(),
