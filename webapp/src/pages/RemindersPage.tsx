@@ -75,13 +75,13 @@ function EnableToggle({ enabled, onToggle }: { enabled: boolean; onToggle: () =>
     <button
       onClick={onToggle}
       title={enabled ? 'Disable' : 'Enable'}
-      className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ${
+      className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${
         enabled ? 'bg-accent' : 'bg-fg-disabled'
       }`}
     >
       <span
-        className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
-          enabled ? 'translate-x-4' : 'translate-x-0.5'
+        className={`absolute top-[3px] w-[18px] h-[18px] rounded-full bg-white shadow transition-all ${
+          enabled ? 'left-[23px]' : 'left-[3px]'
         }`}
       />
     </button>

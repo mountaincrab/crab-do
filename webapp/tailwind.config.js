@@ -32,6 +32,7 @@ export default {
           text: 'var(--danger-text)',
         },
         warning: 'var(--warning)',
+        link: 'var(--link)',
       },
       borderColor: {
         DEFAULT: 'var(--border)',

@@ -5,7 +5,7 @@ export type Theme = 'deep-navy' | 'charcoal' | 'retro'
 export const THEMES: { id: Theme; label: string; accent: string; bg: string }[] = [
   { id: 'deep-navy', label: 'Deep Navy', accent: '#4F7CFF', bg: '#0A1020' },
   { id: 'charcoal', label: 'Charcoal', accent: '#06B6D4', bg: '#0A0A0A' },
-  { id: 'retro', label: 'Retro', accent: '#FF00CC', bg: '#0D0015' },
+  { id: 'retro', label: 'Retro', accent: '#FF00CC', bg: '#1A0B1E' },
 ]
 
 const STORAGE_KEY = 'crabdo:theme'

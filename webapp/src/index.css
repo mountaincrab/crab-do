@@ -38,6 +38,7 @@
   --danger: #EF4444;
   --danger-text: #F87171;
   --warning: #FBBF24;
+  --link: var(--accent-text);
 
   --grad-accent: linear-gradient(135deg, #8B5CF6 0%, #4F7CFF 100%);
 
@@ -75,6 +76,7 @@
   --danger: #EF4444;
   --danger-text: #F87171;
   --warning: #FBBF24;
+  --link: var(--accent-text);
 
   --grad-accent: linear-gradient(135deg, #06B6D4 0%, #3B82F6 100%);
 
@@ -86,20 +88,23 @@
   color-scheme: dark;
 }
 
+/* Retro: vaporwave magenta + cyan + yellow.
+   Surfaces are lighter/warmer than the other themes so text stays legible at
+   low display brightness. --fg-muted and --fg-faint are bumped accordingly. */
 [data-theme="retro"] {
-  --bg: #0D0015;
-  --surface: #15001E;
-  --surface-raised: #1E0030;
-  --surface-high: #2E0048;
+  --bg: #1A0B1E;
+  --surface: #29153A;
+  --surface-raised: #2E1438;
+  --surface-high: #3F1F50;
 
   --fg: #FFFFFF;
-  --fg-muted: #C9A0E0;
-  --fg-faint: #8B6BA8;
-  --fg-disabled: #5C4778;
+  --fg-muted: #DCC4EC;
+  --fg-faint: #A584C0;
+  --fg-disabled: #6B5586;
 
-  --border: rgba(255, 0, 204, 0.18);
-  --border-subtle: rgba(255, 0, 204, 0.08);
-  --border-strong: rgba(255, 0, 204, 0.32);
+  --border: rgba(255, 0, 204, 0.22);
+  --border-subtle: rgba(255, 0, 204, 0.10);
+  --border-strong: rgba(255, 0, 204, 0.40);
 
   --accent: #FF00CC;
   --accent-hover: #E000B3;
@@ -112,6 +117,7 @@
   --danger: #FF4400;
   --danger-text: #FF7755;
   --warning: #FFEE00;
+  --link: #00FFEE;
 
   --grad-accent: linear-gradient(135deg, #FF00CC 0%, #00FFEE 100%);
 
