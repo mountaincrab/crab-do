@@ -70,10 +70,13 @@ class SnoozePickerActivity : ComponentActivity() {
                     onSnooze = { minutes ->
                         val snoozeMillis = System.currentTimeMillis() + minutes * 60_000L
                         alarmScheduler.scheduleReminder(reminderId, title, snoozeMillis, styleStr)
+                        // Defer finish() until the DB write lands, so a fast follow-up
+                        // edit can't read pre-snooze state and have updateSnooze (partial
+                        // UPDATE) reapply the snooze on top of the edited row.
                         activityScope.launch {
                             reminderRepository.setSnoozeUntil(reminderId, snoozeMillis)
+                            runOnUiThread { finish() }
                         }
-                        finish()
                     },
                     onDismiss = { finish() }
                 )

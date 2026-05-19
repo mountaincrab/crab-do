@@ -46,6 +46,10 @@ class TaskRepository(
             updatedAt = System.currentTimeMillis(),
             syncStatus = SyncStatus.PENDING
         ))
+        // Snooze (from SnoozePickerActivity) schedules in the standalone-reminder slot,
+        // which cancelTaskReminder doesn't touch — clear it here so editing the task
+        // cancels any active snooze.
+        alarmScheduler.cancelReminder(task.id)
         task.reminderTimeMillis?.let { time ->
             alarmScheduler.scheduleTaskReminder(task.id, task.title, time, task.reminderStyle)
         } ?: alarmScheduler.cancelTaskReminder(task.id)
@@ -68,6 +72,7 @@ class TaskRepository(
 
     suspend fun deleteTask(taskId: String) {
         alarmScheduler.cancelTaskReminder(taskId)
+        alarmScheduler.cancelReminder(taskId)
         taskDao.softDelete(taskId)
         enqueueSyncWork()
     }

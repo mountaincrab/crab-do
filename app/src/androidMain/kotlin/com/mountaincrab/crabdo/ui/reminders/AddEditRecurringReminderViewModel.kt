@@ -88,7 +88,8 @@ class AddEditRecurringReminderViewModel(
                     recurrenceRuleJson = rule.toJson(),
                     startDate = startDate,
                     reminderTime = reminderTime,
-                    reminderStyle = selectedStyle
+                    reminderStyle = selectedStyle,
+                    snoozedUntilMillis = null
                 ))
             }
             onSuccess()
