@@ -45,8 +45,6 @@ export default function KanbanBoardPage() {
     setRenamingCol(null)
   }
 
-  const visibleCols = draggingColId ? columns.filter((c) => c.id !== draggingColId) : columns
-
   const getColGapFromEvent = (e: React.DragEvent): number => {
     const colEls = colsContainerRef.current?.querySelectorAll('[data-column-card]') ?? []
     for (let i = 0; i < colEls.length; i++) {
@@ -57,8 +55,8 @@ export default function KanbanBoardPage() {
   }
 
   const orderForColGap = (gap: number): number => {
-    const prev = visibleCols[gap - 1]
-    const next = visibleCols[gap]
+    const prev = columns[gap - 1]
+    const next = columns[gap]
     if (!prev && !next) return 1
     if (!prev) return next.order - 1
     if (!next) return prev.order + 1
@@ -110,14 +108,16 @@ export default function KanbanBoardPage() {
           onDragLeave={handleColDragLeave}
           onDrop={handleColDrop}
         >
-          {visibleCols.map((col, i) => (
-            <div key={col.id} className="contents">
-              {draggingColId && hoverColGap === i && <ColDropIndicator />}
+          {columns.map((col, i) => (
+            <>
+              {draggingColId && hoverColGap === i && <ColDropIndicator key={`gap-${i}`} />}
               <KanbanColumnView
+                key={col.id}
                 column={col}
                 tasks={tasksByColumn[col.id] ?? []}
                 allColumns={columns}
                 draggingTaskId={draggingTaskId}
+                isDraggingThis={col.id === draggingColId}
                 onDragStart={(taskId) => setDraggingTaskId(taskId)}
                 onDragEnd={() => setDraggingTaskId(null)}
                 onColDragStart={(colId) => setDraggingColId(colId)}
@@ -129,9 +129,9 @@ export default function KanbanBoardPage() {
                 onDelete={() => deleteColumn(col.id)}
                 onTaskClick={(taskId) => navigate(`/board/${boardId}/task/${taskId}`)}
               />
-            </div>
+            </>
           ))}
-          {draggingColId && hoverColGap === visibleCols.length && <ColDropIndicator />}
+          {draggingColId && hoverColGap === columns.length && <ColDropIndicator key="gap-end" />}
 
           <div className="shrink-0 w-64">
             {showAddColumn ? (
@@ -222,6 +222,7 @@ interface ColumnViewProps {
   tasks: Task[]
   allColumns: Column[]
   draggingTaskId: string | null
+  isDraggingThis: boolean
   onDragStart: (taskId: string) => void
   onDragEnd: () => void
   onColDragStart: (colId: string) => void
@@ -236,7 +237,7 @@ interface ColumnViewProps {
 
 function KanbanColumnView({
   column, tasks, allColumns,
-  draggingTaskId,
+  draggingTaskId, isDraggingThis,
   onDragStart, onDragEnd,
   onColDragStart, onColDragEnd,
   onAddTask, onMoveTask, onDeleteTask,
@@ -303,7 +304,7 @@ function KanbanColumnView({
       data-column-card
       className={`shrink-0 w-64 flex flex-col gap-2 rounded-xl p-1 transition-colors group ${
         isDragging && hoverGap !== null ? 'bg-accent-soft ring-1 ring-accent/30' : ''
-      }`}
+      } ${isDraggingThis ? 'opacity-30 pointer-events-none' : ''}`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
