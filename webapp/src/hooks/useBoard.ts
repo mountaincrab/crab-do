@@ -110,11 +110,15 @@ export function useBoard(userId: string, boardId: string) {
     )
   }
 
-  const moveColumn = async (columnId: string, newOrder: number) => {
-    await updateDoc(
-      doc(db, 'users', userId, 'boards', boardId, 'columns', columnId),
-      { order: newOrder, updatedAt: serverTimestamp() },
-    )
+  const reorderColumns = async (orderedIds: string[]) => {
+    const batch = writeBatch(db)
+    orderedIds.forEach((id, i) => {
+      batch.update(
+        doc(db, 'users', userId, 'boards', boardId, 'columns', id),
+        { order: i + 1, updatedAt: serverTimestamp() },
+      )
+    })
+    await batch.commit()
   }
 
   const deleteTask = async (taskId: string) => {
@@ -142,7 +146,7 @@ export function useBoard(userId: string, boardId: string) {
     addColumn,
     renameColumn,
     deleteColumn,
-    moveColumn,
+    reorderColumns,
     addTask,
     moveTask,
     deleteTask,

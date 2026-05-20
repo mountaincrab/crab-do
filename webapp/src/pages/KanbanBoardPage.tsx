@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, ChevronRight, GripVertical, MoreHorizontal } from 'lucide-react'
+import { ArrowLeft, ChevronDown, ChevronRight, ChevronUp, MoreHorizontal, Settings2 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useBoard } from '../hooks/useBoard'
 import { Column, Task } from '../types'
@@ -11,7 +11,7 @@ export default function KanbanBoardPage() {
   const navigate = useNavigate()
   const {
     board, columns, tasksByColumn, loading,
-    addColumn, renameColumn, deleteColumn, moveColumn,
+    addColumn, renameColumn, deleteColumn, reorderColumns,
     addTask, moveTask, deleteTask,
   } = useBoard(user!.uid, boardId!)
 
@@ -20,9 +20,7 @@ export default function KanbanBoardPage() {
   const [renamingCol, setRenamingCol] = useState<Column | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null)
-  const [draggingColId, setDraggingColId] = useState<string | null>(null)
-  const [hoverColGap, setHoverColGap] = useState<number | null>(null)
-  const colsContainerRef = useRef<HTMLDivElement>(null)
+  const [showManageColumns, setShowManageColumns] = useState(false)
 
   if (loading) {
     return (
@@ -45,45 +43,18 @@ export default function KanbanBoardPage() {
     setRenamingCol(null)
   }
 
-  const getColGapFromEvent = (e: React.DragEvent): number => {
-    const colEls = colsContainerRef.current?.querySelectorAll('[data-column-card]') ?? []
-    for (let i = 0; i < colEls.length; i++) {
-      const rect = colEls[i].getBoundingClientRect()
-      if (e.clientX < rect.left + rect.width / 2) return i
-    }
-    return colEls.length
+  const handleMoveUp = (index: number) => {
+    if (index === 0) return
+    const ids = columns.map((c) => c.id)
+    ;[ids[index - 1], ids[index]] = [ids[index], ids[index - 1]]
+    reorderColumns(ids)
   }
 
-  const orderForColGap = (gap: number): number => {
-    const prev = columns[gap - 1]
-    const next = columns[gap]
-    if (!prev && !next) return 1
-    if (!prev) return next.order - 1
-    if (!next) return prev.order + 1
-    return (prev.order + next.order) / 2
-  }
-
-  const handleColDragOver = (e: React.DragEvent) => {
-    if (!e.dataTransfer.types.includes('columnid')) return
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-    setHoverColGap(getColGapFromEvent(e))
-  }
-
-  const handleColDragLeave = (e: React.DragEvent) => {
-    if (!colsContainerRef.current?.contains(e.relatedTarget as Node)) {
-      setHoverColGap(null)
-    }
-  }
-
-  const handleColDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    const columnId = e.dataTransfer.getData('columnId')
-    if (columnId && hoverColGap !== null) {
-      moveColumn(columnId, orderForColGap(hoverColGap))
-    }
-    setDraggingColId(null)
-    setHoverColGap(null)
+  const handleMoveDown = (index: number) => {
+    if (index === columns.length - 1) return
+    const ids = columns.map((c) => c.id)
+    ;[ids[index], ids[index + 1]] = [ids[index + 1], ids[index]]
+    reorderColumns(ids)
   }
 
   return (
@@ -96,42 +67,35 @@ export default function KanbanBoardPage() {
         >
           <ArrowLeft size={16} /> Back
         </button>
-        <h1 className="font-bold text-lg tracking-tightish">{board?.title ?? '…'}</h1>
+        <h1 className="font-bold text-lg tracking-tightish flex-1">{board?.title ?? '…'}</h1>
+        <button
+          onClick={() => setShowManageColumns(true)}
+          className="text-fg-muted hover:text-fg transition-colors p-1 rounded"
+          title="Manage columns"
+        >
+          <Settings2 size={18} />
+        </button>
       </header>
 
       <div className="flex-1 overflow-x-auto">
-        <div
-          ref={colsContainerRef}
-          className="flex gap-4 p-6 h-full items-start"
-          style={{ minHeight: 'calc(100vh - 57px)' }}
-          onDragOver={handleColDragOver}
-          onDragLeave={handleColDragLeave}
-          onDrop={handleColDrop}
-        >
-          {columns.map((col, i) => (
-            <>
-              {draggingColId && hoverColGap === i && <ColDropIndicator key={`gap-${i}`} />}
-              <KanbanColumnView
-                key={col.id}
-                column={col}
-                tasks={tasksByColumn[col.id] ?? []}
-                allColumns={columns}
-                draggingTaskId={draggingTaskId}
-                isDraggingThis={col.id === draggingColId}
-                onDragStart={(taskId) => setDraggingTaskId(taskId)}
-                onDragEnd={() => setDraggingTaskId(null)}
-                onColDragStart={(colId) => setDraggingColId(colId)}
-                onColDragEnd={() => { setDraggingColId(null); setHoverColGap(null) }}
-                onAddTask={(title, desc) => addTask(col.id, title, desc)}
-                onMoveTask={moveTask}
-                onDeleteTask={deleteTask}
-                onRename={() => { setRenamingCol(col); setRenameValue(col.title) }}
-                onDelete={() => deleteColumn(col.id)}
-                onTaskClick={(taskId) => navigate(`/board/${boardId}/task/${taskId}`)}
-              />
-            </>
+        <div className="flex gap-4 p-6 h-full items-start" style={{ minHeight: 'calc(100vh - 57px)' }}>
+          {columns.map((col) => (
+            <KanbanColumnView
+              key={col.id}
+              column={col}
+              tasks={tasksByColumn[col.id] ?? []}
+              allColumns={columns}
+              draggingTaskId={draggingTaskId}
+              onDragStart={(taskId) => setDraggingTaskId(taskId)}
+              onDragEnd={() => setDraggingTaskId(null)}
+              onAddTask={(title, desc) => addTask(col.id, title, desc)}
+              onMoveTask={moveTask}
+              onDeleteTask={deleteTask}
+              onRename={() => { setRenamingCol(col); setRenameValue(col.title) }}
+              onDelete={() => deleteColumn(col.id)}
+              onTaskClick={(taskId) => navigate(`/board/${boardId}/task/${taskId}`)}
+            />
           ))}
-          {draggingColId && hoverColGap === columns.length && <ColDropIndicator key="gap-end" />}
 
           <div className="shrink-0 w-64">
             {showAddColumn ? (
@@ -192,6 +156,49 @@ export default function KanbanBoardPage() {
           </div>
         </div>
       )}
+
+      {showManageColumns && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-surface-raised border border-DEFAULT rounded-2xl p-6 w-full max-w-sm shadow-dialog">
+            <h2 className="text-lg font-bold mb-4 text-fg">Manage Columns</h2>
+            {columns.length === 0 ? (
+              <p className="text-sm text-fg-faint mb-4">No columns yet.</p>
+            ) : (
+              <div className="flex flex-col gap-1 mb-4">
+                {columns.map((col, i) => (
+                  <div key={col.id} className="flex items-center gap-1 py-1.5 px-2 rounded-lg hover:bg-surface-high group">
+                    <span className="flex-1 text-sm text-fg truncate">{col.title}</span>
+                    <button
+                      onClick={() => handleMoveUp(i)}
+                      disabled={i === 0}
+                      className="p-1 text-fg-faint hover:text-fg disabled:opacity-25 transition-colors rounded"
+                      title="Move up"
+                    >
+                      <ChevronUp size={15} />
+                    </button>
+                    <button
+                      onClick={() => handleMoveDown(i)}
+                      disabled={i === columns.length - 1}
+                      className="p-1 text-fg-faint hover:text-fg disabled:opacity-25 transition-colors rounded"
+                      title="Move down"
+                    >
+                      <ChevronDown size={15} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex justify-end">
+              <button
+                onClick={() => setShowManageColumns(false)}
+                className="px-4 py-2 bg-accent hover:bg-accent-hover text-accent-fg text-sm rounded-xl font-semibold transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -213,20 +220,13 @@ function DropIndicator() {
   )
 }
 
-function ColDropIndicator() {
-  return <div className="w-[3px] min-h-[100px] self-stretch rounded-full bg-accent shrink-0 pointer-events-none" />
-}
-
 interface ColumnViewProps {
   column: Column
   tasks: Task[]
   allColumns: Column[]
   draggingTaskId: string | null
-  isDraggingThis: boolean
   onDragStart: (taskId: string) => void
   onDragEnd: () => void
-  onColDragStart: (colId: string) => void
-  onColDragEnd: () => void
   onAddTask: (title: string, description: string) => void
   onMoveTask: (taskId: string, targetColumnId: string, newOrder: number) => void
   onDeleteTask: (taskId: string) => void
@@ -237,9 +237,8 @@ interface ColumnViewProps {
 
 function KanbanColumnView({
   column, tasks, allColumns,
-  draggingTaskId, isDraggingThis,
+  draggingTaskId,
   onDragStart, onDragEnd,
-  onColDragStart, onColDragEnd,
   onAddTask, onMoveTask, onDeleteTask,
   onRename, onDelete, onTaskClick,
 }: ColumnViewProps) {
@@ -266,7 +265,6 @@ function KanbanColumnView({
   }
 
   const handleDragOver = (e: React.DragEvent) => {
-    if (!e.dataTransfer.types.includes('taskid')) return
     if (!isDragging) return
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
@@ -280,7 +278,6 @@ function KanbanColumnView({
   }
 
   const handleDrop = (e: React.DragEvent) => {
-    if (!e.dataTransfer.types.includes('taskid')) return
     e.preventDefault()
     const taskId = e.dataTransfer.getData('taskId')
     const gap = getGapFromEvent(e)
@@ -301,30 +298,15 @@ function KanbanColumnView({
 
   return (
     <div
-      data-column-card
-      className={`shrink-0 w-64 flex flex-col gap-2 rounded-xl p-1 transition-colors group ${
+      className={`shrink-0 w-64 flex flex-col gap-2 rounded-xl p-1 transition-colors ${
         isDragging && hoverGap !== null ? 'bg-accent-soft ring-1 ring-accent/30' : ''
-      } ${isDraggingThis ? 'opacity-30 pointer-events-none' : ''}`}
+      }`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
       <div className="flex items-center justify-between px-1">
-        <div className="flex items-center gap-1.5">
-          <div
-            draggable
-            onDragStart={(e) => {
-              e.stopPropagation()
-              e.dataTransfer.effectAllowed = 'move'
-              e.dataTransfer.setData('columnId', column.id)
-              onColDragStart(column.id)
-            }}
-            onDragEnd={(e) => { e.stopPropagation(); onColDragEnd() }}
-            className="opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-fg-faint hover:text-fg p-0.5 -ml-0.5 rounded"
-            title="Drag to reorder column"
-          >
-            <GripVertical size={14} />
-          </div>
+        <div className="flex items-center gap-2">
           <span className="font-bold text-sm text-fg">{column.title}</span>
           <span className="text-xs text-fg-muted bg-surface-high px-2 py-0.5 rounded-full font-semibold">{tasks.length}</span>
         </div>
@@ -430,7 +412,6 @@ function TaskCardView({ task, allColumns, onDragStart, onDragEnd, onMove, onDele
   const otherColumns = allColumns.filter((c) => c.id !== task.columnId)
 
   const handleDragStart = (e: React.DragEvent) => {
-    e.stopPropagation()
     e.dataTransfer.effectAllowed = 'move'
     e.dataTransfer.setData('taskId', task.id)
     e.dataTransfer.setData('sourceColumnId', task.columnId)
