@@ -110,6 +110,13 @@ export function useBoard(userId: string, boardId: string) {
     )
   }
 
+  const moveColumn = async (columnId: string, newOrder: number) => {
+    await updateDoc(
+      doc(db, 'users', userId, 'boards', boardId, 'columns', columnId),
+      { order: newOrder, updatedAt: serverTimestamp() },
+    )
+  }
+
   const deleteTask = async (taskId: string) => {
     // Soft-delete task and its subtasks
     const batch = writeBatch(db)
@@ -135,6 +142,7 @@ export function useBoard(userId: string, boardId: string) {
     addColumn,
     renameColumn,
     deleteColumn,
+    moveColumn,
     addTask,
     moveTask,
     deleteTask,

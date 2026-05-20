@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, MoreHorizontal, ChevronRight } from 'lucide-react'
+import { ArrowLeft, ChevronRight, GripVertical, MoreHorizontal } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useBoard } from '../hooks/useBoard'
 import { Column, Task } from '../types'
@@ -11,7 +11,7 @@ export default function KanbanBoardPage() {
   const navigate = useNavigate()
   const {
     board, columns, tasksByColumn, loading,
-    addColumn, renameColumn, deleteColumn,
+    addColumn, renameColumn, deleteColumn, moveColumn,
     addTask, moveTask, deleteTask,
   } = useBoard(user!.uid, boardId!)
 
@@ -20,6 +20,9 @@ export default function KanbanBoardPage() {
   const [renamingCol, setRenamingCol] = useState<Column | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null)
+  const [draggingColId, setDraggingColId] = useState<string | null>(null)
+  const [hoverColGap, setHoverColGap] = useState<number | null>(null)
+  const colsContainerRef = useRef<HTMLDivElement>(null)
 
   if (loading) {
     return (
@@ -42,6 +45,49 @@ export default function KanbanBoardPage() {
     setRenamingCol(null)
   }
 
+  const visibleCols = draggingColId ? columns.filter((c) => c.id !== draggingColId) : columns
+
+  const getColGapFromEvent = (e: React.DragEvent): number => {
+    const colEls = colsContainerRef.current?.querySelectorAll('[data-column-card]') ?? []
+    for (let i = 0; i < colEls.length; i++) {
+      const rect = colEls[i].getBoundingClientRect()
+      if (e.clientX < rect.left + rect.width / 2) return i
+    }
+    return colEls.length
+  }
+
+  const orderForColGap = (gap: number): number => {
+    const prev = visibleCols[gap - 1]
+    const next = visibleCols[gap]
+    if (!prev && !next) return 1
+    if (!prev) return next.order - 1
+    if (!next) return prev.order + 1
+    return (prev.order + next.order) / 2
+  }
+
+  const handleColDragOver = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('columnid')) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setHoverColGap(getColGapFromEvent(e))
+  }
+
+  const handleColDragLeave = (e: React.DragEvent) => {
+    if (!colsContainerRef.current?.contains(e.relatedTarget as Node)) {
+      setHoverColGap(null)
+    }
+  }
+
+  const handleColDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    const columnId = e.dataTransfer.getData('columnId')
+    if (columnId && hoverColGap !== null) {
+      moveColumn(columnId, orderForColGap(hoverColGap))
+    }
+    setDraggingColId(null)
+    setHoverColGap(null)
+  }
+
   return (
     <div className="min-h-screen bg-bg text-fg flex flex-col">
       <header className="border-b border-DEFAULT bg-surface px-6 py-3 flex items-center gap-4 shrink-0">
@@ -56,24 +102,36 @@ export default function KanbanBoardPage() {
       </header>
 
       <div className="flex-1 overflow-x-auto">
-        <div className="flex gap-4 p-6 h-full items-start" style={{ minHeight: 'calc(100vh - 57px)' }}>
-          {columns.map((col) => (
-            <KanbanColumnView
-              key={col.id}
-              column={col}
-              tasks={tasksByColumn[col.id] ?? []}
-              allColumns={columns}
-              draggingTaskId={draggingTaskId}
-              onDragStart={(taskId) => setDraggingTaskId(taskId)}
-              onDragEnd={() => setDraggingTaskId(null)}
-              onAddTask={(title, desc) => addTask(col.id, title, desc)}
-              onMoveTask={moveTask}
-              onDeleteTask={deleteTask}
-              onRename={() => { setRenamingCol(col); setRenameValue(col.title) }}
-              onDelete={() => deleteColumn(col.id)}
-              onTaskClick={(taskId) => navigate(`/board/${boardId}/task/${taskId}`)}
-            />
+        <div
+          ref={colsContainerRef}
+          className="flex gap-4 p-6 h-full items-start"
+          style={{ minHeight: 'calc(100vh - 57px)' }}
+          onDragOver={handleColDragOver}
+          onDragLeave={handleColDragLeave}
+          onDrop={handleColDrop}
+        >
+          {visibleCols.map((col, i) => (
+            <div key={col.id} className="contents">
+              {draggingColId && hoverColGap === i && <ColDropIndicator />}
+              <KanbanColumnView
+                column={col}
+                tasks={tasksByColumn[col.id] ?? []}
+                allColumns={columns}
+                draggingTaskId={draggingTaskId}
+                onDragStart={(taskId) => setDraggingTaskId(taskId)}
+                onDragEnd={() => setDraggingTaskId(null)}
+                onColDragStart={(colId) => setDraggingColId(colId)}
+                onColDragEnd={() => { setDraggingColId(null); setHoverColGap(null) }}
+                onAddTask={(title, desc) => addTask(col.id, title, desc)}
+                onMoveTask={moveTask}
+                onDeleteTask={deleteTask}
+                onRename={() => { setRenamingCol(col); setRenameValue(col.title) }}
+                onDelete={() => deleteColumn(col.id)}
+                onTaskClick={(taskId) => navigate(`/board/${boardId}/task/${taskId}`)}
+              />
+            </div>
           ))}
+          {draggingColId && hoverColGap === visibleCols.length && <ColDropIndicator />}
 
           <div className="shrink-0 w-64">
             {showAddColumn ? (
@@ -155,6 +213,10 @@ function DropIndicator() {
   )
 }
 
+function ColDropIndicator() {
+  return <div className="w-[3px] min-h-[100px] self-stretch rounded-full bg-accent shrink-0 pointer-events-none" />
+}
+
 interface ColumnViewProps {
   column: Column
   tasks: Task[]
@@ -162,6 +224,8 @@ interface ColumnViewProps {
   draggingTaskId: string | null
   onDragStart: (taskId: string) => void
   onDragEnd: () => void
+  onColDragStart: (colId: string) => void
+  onColDragEnd: () => void
   onAddTask: (title: string, description: string) => void
   onMoveTask: (taskId: string, targetColumnId: string, newOrder: number) => void
   onDeleteTask: (taskId: string) => void
@@ -174,6 +238,7 @@ function KanbanColumnView({
   column, tasks, allColumns,
   draggingTaskId,
   onDragStart, onDragEnd,
+  onColDragStart, onColDragEnd,
   onAddTask, onMoveTask, onDeleteTask,
   onRename, onDelete, onTaskClick,
 }: ColumnViewProps) {
@@ -200,6 +265,7 @@ function KanbanColumnView({
   }
 
   const handleDragOver = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('taskid')) return
     if (!isDragging) return
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
@@ -213,6 +279,7 @@ function KanbanColumnView({
   }
 
   const handleDrop = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('taskid')) return
     e.preventDefault()
     const taskId = e.dataTransfer.getData('taskId')
     const gap = getGapFromEvent(e)
@@ -233,7 +300,8 @@ function KanbanColumnView({
 
   return (
     <div
-      className={`shrink-0 w-64 flex flex-col gap-2 rounded-xl p-1 transition-colors ${
+      data-column-card
+      className={`shrink-0 w-64 flex flex-col gap-2 rounded-xl p-1 transition-colors group ${
         isDragging && hoverGap !== null ? 'bg-accent-soft ring-1 ring-accent/30' : ''
       }`}
       onDragOver={handleDragOver}
@@ -241,7 +309,21 @@ function KanbanColumnView({
       onDrop={handleDrop}
     >
       <div className="flex items-center justify-between px-1">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          <div
+            draggable
+            onDragStart={(e) => {
+              e.stopPropagation()
+              e.dataTransfer.effectAllowed = 'move'
+              e.dataTransfer.setData('columnId', column.id)
+              onColDragStart(column.id)
+            }}
+            onDragEnd={(e) => { e.stopPropagation(); onColDragEnd() }}
+            className="opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-fg-faint hover:text-fg p-0.5 -ml-0.5 rounded"
+            title="Drag to reorder column"
+          >
+            <GripVertical size={14} />
+          </div>
           <span className="font-bold text-sm text-fg">{column.title}</span>
           <span className="text-xs text-fg-muted bg-surface-high px-2 py-0.5 rounded-full font-semibold">{tasks.length}</span>
         </div>
@@ -300,7 +382,10 @@ function KanbanColumnView({
             autoFocus
             value={newTaskTitle}
             onChange={(e) => setNewTaskTitle(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Escape') { setShowAdd(false); setNewTaskTitle(''); setNewTaskDesc('') } }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleAddTask()
+              if (e.key === 'Escape') { setShowAdd(false); setNewTaskTitle(''); setNewTaskDesc('') }
+            }}
             placeholder="Task title"
             className="w-full bg-surface-raised border border-DEFAULT rounded-lg px-3 py-2 text-fg placeholder:text-fg-faint outline-none focus:border-accent text-sm mb-2 transition-colors"
           />
@@ -344,6 +429,7 @@ function TaskCardView({ task, allColumns, onDragStart, onDragEnd, onMove, onDele
   const otherColumns = allColumns.filter((c) => c.id !== task.columnId)
 
   const handleDragStart = (e: React.DragEvent) => {
+    e.stopPropagation()
     e.dataTransfer.effectAllowed = 'move'
     e.dataTransfer.setData('taskId', task.id)
     e.dataTransfer.setData('sourceColumnId', task.columnId)

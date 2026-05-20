@@ -1,17 +1,20 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ClipboardList, Users } from 'lucide-react'
+import { ClipboardList, MoreHorizontal, Users } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useBoards } from '../hooks/useBoards'
+import { Board } from '../types'
 import AppHeader from '../components/AppHeader'
 
 export default function BoardListPage() {
   const { user } = useAuth()
-  const { boards, loading, createBoard } = useBoards(user!.uid)
+  const { boards, loading, createBoard, deleteBoard } = useBoards(user!.uid)
   const navigate = useNavigate()
   const [newTitle, setNewTitle] = useState('')
   const [creating, setCreating] = useState(false)
   const [showDialog, setShowDialog] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState<Board | null>(null)
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
 
   const handleCreate = async () => {
     if (!newTitle.trim()) return
@@ -22,8 +25,14 @@ export default function BoardListPage() {
     setCreating(false)
   }
 
+  const handleDelete = async () => {
+    if (!confirmDelete) return
+    await deleteBoard(confirmDelete.id)
+    setConfirmDelete(null)
+  }
+
   return (
-    <div className="min-h-screen bg-bg text-fg">
+    <div className="min-h-screen bg-bg text-fg" onClick={() => setOpenMenuId(null)}>
       <AppHeader active="boards" />
 
       <main className="max-w-3xl mx-auto px-6 py-10">
@@ -47,23 +56,43 @@ export default function BoardListPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {boards.map((board) => (
-              <button
-                key={board.id}
-                onClick={() => navigate(`/board/${board.id}`)}
-                className="bg-surface-raised hover:bg-surface-high border border-DEFAULT rounded-xl p-5 text-left transition-colors group"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <h2 className="font-semibold text-fg group-hover:text-accent-text transition-colors">
-                    {board.title}
-                  </h2>
-                  {board.isShared && (
-                    <span className="flex items-center gap-1 text-xs text-fg-muted bg-surface-high px-2 py-0.5 rounded-full">
-                      <Users size={11} />
-                      shared
-                    </span>
+              <div key={board.id} className="relative">
+                <button
+                  onClick={() => navigate(`/board/${board.id}`)}
+                  className="w-full bg-surface-raised hover:bg-surface-high border border-DEFAULT rounded-xl p-5 text-left transition-colors group"
+                >
+                  <div className="flex items-start justify-between gap-3 pr-6">
+                    <h2 className="font-semibold text-fg group-hover:text-accent-text transition-colors">
+                      {board.title}
+                    </h2>
+                    {board.isShared && (
+                      <span className="flex items-center gap-1 text-xs text-fg-muted bg-surface-high px-2 py-0.5 rounded-full shrink-0">
+                        <Users size={11} />
+                        shared
+                      </span>
+                    )}
+                  </div>
+                </button>
+
+                <div className="absolute top-3 right-3">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === board.id ? null : board.id) }}
+                    className="text-fg-faint hover:text-fg p-1 rounded transition-colors"
+                  >
+                    <MoreHorizontal size={16} />
+                  </button>
+                  {openMenuId === board.id && (
+                    <div className="absolute right-0 top-full mt-1 bg-surface-high border border-DEFAULT rounded-lg shadow-dialog z-20 min-w-32 py-1">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setConfirmDelete(board); setOpenMenuId(null) }}
+                        className="w-full text-left px-4 py-2 text-sm text-danger-text hover:bg-white/5 transition-colors"
+                      >
+                        Delete board
+                      </button>
+                    </div>
                   )}
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         )}
@@ -95,6 +124,31 @@ export default function BoardListPage() {
                 className="px-4 py-2 bg-accent hover:bg-accent-hover disabled:opacity-40 text-accent-fg rounded-xl text-sm font-semibold transition-colors"
               >
                 Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmDelete && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-surface-raised border border-DEFAULT rounded-2xl p-6 w-full max-w-sm shadow-dialog">
+            <h2 className="text-lg font-bold mb-2 text-fg">Delete board?</h2>
+            <p className="text-sm text-fg-muted mb-6">
+              "{confirmDelete.title}" and all its tasks will be permanently removed.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmDelete(null)}
+                className="px-4 py-2 rounded-xl text-fg-muted hover:text-fg transition-colors text-sm font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                className="px-4 py-2 bg-danger hover:opacity-80 text-white rounded-xl text-sm font-semibold transition-colors"
+              >
+                Delete
               </button>
             </div>
           </div>

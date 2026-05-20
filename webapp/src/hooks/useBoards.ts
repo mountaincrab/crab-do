@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
-  collection, query, where, onSnapshot,
-  addDoc, serverTimestamp,
+  collection, doc, query, where, onSnapshot,
+  addDoc, serverTimestamp, getDocs, writeBatch,
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import { Board } from '../types'
@@ -36,5 +36,22 @@ export function useBoards(userId: string) {
     })
   }
 
-  return { boards, loading, createBoard }
+  const deleteBoard = async (boardId: string) => {
+    const batch = writeBatch(db)
+    batch.update(doc(db, 'users', userId, 'boards', boardId), {
+      isDeleted: true,
+      updatedAt: serverTimestamp(),
+    })
+    const colsSnap = await getDocs(
+      query(collection(db, 'users', userId, 'boards', boardId, 'columns'), where('isDeleted', '==', false)),
+    )
+    colsSnap.docs.forEach((d) => batch.update(d.ref, { isDeleted: true, updatedAt: serverTimestamp() }))
+    const tasksSnap = await getDocs(
+      query(collection(db, 'users', userId, 'boards', boardId, 'tasks'), where('isDeleted', '==', false)),
+    )
+    tasksSnap.docs.forEach((d) => batch.update(d.ref, { isDeleted: true, updatedAt: serverTimestamp() }))
+    await batch.commit()
+  }
+
+  return { boards, loading, createBoard, deleteBoard }
 }
