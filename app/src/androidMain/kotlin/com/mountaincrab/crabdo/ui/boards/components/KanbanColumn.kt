@@ -95,6 +95,10 @@ fun KanbanColumn(
     // can be reordered within the target while the source still owns the
     // gesture. Each TaskCard updates its entry via onGloballyPositioned.
     val cardYsState = remember { mutableStateMapOf<String, Float>() }
+    // Per-card measured height. Needed so the within-column swap can compensate
+    // dragOffsetY by the *neighbor's* height (not the dragged card's), keeping
+    // the source card glued to the finger when neighbors have mixed heights.
+    val cardHeightsState = remember { mutableStateMapOf<String, Float>() }
 
     // Insert/remove the ghost and track its vertical position within this column.
     // Insertion and the snapshotFlow collection are combined in one effect so the
@@ -219,6 +223,13 @@ fun KanbanColumn(
                 // still animate via animateItem, so they slide around the dragged card.
                 val itemModifier = if (isDragging) Modifier else Modifier.animateItem()
 
+                // A foreign ghost is the dragged task inserted into a *target*
+                // column. The source column still owns the gesture and updates
+                // dragFingerYAbs; the target's dragOffsetY is never set, so we
+                // can't translate by it. Instead, glue the ghost to the finger
+                // by translating from its current layout slot to the finger Y.
+                val isForeignGhost = isDragging && foreignDraggedTask != null
+
                 TaskCard(
                     task = task,
                     subtaskCount = counts?.total ?: 0,
@@ -228,10 +239,23 @@ fun KanbanColumn(
                         .zIndex(if (isDragging) 1f else 0f)
                         .graphicsLayer {
                             alpha = if (isDragging) 0.5f else 1f
-                            translationY = if (isDragging) dragOffsetY else 0f
+                            translationY = when {
+                                isForeignGhost -> {
+                                    val cardY = cardYsState[task.id]
+                                    val h = cardHeightsState[task.id] ?: cardHeightPx
+                                    if (cardY != null && cardY > 0f && h > 0f) {
+                                        dragFingerYAbs.floatValue - cardY - h / 2f
+                                    } else 0f
+                                }
+                                isDragging -> dragOffsetY
+                                else -> 0f
+                            }
                         }
                         .onSizeChanged { size ->
-                            if (size.height > 0) cardHeightPx = size.height.toFloat()
+                            if (size.height > 0) {
+                                cardHeightPx = size.height.toFloat()
+                                cardHeightsState[task.id] = size.height.toFloat()
+                            }
                         }
                         .onGloballyPositioned { coords ->
                             val r = coords.boundsInRoot()
@@ -295,24 +319,40 @@ fun KanbanColumn(
                                     }
 
                                     // Within-column: accumulate Y and reorder at midpoint.
+                                    // The swap threshold and compensation must use the
+                                    // *neighbor's* height + spacing, not the dragged
+                                    // card's. After a swap the dragged card's layout
+                                    // slot shifts by the neighbor's height + spacing —
+                                    // subtracting anything else from dragOffsetY leaves
+                                    // a residual that visibly bumps the card off the
+                                    // finger every time it passes a card of a different
+                                    // height.
                                     dragOffsetY += dragAmount.y
-                                    val slotH = if (cardHeightPx > 0f) cardHeightPx + cardSpacingPx
-                                                else with(density) { 80.dp.toPx() }
+                                    val fallbackSlotH = if (cardHeightPx > 0f) cardHeightPx + cardSpacingPx
+                                                        else with(density) { 80.dp.toPx() }
                                     var curIdx = displayTasksState.value.indexOfFirst { it.id == capturedTaskId }
                                     if (curIdx < 0) return@detectDragGesturesAfterLongPress
 
-                                    while (dragOffsetY > slotH / 2f && curIdx < displayTasksState.value.size - 1) {
+                                    while (curIdx < displayTasksState.value.size - 1) {
+                                        val neighborId = displayTasksState.value[curIdx + 1].id
+                                        val neighborSlotH = cardHeightsState[neighborId]?.plus(cardSpacingPx)
+                                            ?: fallbackSlotH
+                                        if (dragOffsetY <= neighborSlotH / 2f) break
                                         val m = displayTasksState.value.toMutableList()
                                         m.add(curIdx + 1, m.removeAt(curIdx))
                                         displayTasksState.value = m
-                                        dragOffsetY -= slotH
+                                        dragOffsetY -= neighborSlotH
                                         curIdx++
                                     }
-                                    while (dragOffsetY < -slotH / 2f && curIdx > 0) {
+                                    while (curIdx > 0) {
+                                        val neighborId = displayTasksState.value[curIdx - 1].id
+                                        val neighborSlotH = cardHeightsState[neighborId]?.plus(cardSpacingPx)
+                                            ?: fallbackSlotH
+                                        if (dragOffsetY >= -neighborSlotH / 2f) break
                                         val m = displayTasksState.value.toMutableList()
                                         m.add(curIdx - 1, m.removeAt(curIdx))
                                         displayTasksState.value = m
-                                        dragOffsetY += slotH
+                                        dragOffsetY += neighborSlotH
                                         curIdx--
                                     }
                                 },
