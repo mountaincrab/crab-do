@@ -2,13 +2,13 @@ name: Android Build
 
 on:
   push:
-    branches: ["main"]
+    branches: ["**"]
   pull_request:
     branches: ["**"]
 
 jobs:
-  compile:
-    name: Compile (Android)
+  build:
+    name: Build (Android)
     runs-on: ubuntu-latest
 
     steps:
@@ -29,9 +29,26 @@ jobs:
           key: gradle-${{ hashFiles('**/*.gradle.kts', '**/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: gradle-
 
-      - name: Create stub google-services.json
+      - name: Compute APK name
+        id: apk_name
         run: |
-          cat > app/google-services.json <<'EOF'
+          VERSION=$(grep 'versionName' app/build.gradle.kts | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          BRANCH="${GITHUB_REF_NAME//\//-}"
+          SHORT_SHA="${GITHUB_SHA::7}"
+          if [ "$GITHUB_REF_NAME" = "main" ]; then
+            NAME="crabdo-v${VERSION}"
+          else
+            NAME="crabdo-${BRANCH}-${SHORT_SHA}"
+          fi
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Decode google-services.json
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            echo "$GOOGLE_SERVICES_JSON" | base64 --decode > app/google-services.json
+            echo "Using real google-services.json from secret"
+          else
+            cat > app/google-services.json <<'EOF'
           {
             "project_info": {
               "project_number": "000000000000",
@@ -62,6 +79,20 @@ jobs:
             "configuration_version": "1"
           }
           EOF
+            echo "GOOGLE_SERVICES_JSON secret not set; using stub (Firebase will not work at runtime)"
+          fi
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
 
-      - name: Compile debug Kotlin (Android)
-        run: ./gradlew :app:compileDebugKotlinAndroid
+      - name: Build debug APK
+        run: ./gradlew :app:assembleDebug
+
+      - name: Rename APK
+        run: mv app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/${{ steps.apk_name.outputs.name }}.apk
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.apk_name.outputs.name }}
+          path: app/build/outputs/apk/debug/${{ steps.apk_name.outputs.name }}.apk
+          retention-days: 14
