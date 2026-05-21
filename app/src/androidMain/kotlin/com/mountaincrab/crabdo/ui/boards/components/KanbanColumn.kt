@@ -99,6 +99,14 @@ fun KanbanColumn(
     // dragOffsetY by the *neighbor's* height (not the dragged card's), keeping
     // the source card glued to the finger when neighbors have mixed heights.
     val cardHeightsState = remember { mutableStateMapOf<String, Float>() }
+    // Top of the LazyColumn's parent Box in root coords. The foreign-ghost
+    // overlay anchors its translationY to this (stable across LazyColumn
+    // reorders), so the ghost tracks the finger smoothly. Previously the
+    // ghost lived inside the LazyColumn with translationY = fingerY -
+    // cardY - h/2, but cardY was a one-frame-stale read from
+    // onGloballyPositioned — every reorder produced a 1-slot visual jump
+    // that corrected on the next frame.
+    val boxTopInRootState = remember { mutableFloatStateOf(0f) }
 
     // Insert/remove the ghost and track its vertical position within this column.
     // Insertion and the snapshotFlow collection are combined in one effect so the
@@ -202,12 +210,17 @@ fun KanbanColumn(
             }
         }
 
-        LazyColumn(
-            state = lazyListState,
-            modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(horizontal = 4.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .onGloballyPositioned { boxTopInRootState.floatValue = it.boundsInRoot().top }
         ) {
+            LazyColumn(
+                state = lazyListState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
             itemsIndexed(displayTasks, key = { _, it -> it.id }) { _, task ->
                 val isDragging = task.id == draggedTaskId
                 val capturedTaskId = task.id
@@ -238,15 +251,18 @@ fun KanbanColumn(
                     modifier = itemModifier
                         .zIndex(if (isDragging) 1f else 0f)
                         .graphicsLayer {
-                            alpha = if (isDragging) 0.5f else 1f
+                            // Foreign ghost: invisible inside the LazyColumn
+                            // (just provides the drop-zone gap via its natural
+                            // size). The visible copy is rendered as an overlay
+                            // outside the LazyColumn so its translationY can be
+                            // anchored to a stable reference.
+                            alpha = when {
+                                isForeignGhost -> 0f
+                                isDragging -> 0.5f
+                                else -> 1f
+                            }
                             translationY = when {
-                                isForeignGhost -> {
-                                    val cardY = cardYsState[task.id]
-                                    val h = cardHeightsState[task.id] ?: cardHeightPx
-                                    if (cardY != null && cardY > 0f && h > 0f) {
-                                        dragFingerYAbs.floatValue - cardY - h / 2f
-                                    } else 0f
-                                }
+                                isForeignGhost -> 0f
                                 isDragging -> dragOffsetY
                                 else -> 0f
                             }
@@ -424,6 +440,37 @@ fun KanbanColumn(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+            }
+            }
+
+            // Floating ghost overlay — anchored to the column's Box top in
+            // root coords (a stable reference across LazyColumn reorders), so
+            // translationY tracks the finger smoothly. The dragged task entry
+            // is still inserted into the LazyColumn's displayTasksState (so
+            // ghostOrderBracket gets computed for the drop) but rendered with
+            // alpha=0 — its natural size provides the drop-zone gap.
+            if (foreignDraggedTask != null && ghostColumnId.value == column.id) {
+                val ghostTask = foreignDraggedTask
+                val ghostCounts = subtaskCounts[ghostTask.id]
+                TaskCard(
+                    task = ghostTask,
+                    subtaskCount = ghostCounts?.total ?: 0,
+                    completedSubtaskCount = ghostCounts?.completed ?: 0,
+                    isDragging = true,
+                    modifier = Modifier
+                        .padding(horizontal = 4.dp)
+                        .graphicsLayer {
+                            alpha = 0.5f
+                            val h = cardHeightsState[ghostTask.id] ?: cardHeightPx
+                            translationY = dragFingerYAbs.floatValue - boxTopInRootState.floatValue - h / 2f
+                        }
+                        .onSizeChanged { size ->
+                            if (size.height > 0) {
+                                cardHeightsState[ghostTask.id] = size.height.toFloat()
+                            }
+                        },
+                    onTap = {}
+                )
             }
         }
     }
