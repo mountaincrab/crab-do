@@ -68,6 +68,18 @@ android {
     namespace = "com.mountaincrab.crabdo"
     compileSdk = 35
 
+    val keystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+    if (keystorePath != null) {
+        signingConfigs {
+            getByName("debug") {
+                storeFile = file(keystorePath)
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
+    }
+
     defaultConfig {
         applicationId = "com.mountaincrab.crabdo"
         minSdk = 26
