@@ -84,6 +84,18 @@ jobs:
         env:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
 
+      - name: Decode debug keystore
+        run: |
+          if [ -n "$DEBUG_KEYSTORE" ]; then
+            echo "$DEBUG_KEYSTORE" | base64 --decode > "$RUNNER_TEMP/debug.keystore"
+            echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/debug.keystore" >> "$GITHUB_ENV"
+            echo "Keystore decoded from secret"
+          else
+            echo "DEBUG_KEYSTORE secret not set; using ephemeral key (Google Sign-In won't work in this build)"
+          fi
+        env:
+          DEBUG_KEYSTORE: ${{ secrets.DEBUG_KEYSTORE }}
+
       - name: Build debug APK
         run: ./gradlew :app:assembleDebug
 
