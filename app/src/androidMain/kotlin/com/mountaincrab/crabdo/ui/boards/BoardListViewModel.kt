@@ -29,7 +29,10 @@ class BoardListViewModel(
     private val userId = authRepository.currentUserId ?: ""
 
     init {
-        if (userId.isNotEmpty()) reminderRepository.startFirestoreListener(userId)
+        if (userId.isNotEmpty()) {
+            reminderRepository.startFirestoreListener(userId)
+            viewModelScope.launch { reminderRepository.rescheduleAllReminders() }
+        }
     }
 
     val boards: StateFlow<List<BoardEntity>> =
