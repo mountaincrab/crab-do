@@ -449,6 +449,19 @@ private fun AddSubtaskSheet(
     val focusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
 
+    // Add the current subtask but keep the sheet + keyboard up so the user can
+    // type the next one straight away. Re-requesting focus and re-showing the
+    // keyboard counteracts the IME "Done" action (and the icon tap) dismissing
+    // the keyboard / stealing focus.
+    val addAndContinue = {
+        if (text.isNotBlank()) {
+            onAdd(text.trim())
+            text = ""
+            focusRequester.requestFocus()
+            keyboardController?.show()
+        }
+    }
+
     // Single back press closes both the keyboard and the sheet
     BackHandler(enabled = true) {
         keyboardController?.hide()
@@ -475,23 +488,11 @@ private fun AddSubtaskSheet(
                     .focusRequester(focusRequester),
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done, capitalization = KeyboardCapitalization.Sentences),
-                keyboardActions = KeyboardActions(
-                    onDone = {
-                        if (text.isNotBlank()) {
-                            onAdd(text.trim())
-                            text = ""
-                        }
-                    }
-                )
+                keyboardActions = KeyboardActions(onDone = { addAndContinue() })
             )
             Spacer(Modifier.width(8.dp))
             IconButton(
-                onClick = {
-                    if (text.isNotBlank()) {
-                        onAdd(text.trim())
-                        text = ""
-                    }
-                },
+                onClick = addAndContinue,
                 enabled = text.isNotBlank()
             ) {
                 Icon(

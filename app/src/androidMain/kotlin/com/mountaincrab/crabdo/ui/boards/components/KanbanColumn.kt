@@ -1,6 +1,8 @@
 package com.mountaincrab.crabdo.ui.boards.components
 
+import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -25,6 +27,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
@@ -67,9 +70,17 @@ fun KanbanColumn(
     var swipingCardId by remember { mutableStateOf<String?>(null) }
     val swipeDxState = remember { mutableFloatStateOf(0f) }
 
+    // When a swipe passes the threshold and is released, the card keeps sliding
+    // off-screen (and fades) before the move actually commits — see the exit
+    // animation in the item below.
+    var exitingCardId by remember { mutableStateOf<String?>(null) }
+    var exitDirection by remember { mutableIntStateOf(1) }
+    var exitTargetColumnId by remember { mutableStateOf<String?>(null) }
+
     val density = LocalDensity.current
     val cardSpacingPx = with(density) { 6.dp.toPx() }
     val swipeThresholdPx = with(density) { 70.dp.toPx() }
+    val exitDistancePx = with(density) { LocalConfiguration.current.screenWidthDp.dp.toPx() }
     val haptic = LocalHapticFeedback.current
 
     val cardYsState = remember { mutableStateMapOf<String, Float>() }
@@ -136,6 +147,7 @@ fun KanbanColumn(
             itemsIndexed(displayTasks, key = { _, it -> it.id }) { _, task ->
                 val isDragging = task.id == draggedTaskId
                 val isSwiping = task.id == swipingCardId
+                val isExiting = task.id == exitingCardId
                 val capturedTaskId = task.id
                 val counts = subtaskCounts[task.id]
 
@@ -148,12 +160,33 @@ fun KanbanColumn(
                 else null
                 val isPastThreshold = isSwiping && abs(swipeDxState.floatValue) > swipeThresholdPx
 
-                // Spring back when swiping ends; snap to finger while active.
+                // While swiping: snap to finger. On release past threshold: keep
+                // sliding off-screen, then commit the column move. Otherwise:
+                // spring back to rest.
                 val swipeTranslationX by animateFloatAsState(
-                    targetValue = if (isSwiping) swipeDxState.floatValue * 0.9f else 0f,
-                    animationSpec = if (isSwiping) androidx.compose.animation.core.snap()
-                                    else spring(dampingRatio = 0.6f, stiffness = 500f),
+                    targetValue = when {
+                        isExiting -> exitDirection * exitDistancePx
+                        isSwiping -> swipeDxState.floatValue * 0.9f
+                        else -> 0f
+                    },
+                    animationSpec = when {
+                        isExiting -> tween(durationMillis = 220, easing = FastOutLinearInEasing)
+                        isSwiping -> androidx.compose.animation.core.snap()
+                        else -> spring(dampingRatio = 0.6f, stiffness = 500f)
+                    },
+                    finishedListener = {
+                        if (isExiting && capturedTaskId == exitingCardId) {
+                            exitTargetColumnId?.let { onCardMovedToColumnRef.value(capturedTaskId, it) }
+                            exitingCardId = null
+                            exitTargetColumnId = null
+                        }
+                    },
                     label = "swipeX"
+                )
+                val swipeAlpha by animateFloatAsState(
+                    targetValue = if (isExiting) 0f else 1f,
+                    animationSpec = tween(durationMillis = 220),
+                    label = "swipeAlpha"
                 )
 
                 val itemModifier = if (isDragging) Modifier else Modifier.animateItem()
@@ -209,7 +242,7 @@ fun KanbanColumn(
                             .fillMaxWidth()
                             .zIndex(if (isDragging) 1f else 0f)
                             .graphicsLayer {
-                                alpha = if (isDragging) 0.5f else 1f
+                                alpha = if (isDragging) 0.5f else swipeAlpha
                                 translationY = if (isDragging) dragOffsetY else 0f
                                 translationX = swipeTranslationX
                             }
@@ -237,12 +270,15 @@ fun KanbanColumn(
                                         val curColIdx = colsSnapshot.indexOfFirst { it.id == column.id }
                                         swipingCardId = null
                                         swipeDxState.floatValue = 0f
-                                        if (abs(dx) > swipeThresholdPx && curColIdx >= 0) {
-                                            val dir = if (dx > 0) 1 else -1
-                                            val neighbor = colsSnapshot.getOrNull(curColIdx + dir)
-                                            if (neighbor != null) {
-                                                onCardMovedToColumnRef.value(capturedTaskId, neighbor.id)
-                                            }
+                                        val dir = if (dx > 0) 1 else -1
+                                        val neighbor = if (curColIdx >= 0)
+                                            colsSnapshot.getOrNull(curColIdx + dir) else null
+                                        if (abs(dx) > swipeThresholdPx && neighbor != null) {
+                                            // Let the card finish sliding off-screen, then
+                                            // commit the move (see swipeTranslationX exit).
+                                            exitDirection = dir
+                                            exitTargetColumnId = neighbor.id
+                                            exitingCardId = capturedTaskId
                                         }
                                     },
                                     onDragCancel = {
