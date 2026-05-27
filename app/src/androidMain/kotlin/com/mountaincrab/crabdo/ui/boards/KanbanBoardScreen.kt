@@ -1,22 +1,28 @@
 package com.mountaincrab.crabdo.ui.boards
 
-import androidx.compose.ui.geometry.Rect
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.delay
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.mountaincrab.crabdo.data.local.entity.ColumnEntity
 import com.mountaincrab.crabdo.data.local.entity.TaskEntity
+import com.mountaincrab.crabdo.ui.boards.components.EditCardDialog
 import com.mountaincrab.crabdo.ui.boards.components.KanbanColumn
+import kotlinx.coroutines.flow.flowOf
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
 
@@ -34,33 +40,34 @@ fun KanbanBoardScreen(
     val subtaskCounts by viewModel.subtaskCounts.collectAsStateWithLifecycle()
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     var showColumnConfig by remember { mutableStateOf(false) }
-    var draggedTaskId by remember { mutableStateOf<String?>(null) }
-    val draggedTask: TaskEntity? = if (draggedTaskId == null) null
-        else tasksByColumn.values.flatten().firstOrNull { it.id == draggedTaskId }
-    val sourceColumnId: String? = if (draggedTaskId == null) null
-        else tasksByColumn.entries.firstOrNull { (_, ts) -> ts.any { it.id == draggedTaskId } }?.key
-    val ghostColumnId = remember { mutableStateOf<String?>(null) }
-    // Absolute finger Y in root coords during a drag. Source column writes it
-    // every onDrag tick; target column observes it to reorder the ghost.
-    val dragFingerYAbs = remember { mutableFloatStateOf(0f) }
-    // Order bracket for the ghost's current slot in the target column. Written
-    // by the target's reorder effect; read by the source's onDragEnd to drop
-    // at the right slot instead of appending to the end.
-    val ghostOrderBracket = remember { mutableStateOf<Pair<Double, Double>?>(null) }
-    val columnBoundsMap = remember { mutableStateMapOf<String, Rect>() }
-    LaunchedEffect(draggedTaskId) {
-        if (draggedTaskId == null) {
-            ghostColumnId.value = null
-            ghostOrderBracket.value = null
+    var editingTaskId by remember { mutableStateOf<String?>(null) }
+
+    var activeColumnId by remember { mutableStateOf("") }
+
+    val editingTask = tasksByColumn.values.flatten().find { it.id == editingTaskId }
+    val editingSubtasks by remember(editingTaskId) {
+        editingTaskId?.let { viewModel.observeSubtasks(it) } ?: flowOf(emptyList())
+    }.collectAsStateWithLifecycle(emptyList())
+
+    LaunchedEffect(columns) {
+        if (columns.isEmpty()) return@LaunchedEffect
+        if (activeColumnId.isEmpty() || columns.none { it.id == activeColumnId }) {
+            activeColumnId = columns.first().id
         }
     }
+
+    val activeColumn = columns.find { it.id == activeColumnId }
+    val activeTasks = tasksByColumn[activeColumnId] ?: emptyList()
+    val taskCounts = columns.associate { it.id to (tasksByColumn[it.id]?.size ?: 0) }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(board?.title ?: "") },
                 navigationIcon = {
-                    IconButton(onClick = { if (onBack != null) onBack() else navController.popBackStack() }) {
+                    IconButton(onClick = {
+                        if (onBack != null) onBack() else navController.popBackStack()
+                    }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 },
@@ -70,6 +77,16 @@ fun KanbanBoardScreen(
                     }
                 }
             )
+        },
+        bottomBar = {
+            if (columns.isNotEmpty()) {
+                ColumnTabs(
+                    columns = columns,
+                    counts = taskCounts,
+                    activeId = activeColumnId,
+                    onSelect = { activeColumnId = it }
+                )
+            }
         }
     ) { padding ->
         PullToRefreshBox(
@@ -79,98 +96,52 @@ fun KanbanBoardScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            val pagerState = rememberPagerState(pageCount = { columns.size })
-
-            val edgeScrollState = remember { mutableIntStateOf(0) }
-            // While the finger is at a screen edge, keep advancing the pager one page
-            // at a time. The 700ms delay between scrolls is what gives the user a
-            // chance to release; if they're still at the edge after the page settles,
-            // we scroll again.
-            LaunchedEffect(edgeScrollState.intValue) {
-                while (edgeScrollState.intValue != 0) {
-                    delay(700)
-                    if (edgeScrollState.intValue == 0) break
-                    val current = pagerState.currentPage
-                    val target = (current + edgeScrollState.intValue)
-                        .coerceIn(0, columns.size - 1)
-                    if (target == current) break  // already at edge column
-                    pagerState.animateScrollToPage(target)
-                    // Reset after each scroll. onDrag will set it back to non-zero
-                    // if the finger is still at the edge on the next drag event.
-                    // Without this, holding still (no onDrag events) leaves the
-                    // value at 1 and the loop keeps advancing past the target column.
-                    edgeScrollState.intValue = 0
-                }
-            }
-
-            // When the pager scrolls *during* a drag, set ghostColumnId to the new
-            // centered column. This is the fix for: user drags to right edge, pager
-            // scrolls to next column, but the user's finger is still at the screen
-            // edge (outside any column's bounds), so the in-onDrag findColumnIdAt
-            // lookup returns null and never sets the ghost. Driving the ghost from
-            // pager state means the dragged task visibly "follows" into the new column.
-            //
-            // We snapshot the page at drag start and only react to *changes* from
-            // there — otherwise long-pressing a peeking card (sourceColumn != centered)
-            // would immediately spawn a ghost in the centered column before the user
-            // has dragged anywhere.
-            val dragStartPage = remember(draggedTaskId) { pagerState.currentPage }
-            LaunchedEffect(pagerState.currentPage, draggedTaskId, sourceColumnId) {
-                if (draggedTaskId != null && pagerState.currentPage != dragStartPage) {
-                    val centeredColumnId = columns.getOrNull(pagerState.currentPage)?.id
-                    if (centeredColumnId != null) {
-                        ghostColumnId.value = if (centeredColumnId == sourceColumnId) null
-                                              else centeredColumnId
-                    }
-                }
-            }
-
-            // HorizontalPager with beyondViewportPageCount keeps all column composables
-            // in composition even when off-screen, so detectDragGesturesAfterLongPress
-            // is never cancelled by the edge scroll moving the source column out of view.
-            HorizontalPager(
-                state = pagerState,
-                beyondViewportPageCount = columns.size,
-                modifier = Modifier.fillMaxSize(),
-                pageSpacing = 8.dp,
-                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
-                key = { index -> columns.getOrNull(index)?.id ?: index },
-            ) { pageIndex ->
-                val column = columns[pageIndex]
-                val columnTasks = tasksByColumn[column.id] ?: emptyList()
+            if (activeColumn != null) {
                 KanbanColumn(
-                    column = column,
-                    tasks = columnTasks,
-                    draggedTaskId = draggedTaskId,
-                    foreignDraggedTask = if (columnTasks.any { it.id == draggedTaskId }) null else draggedTask,
-                    ghostColumnId = ghostColumnId,
-                    dragFingerYAbs = dragFingerYAbs,
-                    ghostOrderBracket = ghostOrderBracket,
-                    findColumnIdAt = { x ->
-                        columnBoundsMap.entries.firstOrNull { (_, r) -> x >= r.left && x <= r.right }?.key
-                    },
-                    onBoundsChanged = { rect -> columnBoundsMap[column.id] = rect },
-                    edgeScrollState = edgeScrollState,
-                    onDragStart = { draggedTaskId = it },
-                    onDragEnd = { draggedTaskId = null },
-                    onCardDropped = { taskId, targetColumnId, orderBefore, orderAfter ->
-                        viewModel.moveTask(taskId, targetColumnId, orderBefore, orderAfter)
-                        draggedTaskId = null
-                    },
-                    onCardTapped = { taskId ->
-                        navController.navigate(
-                            com.mountaincrab.crabdo.ui.navigation.Screen.TaskDetail.createRoute(taskId)
-                        )
-                    },
-                    onAddCard = { title, description, reminderAt, style ->
-                        viewModel.createTask(column.id, title, description, reminderAt, style)
-                    },
-                    allTasksByColumn = tasksByColumn,
+                    column = activeColumn,
+                    tasks = activeTasks,
+                    columns = columns,
                     subtaskCounts = subtaskCounts,
-                    modifier = Modifier.fillMaxWidth()
+                    onCardReordered = { taskId, orderBefore, orderAfter ->
+                        viewModel.moveTask(taskId, activeColumnId, orderBefore, orderAfter)
+                    },
+                    onCardMovedToColumn = { taskId, toColumnId ->
+                        // Stay on the current column — just move the task in the background
+                        val targetTasks = tasksByColumn[toColumnId] ?: emptyList()
+                        val minOrder = targetTasks.minOfOrNull { it.order } ?: 1.0
+                        viewModel.moveTask(taskId, toColumnId, minOrder - 2.0, minOrder)
+                    },
+                    onTaskTapped = { taskId -> editingTaskId = taskId },
+                    onAddCard = { title, description, reminderAt, style, columnId ->
+                        viewModel.createTask(columnId, title, description, reminderAt, style)
+                        if (columnId != activeColumnId) activeColumnId = columnId
+                    },
+                    modifier = Modifier.fillMaxSize()
                 )
             }
         }
+    }
+
+    editingTask?.let { task ->
+        EditCardDialog(
+            task = task,
+            columns = columns,
+            subtasks = editingSubtasks,
+            onSave = { title, description, reminderAt, style, columnId ->
+                viewModel.saveTaskChanges(task.id, title, description, reminderAt, style, columnId)
+                editingTaskId = null
+            },
+            onDelete = {
+                viewModel.deleteTask(task.id)
+                editingTaskId = null
+            },
+            onAddSubtask = { title -> viewModel.addSubtask(task.id, title) },
+            onToggleSubtask = { id, completed -> viewModel.toggleSubtask(id, completed) },
+            onDeleteSubtask = { id -> viewModel.deleteSubtask(id) },
+            onRenameSubtask = { id, title -> viewModel.renameSubtask(id, title) },
+            onReorderSubtask = { id, before, after -> viewModel.reorderSubtask(id, before, after) },
+            onDismiss = { editingTaskId = null }
+        )
     }
 
     if (showColumnConfig) {
@@ -182,5 +153,65 @@ fun KanbanBoardScreen(
             onReorder = { viewModel.reorderColumns(it) },
             onAdd = { viewModel.addColumn(it) }
         )
+    }
+}
+
+@Composable
+private fun ColumnTabs(
+    columns: List<ColumnEntity>,
+    counts: Map<String, Int>,
+    activeId: String,
+    onSelect: (String) -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surface)
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            columns.forEach { col ->
+                val isActive = col.id == activeId
+                val count = counts[col.id] ?: 0
+                Surface(
+                    onClick = { onSelect(col.id) },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp),
+                    color = if (isActive)
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+                    else
+                        Color.Transparent,
+                    border = if (isActive)
+                        BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
+                    else
+                        null,
+                ) {
+                    Column(
+                        modifier = Modifier.padding(top = 10.dp, start = 8.dp, end = 8.dp, bottom = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(
+                            text = col.title,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 13.sp,
+                            letterSpacing = (-0.2).sp,
+                            color = if (isActive) MaterialTheme.colorScheme.onSurface
+                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            text = count.toString(),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.06.sp,
+                            color = if (isActive) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        )
+                    }
+                }
+            }
+        }
     }
 }
