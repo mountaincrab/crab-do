@@ -381,6 +381,7 @@ function KanbanColumnView({
               expanded={expandedTasks.has(task.id)}
               onToggleExpand={() => onToggleExpand(task.id)}
               allColumns={allColumns}
+              isDragging={isDragging}
               onDragStart={onDragStart}
               onDragEnd={onDragEnd}
               onMove={(taskId, colId) => onMoveTask(taskId, colId, orderForGap(visibleTasks.length, tasks.filter((t) => t.columnId === colId && t.id !== taskId)))}
@@ -415,6 +416,7 @@ interface TaskCardProps {
   expanded: boolean
   onToggleExpand: () => void
   allColumns: Column[]
+  isDragging: boolean
   onDragStart: (taskId: string, height: number) => void
   onDragEnd: () => void
   onMove: (taskId: string, columnId: string) => void
@@ -422,7 +424,7 @@ interface TaskCardProps {
   onClick: () => void
 }
 
-function TaskCardView({ task, subtaskCount, subtasks, onToggleSubtask, expanded, onToggleExpand, allColumns, onDragStart, onDragEnd, onMove, onDelete, onClick }: TaskCardProps) {
+function TaskCardView({ task, subtaskCount, subtasks, onToggleSubtask, expanded, onToggleExpand, allColumns, isDragging, onDragStart, onDragEnd, onMove, onDelete, onClick }: TaskCardProps) {
   const [showMenu, setShowMenu] = useState(false)
   const [showMoveMenu, setShowMoveMenu] = useState(false)
   const otherColumns = allColumns.filter((c) => c.id !== task.columnId)
@@ -444,7 +446,7 @@ function TaskCardView({ task, subtaskCount, subtasks, onToggleSubtask, expanded,
       draggable
       onDragStart={handleDragStart}
       onDragEnd={onDragEnd}
-      className="bg-surface-raised hover:bg-surface-high border border-DEFAULT rounded-xl p-3 cursor-grab active:cursor-grabbing transition-colors relative group select-none"
+      className={`bg-surface-raised border border-DEFAULT rounded-xl p-3 cursor-grab active:cursor-grabbing transition-colors relative group select-none ${isDragging ? '' : 'hover:bg-surface-high'}`}
       onClick={onClick}
     >
       <p className="text-sm text-fg leading-snug font-medium pr-5">{task.title}</p>
