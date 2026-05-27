@@ -1,14 +1,22 @@
 package com.mountaincrab.crabdo.ui.boards.components
 
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessAlarm
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -16,12 +24,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.zIndex
+import com.mountaincrab.crabdo.data.local.entity.ColumnEntity
+import com.mountaincrab.crabdo.data.local.entity.SubtaskEntity
 import com.mountaincrab.crabdo.data.local.entity.TaskEntity
 import com.mountaincrab.crabdo.ui.theme.Eyebrow
 import com.mountaincrab.crabdo.ui.theme.PillButton
@@ -32,200 +50,529 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddCardDialog(
-    onAdd: (title: String, description: String, reminderTimeMillis: Long?, reminderStyle: TaskEntity.ReminderStyle) -> Unit,
+    columns: List<ColumnEntity>,
+    currentColumnId: String,
+    onAdd: (title: String, description: String, reminderTimeMillis: Long?, reminderStyle: TaskEntity.ReminderStyle, columnId: String) -> Unit,
     onDismiss: () -> Unit
 ) {
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
+    var selectedColumnId by remember { mutableStateOf(currentColumnId) }
     var reminderEnabled by remember { mutableStateOf(false) }
     var reminderStyle by remember { mutableStateOf(TaskEntity.ReminderStyle.NOTIFICATION) }
     var reminderMillis by remember { mutableStateOf(defaultReminderTime()) }
-    var showDatePicker by remember { mutableStateOf(false) }
-    var showTimePicker by remember { mutableStateOf(false) }
 
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
+    val submit = {
+        if (title.isNotBlank()) {
+            onAdd(
+                title.trim(),
+                description.trim(),
+                if (reminderEnabled) reminderMillis else null,
+                reminderStyle,
+                selectedColumnId
+            )
+        }
+    }
+
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            dismissOnClickOutside = false,
-            dismissOnBackPress = true
-        )
+        properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text("New Card", fontWeight = FontWeight.Bold) },
-                    navigationIcon = {
-                        IconButton(onClick = onDismiss) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "Cancel")
-                        }
-                    },
-                    actions = {
-                        TextButton(
-                            onClick = {
-                                if (title.isNotBlank()) {
-                                    onAdd(
-                                        title.trim(),
-                                        description.trim(),
-                                        if (reminderEnabled) reminderMillis else null,
-                                        reminderStyle
-                                    )
-                                }
-                            },
-                            enabled = title.isNotBlank()
-                        ) {
-                            Text("Add", fontWeight = FontWeight.Bold)
-                        }
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                DialogHeader(title = "New Task", onClose = onDismiss) {
+                    TextButton(onClick = submit, enabled = title.isNotBlank()) {
+                        Text("Add", fontWeight = FontWeight.Bold)
                     }
-                )
-            }
-        ) { padding ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .verticalScroll(rememberScrollState()),
-                // Section spacing matches AddEditOneOffReminderScreen so the
-                // two task/reminder edit surfaces feel like one family.
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Eyebrow("Task title")
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    placeholder = { Text("E.g., Review Q3 Metrics…") },
+                }
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .focusRequester(focusRequester),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next, capitalization = KeyboardCapitalization.Sentences),
-                    shape = RoundedCornerShape(12.dp)
-                )
-
-                Eyebrow("Description")
-                OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
-                    placeholder = { Text("Add details or notes…") },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 2,
-                    maxLines = 4,
-                    shape = RoundedCornerShape(12.dp),
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
-                )
-
-                // Reminder card — 16dp padding matches the design system's
-                // standard card padding (--space-4).
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-                    modifier = Modifier.fillMaxWidth()
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                        .imePadding()
+                        .padding(horizontal = 16.dp)
+                        .padding(bottom = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
-                                modifier = Modifier.size(40.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        Icons.Default.Notifications,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary
+                    TaskFormFields(
+                        title = title,
+                        onTitleChange = { title = it },
+                        description = description,
+                        onDescriptionChange = { description = it },
+                        columns = columns,
+                        selectedColumnId = selectedColumnId,
+                        onColumnSelected = { selectedColumnId = it },
+                        reminderEnabled = reminderEnabled,
+                        onReminderEnabledChange = { reminderEnabled = it },
+                        reminderStyle = reminderStyle,
+                        onReminderStyleChange = { reminderStyle = it },
+                        reminderMillis = reminderMillis,
+                        onReminderMillisChange = { reminderMillis = it },
+                        titleFocusRequester = focusRequester,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun EditCardDialog(
+    task: TaskEntity,
+    columns: List<ColumnEntity>,
+    subtasks: List<SubtaskEntity>,
+    onSave: (title: String, description: String, reminderTimeMillis: Long?, reminderStyle: TaskEntity.ReminderStyle, columnId: String) -> Unit,
+    onDelete: () -> Unit,
+    onAddSubtask: (String) -> Unit,
+    onToggleSubtask: (String, Boolean) -> Unit,
+    onDeleteSubtask: (String) -> Unit,
+    onRenameSubtask: (String, String) -> Unit,
+    onReorderSubtask: (String, Double, Double) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var title by remember { mutableStateOf(task.title) }
+    var description by remember { mutableStateOf(task.description) }
+    var selectedColumnId by remember { mutableStateOf(task.columnId) }
+    var reminderEnabled by remember { mutableStateOf(task.reminderTimeMillis != null) }
+    var reminderStyle by remember { mutableStateOf(task.reminderStyle) }
+    var reminderMillis by remember { mutableStateOf(task.reminderTimeMillis ?: defaultReminderTime()) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    var newSubtask by remember { mutableStateOf("") }
+
+    // Local copy of the subtask list so long-press drag reorder can shuffle items
+    // without waiting for the DB round-trip; resynced from the flow when not dragging.
+    val displaySubtasks = remember { mutableStateOf(subtasks) }
+    val currentSubtasksRef = rememberUpdatedState(subtasks)
+    var draggingSubtaskId by remember { mutableStateOf<String?>(null) }
+    var dragOffsetY by remember { mutableFloatStateOf(0f) }
+    var itemHeightPx by remember { mutableFloatStateOf(0f) }
+    val density = LocalDensity.current
+    val subtaskSpacingPx = with(density) { 8.dp.toPx() }
+    val haptic = LocalHapticFeedback.current
+
+    LaunchedEffect(subtasks) {
+        if (draggingSubtaskId == null) displaySubtasks.value = subtasks
+    }
+
+    val submit = {
+        if (title.isNotBlank()) {
+            onSave(
+                title.trim(),
+                description.trim(),
+                if (reminderEnabled) reminderMillis else null,
+                reminderStyle,
+                selectedColumnId
+            )
+        }
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                DialogHeader(title = "Edit Task", onClose = onDismiss) {
+                    IconButton(onClick = { showDeleteConfirm = true }) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "Delete task",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                    TextButton(onClick = submit, enabled = title.isNotBlank()) {
+                        Text("Save", fontWeight = FontWeight.Bold)
+                    }
+                }
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .imePadding(),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            TaskFormFields(
+                                title = title,
+                                onTitleChange = { title = it },
+                                description = description,
+                                onDescriptionChange = { description = it },
+                                columns = columns,
+                                selectedColumnId = selectedColumnId,
+                                onColumnSelected = { selectedColumnId = it },
+                                reminderEnabled = reminderEnabled,
+                                onReminderEnabledChange = { reminderEnabled = it },
+                                reminderStyle = reminderStyle,
+                                onReminderStyleChange = { reminderStyle = it },
+                                reminderMillis = reminderMillis,
+                                onReminderMillisChange = { reminderMillis = it },
+                                titleFocusRequester = null,
+                            )
+                            Eyebrow("Checklist")
+                        }
+                    }
+
+                    itemsIndexed(displaySubtasks.value, key = { _, s -> s.id }) { _, subtask ->
+                        val isDragging = subtask.id == draggingSubtaskId
+                        val itemModifier =
+                            if (isDragging) Modifier
+                            else Modifier.animateItem(placementSpec = tween(250))
+                        SubtaskItem(
+                            subtask = subtask,
+                            onToggle = { onToggleSubtask(subtask.id, it) },
+                            onDelete = { onDeleteSubtask(subtask.id) },
+                            onRename = { onRenameSubtask(subtask.id, it) },
+                            modifier = itemModifier
+                                .zIndex(if (isDragging) 1f else 0f)
+                                .graphicsLayer {
+                                    translationY = if (isDragging) dragOffsetY else 0f
+                                    alpha = if (isDragging) 0.85f else 1f
+                                }
+                                .onSizeChanged { size ->
+                                    if (size.height > 0) itemHeightPx = size.height.toFloat()
+                                }
+                                .pointerInput(subtask.id) {
+                                    detectDragGesturesAfterLongPress(
+                                        onDragStart = {
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            draggingSubtaskId = subtask.id
+                                            dragOffsetY = 0f
+                                        },
+                                        onDrag = { change, dragAmount ->
+                                            change.consume()
+                                            dragOffsetY += dragAmount.y
+                                            val slotH = if (itemHeightPx > 0f)
+                                                itemHeightPx + subtaskSpacingPx
+                                            else with(density) { 56.dp.toPx() }
+                                            var curIdx = displaySubtasks.value
+                                                .indexOfFirst { it.id == subtask.id }
+                                            if (curIdx < 0) return@detectDragGesturesAfterLongPress
+                                            while (curIdx < displaySubtasks.value.size - 1 &&
+                                                dragOffsetY > slotH / 2f) {
+                                                val m = displaySubtasks.value.toMutableList()
+                                                m.add(curIdx + 1, m.removeAt(curIdx))
+                                                displaySubtasks.value = m
+                                                dragOffsetY -= slotH
+                                                curIdx++
+                                            }
+                                            while (curIdx > 0 && dragOffsetY < -slotH / 2f) {
+                                                val m = displaySubtasks.value.toMutableList()
+                                                m.add(curIdx - 1, m.removeAt(curIdx))
+                                                displaySubtasks.value = m
+                                                dragOffsetY += slotH
+                                                curIdx--
+                                            }
+                                        },
+                                        onDragEnd = {
+                                            val current = displaySubtasks.value
+                                            val idx = current.indexOfFirst { it.id == subtask.id }
+                                            if (idx >= 0) {
+                                                val prevOrder = current.getOrNull(idx - 1)?.order
+                                                val nextOrder = current.getOrNull(idx + 1)?.order
+                                                onReorderSubtask(
+                                                    subtask.id,
+                                                    prevOrder ?: ((nextOrder ?: 1.0) - 2.0),
+                                                    nextOrder ?: ((prevOrder ?: 0.0) + 2.0)
+                                                )
+                                            }
+                                            draggingSubtaskId = null
+                                            dragOffsetY = 0f
+                                        },
+                                        onDragCancel = {
+                                            draggingSubtaskId = null
+                                            dragOffsetY = 0f
+                                            displaySubtasks.value = currentSubtasksRef.value
+                                        }
                                     )
                                 }
-                            }
-                            Spacer(Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("Task Reminder", fontWeight = FontWeight.Bold)
-                                Text(
-                                    "Alert me about this task",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedTextField(
+                                value = newSubtask,
+                                onValueChange = { newSubtask = it },
+                                placeholder = { Text("Add a subtask…") },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp),
+                                keyboardOptions = KeyboardOptions(
+                                    imeAction = ImeAction.Done,
+                                    capitalization = KeyboardCapitalization.Sentences
+                                ),
+                                keyboardActions = KeyboardActions(
+                                    onDone = {
+                                        if (newSubtask.isNotBlank()) {
+                                            onAddSubtask(newSubtask.trim())
+                                            newSubtask = ""
+                                        }
+                                    }
+                                )
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            IconButton(
+                                onClick = {
+                                    if (newSubtask.isNotBlank()) {
+                                        onAddSubtask(newSubtask.trim())
+                                        newSubtask = ""
+                                    }
+                                },
+                                enabled = newSubtask.isNotBlank()
+                            ) {
+                                Icon(
+                                    Icons.Default.Add,
+                                    contentDescription = "Add subtask",
+                                    tint = if (newSubtask.isNotBlank()) MaterialTheme.colorScheme.primary
+                                           else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                                 )
                             }
-                            Switch(
-                                checked = reminderEnabled,
-                                onCheckedChange = { reminderEnabled = it }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Delete task?") },
+            text = { Text("\"${task.title}\" will be permanently deleted.") },
+            confirmButton = {
+                TextButton(
+                    onClick = { showDeleteConfirm = false; onDelete() },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel") }
+            }
+        )
+    }
+}
+
+@Composable
+private fun DialogHeader(
+    title: String,
+    onClose: () -> Unit,
+    actions: @Composable RowScope.() -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .height(56.dp)
+            .padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(onClick = onClose) {
+            Icon(Icons.Default.Close, contentDescription = "Close")
+        }
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 4.dp)
+        )
+        actions()
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TaskFormFields(
+    title: String,
+    onTitleChange: (String) -> Unit,
+    description: String,
+    onDescriptionChange: (String) -> Unit,
+    columns: List<ColumnEntity>,
+    selectedColumnId: String,
+    onColumnSelected: (String) -> Unit,
+    reminderEnabled: Boolean,
+    onReminderEnabledChange: (Boolean) -> Unit,
+    reminderStyle: TaskEntity.ReminderStyle,
+    onReminderStyleChange: (TaskEntity.ReminderStyle) -> Unit,
+    reminderMillis: Long,
+    onReminderMillisChange: (Long) -> Unit,
+    titleFocusRequester: FocusRequester?,
+) {
+    var showDatePicker by remember { mutableStateOf(false) }
+    var showTimePicker by remember { mutableStateOf(false) }
+
+    Eyebrow("Title")
+    OutlinedTextField(
+        value = title,
+        onValueChange = onTitleChange,
+        placeholder = { Text("E.g., Review Q3 Metrics…") },
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (titleFocusRequester != null) Modifier.focusRequester(titleFocusRequester) else Modifier),
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(
+            imeAction = ImeAction.Next,
+            capitalization = KeyboardCapitalization.Sentences
+        ),
+        shape = RoundedCornerShape(12.dp)
+    )
+
+    Eyebrow("Notes")
+    OutlinedTextField(
+        value = description,
+        onValueChange = onDescriptionChange,
+        placeholder = { Text("Add details or notes…") },
+        modifier = Modifier.fillMaxWidth(),
+        minLines = 2,
+        maxLines = 4,
+        shape = RoundedCornerShape(12.dp),
+        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
+    )
+
+    Eyebrow("Column")
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        columns.forEach { col ->
+            val isSelected = col.id == selectedColumnId
+            Button(
+                onClick = { onColumnSelected(col.id) },
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(10.dp),
+                contentPadding = PaddingValues(vertical = 10.dp, horizontal = 8.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isSelected)
+                        MaterialTheme.colorScheme.primary
+                    else
+                        MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = if (isSelected)
+                        MaterialTheme.colorScheme.onPrimary
+                    else
+                        MaterialTheme.colorScheme.onSurfaceVariant,
+                ),
+                border = if (!isSelected)
+                    BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                else null,
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+            ) {
+                Text(
+                    text = col.title,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.labelMedium
+                )
+            }
+        }
+    }
+
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Default.Notifications,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Task Reminder", fontWeight = FontWeight.Bold)
+                    Text(
+                        "Alert me about this task",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = reminderEnabled,
+                    onCheckedChange = onReminderEnabledChange
+                )
+            }
+
+            if (reminderEnabled) {
+                Spacer(Modifier.height(12.dp))
+                PillGroup {
+                    PillButton(
+                        selected = reminderStyle == TaskEntity.ReminderStyle.NOTIFICATION,
+                        onClick = { onReminderStyleChange(TaskEntity.ReminderStyle.NOTIFICATION) },
+                        icon = Icons.Default.Notifications,
+                        text = "Notification",
+                    )
+                    PillButton(
+                        selected = reminderStyle == TaskEntity.ReminderStyle.ALARM,
+                        onClick = { onReminderStyleChange(TaskEntity.ReminderStyle.ALARM) },
+                        icon = Icons.Default.AccessAlarm,
+                        text = "Alarm",
+                    )
+                }
+
+                Spacer(Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    QuickChip("Later") { onReminderMillisChange(quickPreset(QuickPreset.LATER_TODAY)) }
+                    QuickChip("Tomorrow") { onReminderMillisChange(quickPreset(QuickPreset.TOMORROW)) }
+                    QuickChip("Next Wk") { onReminderMillisChange(quickPreset(QuickPreset.NEXT_WEEK)) }
+                }
+
+                Spacer(Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedCard(
+                        onClick = { showDatePicker = true },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                            Text(
+                                "Date",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = SimpleDateFormat("EEE, d MMM", Locale.getDefault())
+                                    .format(Date(reminderMillis)),
+                                style = MaterialTheme.typography.bodyMedium
                             )
                         }
-
-                        if (reminderEnabled) {
-                            // Vertical spacing inside the reminder card is
-                            // 12dp throughout (one step on the design system's
-                            // spacing scale), so each control sits the same
-                            // distance from its neighbour.
-                            Spacer(Modifier.height(12.dp))
-                            PillGroup {
-                                PillButton(
-                                    selected = reminderStyle == TaskEntity.ReminderStyle.NOTIFICATION,
-                                    onClick = { reminderStyle = TaskEntity.ReminderStyle.NOTIFICATION },
-                                    icon = Icons.Default.Notifications,
-                                    text = "Notification",
-                                )
-                                PillButton(
-                                    selected = reminderStyle == TaskEntity.ReminderStyle.ALARM,
-                                    onClick = { reminderStyle = TaskEntity.ReminderStyle.ALARM },
-                                    icon = Icons.Default.AccessAlarm,
-                                    text = "Alarm",
-                                )
-                            }
-
-                            Spacer(Modifier.height(12.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                QuickChip("Later") { reminderMillis = quickPreset(QuickPreset.LATER_TODAY) }
-                                QuickChip("Tomorrow") { reminderMillis = quickPreset(QuickPreset.TOMORROW) }
-                                QuickChip("Next Wk") { reminderMillis = quickPreset(QuickPreset.NEXT_WEEK) }
-                            }
-
-                            Spacer(Modifier.height(12.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OutlinedCard(
-                                    onClick = { showDatePicker = true },
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-                                        Text(
-                                            "Date",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                        Spacer(Modifier.height(4.dp))
-                                        Text(
-                                            text = SimpleDateFormat("EEE, d MMM", Locale.getDefault())
-                                                .format(Date(reminderMillis)),
-                                            style = MaterialTheme.typography.bodyMedium
-                                        )
-                                    }
-                                }
-                                OutlinedCard(
-                                    onClick = { showTimePicker = true },
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-                                        Text(
-                                            "Time",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                        Spacer(Modifier.height(4.dp))
-                                        Text(
-                                            text = SimpleDateFormat("HH:mm", Locale.getDefault())
-                                                .format(Date(reminderMillis)),
-                                            style = MaterialTheme.typography.bodyMedium
-                                        )
-                                    }
-                                }
-                            }
+                    }
+                    OutlinedCard(
+                        onClick = { showTimePicker = true },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                            Text(
+                                "Time",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = SimpleDateFormat("HH:mm", Locale.getDefault())
+                                    .format(Date(reminderMillis)),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
                         }
                     }
                 }
@@ -250,7 +597,7 @@ fun AddCardDialog(
                             set(Calendar.SECOND, 0)
                             set(Calendar.MILLISECOND, 0)
                         }
-                        reminderMillis = cal.timeInMillis
+                        onReminderMillisChange(cal.timeInMillis)
                     }
                     showDatePicker = false
                 }) { Text("OK") }
@@ -283,7 +630,7 @@ fun AddCardDialog(
                         set(Calendar.SECOND, 0)
                         set(Calendar.MILLISECOND, 0)
                     }
-                    reminderMillis = cal.timeInMillis
+                    onReminderMillisChange(cal.timeInMillis)
                     showTimePicker = false
                 }) { Text("OK") }
             },
