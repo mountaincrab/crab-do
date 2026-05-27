@@ -4,7 +4,6 @@ import { ThemeProvider } from './contexts/ThemeContext'
 import LoginPage from './pages/LoginPage'
 import BoardListPage from './pages/BoardListPage'
 import KanbanBoardPage from './pages/KanbanBoardPage'
-import TaskDetailPage from './pages/TaskDetailPage'
 import RemindersPage from './pages/RemindersPage'
 import SettingsPage from './pages/SettingsPage'
 
@@ -24,7 +23,6 @@ function AppRoutes() {
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
       <Route path="/" element={<ProtectedRoute><BoardListPage /></ProtectedRoute>} />
       <Route path="/board/:boardId" element={<ProtectedRoute><KanbanBoardPage /></ProtectedRoute>} />
-      <Route path="/board/:boardId/task/:taskId" element={<ProtectedRoute><TaskDetailPage /></ProtectedRoute>} />
       <Route path="/reminders" element={<ProtectedRoute><RemindersPage /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />

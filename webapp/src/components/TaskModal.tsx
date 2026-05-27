@@ -1,17 +1,20 @@
 import { useRef, useState, useEffect } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Check, X } from 'lucide-react'
-import { useAuth } from '../contexts/AuthContext'
+import { Check, X } from 'lucide-react'
 import { useTask } from '../hooks/useTask'
 import { Subtask } from '../types'
-import AppShell from '../components/AppShell'
 
-export default function TaskDetailPage() {
-  const { boardId, taskId } = useParams<{ boardId: string; taskId: string }>()
-  const { user } = useAuth()
-  const navigate = useNavigate()
+interface TaskModalProps {
+  userId: string
+  boardId: string
+  taskId: string
+  isNew: boolean
+  onClose: () => void
+  onDiscard: () => void
+}
+
+export default function TaskModal({ userId, boardId, taskId, isNew, onClose, onDiscard }: TaskModalProps) {
   const { task, subtasks, updateTask, addSubtask, toggleSubtask, deleteSubtask, renameSubtask, reorderSubtask } = useTask(
-    user!.uid, boardId!, taskId!,
+    userId, boardId, taskId,
   )
 
   const [titleDraft, setTitleDraft] = useState('')
@@ -21,6 +24,7 @@ export default function TaskDetailPage() {
   const [draggingSubtaskId, setDraggingSubtaskId] = useState<string | null>(null)
   const [hoverGap, setHoverGap] = useState<number | null>(null)
   const subtaskListRef = useRef<HTMLDivElement>(null)
+  const titleRef = useRef<HTMLTextAreaElement>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout>>()
   const hydratedTaskId = useRef<string | null>(null)
 
@@ -32,6 +36,10 @@ export default function TaskDetailPage() {
       hydratedTaskId.current = task.id
     }
   }, [task])
+
+  useEffect(() => {
+    if (isNew) titleRef.current?.focus()
+  }, [isNew])
 
   useEffect(() => () => { if (saveTimer.current) clearTimeout(saveTimer.current) }, [])
 
@@ -52,8 +60,24 @@ export default function TaskDetailPage() {
     if (saveTimer.current) clearTimeout(saveTimer.current)
     if (!titleDraft.trim()) return
     await updateTask({ title: titleDraft.trim(), description: descDraft.trim() })
-    setSaveStatus('saved')
   }
+
+  const handleClose = async () => {
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    const empty = !titleDraft.trim() && !descDraft.trim() && subtasks.length === 0
+    if (isNew && empty) {
+      onDiscard()
+    } else {
+      await flushSave()
+    }
+    onClose()
+  }
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
 
   const handleAddSubtask = async () => {
     if (!newSubtaskTitle.trim()) return
@@ -105,114 +129,115 @@ export default function TaskDetailPage() {
   const completedCount = subtasks.filter((s) => s.isCompleted).length
 
   return (
-    <AppShell>
-      <header className="border-b border-DEFAULT bg-surface px-6 h-14 flex items-center gap-4 shrink-0">
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center gap-1 text-fg-muted hover:text-fg transition-colors text-sm font-semibold"
-        >
-          <ArrowLeft size={16} /> Back
-        </button>
-        <span className="font-bold flex-1 truncate text-fg">{task?.title ?? '…'}</span>
-      </header>
+    <div
+      className="fixed inset-0 bg-black/60 z-50 flex items-start justify-center p-4 overflow-y-auto"
+      onClick={handleClose}
+    >
+      <div
+        className="bg-surface-raised border border-DEFAULT rounded-2xl shadow-dialog w-full max-w-2xl mt-[6vh] mb-8"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-end gap-3 px-4 h-12 border-b border-DEFAULT">
+          <span className="text-xs text-fg-faint transition-opacity">
+            {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'Saved' : ''}
+          </span>
+          <button
+            onClick={handleClose}
+            className="text-fg-faint hover:text-fg transition-colors p-1 rounded-lg hover:bg-surface-high"
+            aria-label="Close"
+          >
+            <X size={20} />
+          </button>
+        </div>
 
-      <div className="flex-1 overflow-y-auto">
-      <div className="max-w-2xl mx-auto w-full px-6 py-8 flex flex-col gap-6">
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <label className="ds-eyebrow">Title</label>
-            <span className="text-xs text-fg-faint transition-opacity">
-              {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'Saved' : ''}
-            </span>
-          </div>
-          <input
+        <div className="px-6 py-5 flex flex-col gap-5">
+          <textarea
+            ref={titleRef}
             value={titleDraft}
             onChange={(e) => { const v = e.target.value; setTitleDraft(v); scheduleSave(v, descDraft) }}
             onBlur={flushSave}
-            className="w-full bg-surface-raised border border-DEFAULT rounded-xl px-4 py-3 text-fg outline-none focus:border-accent transition-colors"
+            rows={1}
+            placeholder="Task title"
+            className="w-full bg-transparent text-fg text-xl font-bold leading-snug placeholder:text-fg-faint outline-none resize-none"
           />
-        </div>
 
-        <div>
-          <label className="ds-eyebrow mb-1.5 block">Description</label>
           <textarea
             value={descDraft}
             onChange={(e) => { const v = e.target.value; setDescDraft(v); scheduleSave(titleDraft, v) }}
             onBlur={flushSave}
-            rows={4}
+            rows={3}
             placeholder="Add a description…"
-            className="w-full bg-surface-raised border border-DEFAULT rounded-xl px-4 py-3 text-fg placeholder:text-fg-faint outline-none focus:border-accent transition-colors resize-none"
+            className="w-full bg-surface border border-DEFAULT rounded-xl px-4 py-3 text-fg text-sm placeholder:text-fg-faint outline-none focus:border-accent transition-colors resize-none"
           />
-        </div>
 
-        <hr className="border-DEFAULT" />
+          <hr className="border-DEFAULT" />
 
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-bold text-fg">Checklist</span>
-            {subtasks.length > 0 && (
-              <span className="text-xs text-fg-muted font-mono">
-                {completedCount}/{subtasks.length}
-              </span>
-            )}
-          </div>
-
-          {subtasks.length > 0 && (
-            <div className="mb-3 h-1 bg-surface-high rounded-full overflow-hidden">
-              <div
-                className="h-full bg-accent rounded-full transition-all"
-                style={{ width: `${(completedCount / subtasks.length) * 100}%` }}
-              />
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-bold text-fg">Checklist</span>
+              {subtasks.length > 0 && (
+                <span className="text-xs text-fg-muted font-mono">
+                  {completedCount}/{subtasks.length}
+                </span>
+              )}
             </div>
-          )}
 
-          <div
-            ref={subtaskListRef}
-            className="flex flex-col"
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-          >
-            {visibleSubtasks.map((s, i) => (
-              <div key={s.id}>
-                {draggingSubtaskId && hoverGap === i && <SubtaskDropIndicator />}
-                <SubtaskRow
-                  subtask={s}
-                  onToggle={() => toggleSubtask(s.id, !s.isCompleted)}
-                  onDelete={() => deleteSubtask(s.id)}
-                  onRename={(title) => renameSubtask(s.id, title)}
-                  onDragStart={(e) => {
-                    e.dataTransfer.effectAllowed = 'move'
-                    e.dataTransfer.setData('subtaskId', s.id)
-                    setTimeout(() => setDraggingSubtaskId(s.id), 0)
-                  }}
-                  onDragEnd={() => { setDraggingSubtaskId(null); setHoverGap(null) }}
+            {subtasks.length > 0 && (
+              <div className="mb-3 h-1 bg-surface-high rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-accent rounded-full transition-all"
+                  style={{ width: `${(completedCount / subtasks.length) * 100}%` }}
                 />
               </div>
-            ))}
-            {draggingSubtaskId && hoverGap === visibleSubtasks.length && <SubtaskDropIndicator />}
-          </div>
+            )}
 
-          <div className="flex gap-2 mt-3">
-            <input
-              value={newSubtaskTitle}
-              onChange={(e) => setNewSubtaskTitle(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleAddSubtask() }}
-              placeholder="Add checklist item…"
-              className="flex-1 bg-surface-raised border border-DEFAULT rounded-lg px-3 py-2 text-fg placeholder:text-fg-faint outline-none focus:border-accent text-sm transition-colors"
-            />
-            <button
-              onClick={handleAddSubtask}
-              disabled={!newSubtaskTitle.trim()}
-              className="px-3 py-2 bg-surface-high hover:bg-surface-raised disabled:opacity-40 text-fg rounded-lg text-sm font-semibold transition-colors border border-DEFAULT"
+            <div
+              ref={subtaskListRef}
+              className="flex flex-col"
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
             >
-              Add
-            </button>
+              {visibleSubtasks.map((s, i) => (
+                <div key={s.id}>
+                  {draggingSubtaskId && hoverGap === i && <SubtaskDropIndicator />}
+                  <SubtaskRow
+                    subtask={s}
+                    onToggle={() => toggleSubtask(s.id, !s.isCompleted)}
+                    onDelete={() => deleteSubtask(s.id)}
+                    onRename={(title) => renameSubtask(s.id, title)}
+                    onDragStart={(e) => {
+                      e.dataTransfer.effectAllowed = 'move'
+                      e.dataTransfer.setData('subtaskId', s.id)
+                      setTimeout(() => setDraggingSubtaskId(s.id), 0)
+                    }}
+                    onDragEnd={() => { setDraggingSubtaskId(null); setHoverGap(null) }}
+                  />
+                </div>
+              ))}
+              {draggingSubtaskId && hoverGap === visibleSubtasks.length && <SubtaskDropIndicator />}
+            </div>
+
+            <div className="flex gap-2 mt-3">
+              <input
+                value={newSubtaskTitle}
+                onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleAddSubtask() }}
+                placeholder="Add checklist item…"
+                className="flex-1 bg-surface border border-DEFAULT rounded-lg px-3 py-2 text-fg placeholder:text-fg-faint outline-none focus:border-accent text-sm transition-colors"
+              />
+              <button
+                onClick={handleAddSubtask}
+                disabled={!newSubtaskTitle.trim()}
+                className="px-3 py-2 bg-surface-high hover:bg-surface-raised disabled:opacity-40 text-fg rounded-lg text-sm font-semibold transition-colors border border-DEFAULT"
+              >
+                Add
+              </button>
+            </div>
           </div>
         </div>
       </div>
-      </div>
-    </AppShell>
+    </div>
   )
 }
 

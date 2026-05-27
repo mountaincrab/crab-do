@@ -127,7 +127,7 @@ export function useBoard(userId: string, boardId: string) {
   const addTask = async (columnId: string, title: string, description = '') => {
     const colTasks = tasks.filter((t) => t.columnId === columnId)
     const maxOrder = colTasks.length > 0 ? Math.max(...colTasks.map((t) => t.order)) : 0
-    await addDoc(collection(db, 'users', userId, 'boards', boardId, 'tasks'), {
+    const ref = await addDoc(collection(db, 'users', userId, 'boards', boardId, 'tasks'), {
       boardId,
       columnId,
       title,
@@ -136,6 +136,7 @@ export function useBoard(userId: string, boardId: string) {
       updatedAt: serverTimestamp(),
       isDeleted: false,
     })
+    return ref.id
   }
 
   const moveTask = async (taskId: string, targetColumnId: string, newOrder: number) => {
