@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { Fragment, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Check, ChevronDown, ChevronRight, ChevronUp, ListChecks, MoreHorizontal, Plus, Settings2 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
@@ -21,6 +21,7 @@ export default function KanbanBoardPage() {
   const [renamingCol, setRenamingCol] = useState<Column | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null)
+  const [draggingHeight, setDraggingHeight] = useState<number | null>(null)
   const [showManageColumns, setShowManageColumns] = useState(false)
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
   const [editingIsNew, setEditingIsNew] = useState(false)
@@ -116,8 +117,9 @@ export default function KanbanBoardPage() {
                 onToggleExpand={toggleExpand}
                 allColumns={columns}
                 draggingTaskId={draggingTaskId}
-                onDragStart={(taskId) => setDraggingTaskId(taskId)}
-                onDragEnd={() => setDraggingTaskId(null)}
+                draggingHeight={draggingHeight}
+                onDragStart={(taskId, height) => { setDraggingTaskId(taskId); setDraggingHeight(height) }}
+                onDragEnd={() => { setDraggingTaskId(null); setDraggingHeight(null) }}
                 onAddTask={() => createAndOpenTask(col.id)}
                 onMoveTask={moveTask}
                 onDeleteTask={deleteTask}
@@ -249,11 +251,12 @@ function orderForGap(gap: number, tasks: Task[]): number {
   return (prev.order + next.order) / 2
 }
 
-function DropIndicator() {
+function DropPlaceholder({ height }: { height: number }) {
   return (
-    <div className="py-0.5 pointer-events-none">
-      <div className="h-[3px] w-full rounded-full bg-accent" />
-    </div>
+    <div
+      className="rounded-xl bg-surface-high border border-dashed border-strong pointer-events-none shrink-0"
+      style={{ height }}
+    />
   )
 }
 
@@ -267,7 +270,8 @@ interface ColumnViewProps {
   onToggleExpand: (taskId: string) => void
   allColumns: Column[]
   draggingTaskId: string | null
-  onDragStart: (taskId: string) => void
+  draggingHeight: number | null
+  onDragStart: (taskId: string, height: number) => void
   onDragEnd: () => void
   onAddTask: () => void
   onMoveTask: (taskId: string, targetColumnId: string, newOrder: number) => void
@@ -279,7 +283,7 @@ interface ColumnViewProps {
 
 function KanbanColumnView({
   column, tasks, subtaskCounts, subtasksByTask, onToggleSubtask, expandedTasks, onToggleExpand, allColumns,
-  draggingTaskId,
+  draggingTaskId, draggingHeight,
   onDragStart, onDragEnd,
   onAddTask, onMoveTask, onDeleteTask,
   onRename, onDelete, onTaskClick,
@@ -329,9 +333,7 @@ function KanbanColumnView({
 
   return (
     <div
-      className={`flex-1 min-w-[240px] flex flex-col rounded-xl p-1 transition-colors ${
-        isDragging && hoverGap !== null ? 'bg-accent-soft ring-1 ring-accent/30' : ''
-      }`}
+      className="flex-1 min-w-[240px] flex flex-col rounded-xl p-1 transition-colors"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -369,8 +371,8 @@ function KanbanColumnView({
 
       <div ref={tasksRef} className="flex-1 overflow-y-auto flex flex-col gap-2 mt-2 min-h-0">
         {visibleTasks.map((task, i) => (
-          <div key={task.id}>
-            {isDragging && hoverGap === i && <DropIndicator />}
+          <Fragment key={task.id}>
+            {isDragging && hoverGap === i && <DropPlaceholder height={draggingHeight ?? 56} />}
             <TaskCardView
               task={task}
               subtaskCount={subtaskCounts[task.id]}
@@ -385,9 +387,9 @@ function KanbanColumnView({
               onDelete={onDeleteTask}
               onClick={() => onTaskClick(task.id)}
             />
-          </div>
+          </Fragment>
         ))}
-        {isDragging && hoverGap === visibleTasks.length && <DropIndicator />}
+        {isDragging && hoverGap === visibleTasks.length && <DropPlaceholder height={draggingHeight ?? 56} />}
         {isDragging && visibleTasks.length === 0 && hoverGap === null && (
           <div className="h-16 rounded-lg border-2 border-dashed border-accent/25 flex items-center justify-center text-xs text-accent/50">
             Drop here
@@ -413,7 +415,7 @@ interface TaskCardProps {
   expanded: boolean
   onToggleExpand: () => void
   allColumns: Column[]
-  onDragStart: (taskId: string) => void
+  onDragStart: (taskId: string, height: number) => void
   onDragEnd: () => void
   onMove: (taskId: string, columnId: string) => void
   onDelete: (taskId: string) => void
@@ -432,7 +434,8 @@ function TaskCardView({ task, subtaskCount, subtasks, onToggleSubtask, expanded,
     e.dataTransfer.effectAllowed = 'move'
     e.dataTransfer.setData('taskId', task.id)
     e.dataTransfer.setData('sourceColumnId', task.columnId)
-    setTimeout(() => onDragStart(task.id), 0)
+    const height = e.currentTarget.getBoundingClientRect().height
+    setTimeout(() => onDragStart(task.id, height), 0)
   }
 
   return (
