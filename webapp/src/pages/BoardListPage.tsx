@@ -4,7 +4,7 @@ import { ClipboardList, MoreHorizontal, Users } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useBoards } from '../hooks/useBoards'
 import { Board } from '../types'
-import AppHeader from '../components/AppHeader'
+import AppShell from '../components/AppShell'
 
 export default function BoardListPage() {
   const { user } = useAuth()
@@ -32,9 +32,8 @@ export default function BoardListPage() {
   }
 
   return (
-    <div className="min-h-screen bg-bg text-fg" onClick={() => setOpenMenuId(null)}>
-      <AppHeader active="boards" />
-
+    <AppShell>
+      <div className="flex-1 overflow-y-auto" onClick={() => setOpenMenuId(null)}>
       <main className="max-w-3xl mx-auto px-6 py-10">
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-3xl font-extrabold tracking-tightish">My Boards</h1>
@@ -97,6 +96,7 @@ export default function BoardListPage() {
           </div>
         )}
       </main>
+      </div>
 
       {showDialog && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
@@ -154,6 +154,6 @@ export default function BoardListPage() {
           </div>
         </div>
       )}
-    </div>
+    </AppShell>
   )
 }

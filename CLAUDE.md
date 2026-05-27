@@ -102,12 +102,16 @@ cd webapp && npx tsc --noEmit
 cd webapp && npm run build
 ```
 
+**Layout:** every authenticated page renders inside `src/components/AppShell.tsx`, which puts the persistent Todoist-style `src/components/Sidebar.tsx` on the left (Boards section listing each board, Reminders section with One-off + Recurring children, Settings, sign-out) and the page content in a scrollable column on the right. There is no top nav bar (the old `AppHeader` was removed). Pages must render their own scroll region (`flex-1 overflow-y-auto`) — `AppShell` itself is a non-scrolling `h-screen` flex column.
+
 **Key source files:**
-- `src/pages/KanbanBoardPage.tsx` — board view with drag-and-drop task cards
-- `src/pages/TaskDetailPage.tsx` — task detail with subtask drag-and-drop + rename
-- `src/pages/RemindersPage.tsx` — one-off and recurring reminders display
+- `src/components/AppShell.tsx` — sidebar + content layout wrapper used by all authed pages
+- `src/components/Sidebar.tsx` — persistent left nav; lists boards + reminder views
+- `src/pages/KanbanBoardPage.tsx` — board view; columns are `flex-1` (divide the width evenly), cards show a checklist progress badge, add-column is a header dialog
+- `src/pages/TaskDetailPage.tsx` — task detail with subtask drag-and-drop + rename; title/description **autosave** (debounced, no Save button)
+- `src/pages/RemindersPage.tsx` — one-off and recurring reminders; reads `?view=one-off|recurring` to filter to one section (matches the sidebar children)
 - `src/pages/SettingsPage.tsx` — settings including API key management
-- `src/hooks/useBoard.ts` — board/column/task Firestore hooks
+- `src/hooks/useBoard.ts` — board/column/task Firestore hooks; also attaches one subtask listener per task to expose `subtaskCounts` for board card badges
 - `src/hooks/useTask.ts` — task + subtask Firestore hooks
 - `src/hooks/useReminders.ts` — reminders Firestore hooks (one-off + recurring)
 - `src/hooks/useApiKeys.ts` — generate/revoke API keys (SHA-256, dual-write to `apiKeys/{hash}` and `apiKeyMeta`)

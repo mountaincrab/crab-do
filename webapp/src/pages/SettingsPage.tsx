@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useApiKeys } from '../hooks/useApiKeys'
 import { useTheme, THEMES, Theme } from '../contexts/ThemeContext'
 import { ApiKeyMeta } from '../types'
-import AppHeader from '../components/AppHeader'
+import AppShell from '../components/AppShell'
 
 function formatDate(ms: number): string {
   return new Date(ms).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })
@@ -209,9 +209,8 @@ export default function SettingsPage() {
   const [revokeTarget, setRevokeTarget] = useState<ApiKeyMeta | null>(null)
 
   return (
-    <div className="min-h-screen bg-bg text-fg">
-      <AppHeader active="settings" />
-
+    <AppShell>
+      <div className="flex-1 overflow-y-auto">
       <main className="max-w-3xl mx-auto px-6 py-10">
         {/* Appearance */}
         <section className="mb-12">
@@ -321,6 +320,7 @@ export default function SettingsPage() {
 }`}</pre>
         </div>
       </main>
+      </div>
 
       {showGenerate && (
         <GenerateKeyDialog
@@ -336,6 +336,6 @@ export default function SettingsPage() {
           onConfirm={() => revokeKey(revokeTarget.keyHash, revokeTarget.id)}
         />
       )}
-    </div>
+    </AppShell>
   )
 }

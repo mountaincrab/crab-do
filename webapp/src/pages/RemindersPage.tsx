@@ -1,9 +1,10 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Bell, AlarmClock, Repeat, Pencil, Trash2, ChevronRight } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useReminders } from '../hooks/useReminders'
 import { Reminder, RecurringReminder } from '../types'
-import AppHeader from '../components/AppHeader'
+import AppShell from '../components/AppShell'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -307,38 +308,46 @@ export default function RemindersPage() {
     toggleRecurringEnabled,
   } = useReminders(user!.uid)
 
+  const [searchParams] = useSearchParams()
+  const view = searchParams.get('view') // 'one-off' | 'recurring' | null
+  const showOneOff = view !== 'recurring'
+  const showRecurring = view !== 'one-off'
+
   const [showCreate, setShowCreate] = useState(false)
   const [editing, setEditing] = useState<Reminder | null>(null)
   const [showCompleted, setShowCompleted] = useState(false)
 
   const activeEntries: ActiveEntry[] = [
-    ...reminders.map((r) => ({
+    ...(showOneOff ? reminders : []).map((r) => ({
       kind: 'one-off' as const,
       sortKey: r.snoozedUntilMillis ?? r.scheduledAt,
       data: r,
     })),
-    ...recurringReminders.map((r) => ({
+    ...(showRecurring ? recurringReminders : []).map((r) => ({
       kind: 'recurring' as const,
       sortKey: r.snoozedUntilMillis ?? r.nextFireAt,
       data: r,
     })),
   ].sort((a, b) => a.sortKey - b.sortKey)
 
-  const isEmpty = activeEntries.length === 0 && completedReminders.length === 0
+  const visibleCompleted = showOneOff ? completedReminders : []
+  const isEmpty = activeEntries.length === 0 && visibleCompleted.length === 0
+  const heading = view === 'one-off' ? 'One-off Reminders' : view === 'recurring' ? 'Recurring Reminders' : 'Reminders'
 
   return (
-    <div className="min-h-screen bg-bg text-fg">
-      <AppHeader active="reminders" />
-
+    <AppShell>
+      <div className="flex-1 overflow-y-auto">
       <main className="max-w-2xl mx-auto px-6 py-10">
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl font-extrabold tracking-tightish">Reminders</h1>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="bg-accent hover:bg-accent-hover text-accent-fg px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
-          >
-            + New reminder
-          </button>
+          <h1 className="text-3xl font-extrabold tracking-tightish">{heading}</h1>
+          {view !== 'recurring' && (
+            <button
+              onClick={() => setShowCreate(true)}
+              className="bg-accent hover:bg-accent-hover text-accent-fg px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
+            >
+              + New reminder
+            </button>
+          )}
         </div>
 
         {loading ? (
@@ -372,7 +381,7 @@ export default function RemindersPage() {
               )
             )}
 
-            {completedReminders.length > 0 && (
+            {visibleCompleted.length > 0 && (
               <div className="pt-4">
                 <button
                   onClick={() => setShowCompleted((v) => !v)}
@@ -382,11 +391,11 @@ export default function RemindersPage() {
                     size={14}
                     className={`transition-transform ${showCompleted ? 'rotate-90' : ''}`}
                   />
-                  Completed ({completedReminders.length})
+                  Completed ({visibleCompleted.length})
                 </button>
                 {showCompleted && (
                   <div className="space-y-1.5">
-                    {completedReminders.map((r) => (
+                    {visibleCompleted.map((r) => (
                       <OneOffReminderRow
                         key={r.id}
                         reminder={r}
@@ -402,6 +411,7 @@ export default function RemindersPage() {
           </div>
         )}
       </main>
+      </div>
 
       {showCreate && (
         <ReminderDialog
@@ -417,6 +427,6 @@ export default function RemindersPage() {
           onClose={() => setEditing(null)}
         />
       )}
-    </div>
+    </AppShell>
   )
 }

@@ -7,10 +7,16 @@ import {
 import { db } from '../firebase'
 import { Board, Column, Task } from '../types'
 
+export interface SubtaskCount {
+  total: number
+  completed: number
+}
+
 export function useBoard(userId: string, boardId: string) {
   const [board, setBoard] = useState<Board | null>(null)
   const [columns, setColumns] = useState<Column[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
+  const [subtaskCounts, setSubtaskCounts] = useState<Record<string, SubtaskCount>>({})
   const [loading, setLoading] = useState(true)
 
   const boardRef = doc(db, 'users', userId, 'boards', boardId)
@@ -47,6 +53,30 @@ export function useBoard(userId: string, boardId: string) {
       setLoading(false)
     })
   }, [userId, boardId])
+
+  // One snapshot listener per task to surface checklist progress on board cards.
+  const taskIdsKey = tasks.map((t) => t.id).sort().join(',')
+  useEffect(() => {
+    const ids = taskIdsKey ? taskIdsKey.split(',') : []
+    if (ids.length === 0) {
+      setSubtaskCounts({})
+      return
+    }
+    const unsubs = ids.map((taskId) =>
+      onSnapshot(
+        query(
+          collection(db, 'users', userId, 'boards', boardId, 'tasks', taskId, 'subtasks'),
+          where('isDeleted', '==', false),
+        ),
+        (snap) => {
+          let completed = 0
+          snap.docs.forEach((d) => { if (d.data().isCompleted) completed++ })
+          setSubtaskCounts((prev) => ({ ...prev, [taskId]: { total: snap.size, completed } }))
+        },
+      ),
+    )
+    return () => unsubs.forEach((u) => u())
+  }, [userId, boardId, taskIdsKey])
 
   const tasksByColumn = columns.reduce<Record<string, Task[]>>((acc, col) => {
     acc[col.id] = tasks.filter((t) => t.columnId === col.id)
@@ -142,6 +172,7 @@ export function useBoard(userId: string, boardId: string) {
     columns,
     tasks,
     tasksByColumn,
+    subtaskCounts,
     loading,
     addColumn,
     renameColumn,

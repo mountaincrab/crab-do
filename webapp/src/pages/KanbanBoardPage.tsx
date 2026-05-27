@@ -1,16 +1,17 @@
 import { useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, ChevronDown, ChevronRight, ChevronUp, MoreHorizontal, Settings2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, ChevronUp, ListChecks, MoreHorizontal, Plus, Settings2 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { useBoard } from '../hooks/useBoard'
+import { useBoard, SubtaskCount } from '../hooks/useBoard'
 import { Column, Task } from '../types'
+import AppShell from '../components/AppShell'
 
 export default function KanbanBoardPage() {
   const { boardId } = useParams<{ boardId: string }>()
   const { user } = useAuth()
   const navigate = useNavigate()
   const {
-    board, columns, tasksByColumn, loading,
+    board, columns, tasksByColumn, subtaskCounts, loading,
     addColumn, renameColumn, deleteColumn, reorderColumns,
     addTask, moveTask, deleteTask,
   } = useBoard(user!.uid, boardId!)
@@ -24,9 +25,9 @@ export default function KanbanBoardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-bg flex items-center justify-center text-fg-faint">
-        Loading…
-      </div>
+      <AppShell>
+        <div className="flex-1 flex items-center justify-center text-fg-faint">Loading…</div>
+      </AppShell>
     )
   }
 
@@ -58,16 +59,15 @@ export default function KanbanBoardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-bg text-fg flex flex-col">
-      <header className="border-b border-DEFAULT bg-surface px-6 py-3 flex items-center gap-4 shrink-0">
+    <AppShell>
+      <header className="border-b border-DEFAULT bg-surface px-6 h-14 flex items-center gap-4 shrink-0">
+        <h1 className="font-bold text-lg tracking-tightish flex-1 truncate">{board?.title ?? '…'}</h1>
         <button
-          onClick={() => navigate('/')}
-          className="flex items-center gap-1 text-fg-muted hover:text-fg transition-colors text-sm font-semibold"
-          aria-label="Back"
+          onClick={() => setShowAddColumn(true)}
+          className="flex items-center gap-1.5 bg-accent hover:bg-accent-hover text-accent-fg px-3 py-1.5 rounded-xl text-sm font-semibold transition-colors"
         >
-          <ArrowLeft size={16} /> Back
+          <Plus size={15} /> Add column
         </button>
-        <h1 className="font-bold text-lg tracking-tightish flex-1">{board?.title ?? '…'}</h1>
         <button
           onClick={() => setShowManageColumns(true)}
           className="text-fg-muted hover:text-fg transition-colors p-1 rounded"
@@ -78,65 +78,67 @@ export default function KanbanBoardPage() {
       </header>
 
       <div className="flex-1 overflow-x-auto">
-        <div className="flex gap-4 p-6 h-full items-start" style={{ minHeight: 'calc(100vh - 57px)' }}>
-          {columns.map((col) => (
-            <KanbanColumnView
-              key={col.id}
-              column={col}
-              tasks={tasksByColumn[col.id] ?? []}
-              allColumns={columns}
-              draggingTaskId={draggingTaskId}
-              onDragStart={(taskId) => setDraggingTaskId(taskId)}
-              onDragEnd={() => setDraggingTaskId(null)}
-              onAddTask={(title, desc) => addTask(col.id, title, desc)}
-              onMoveTask={moveTask}
-              onDeleteTask={deleteTask}
-              onRename={() => { setRenamingCol(col); setRenameValue(col.title) }}
-              onDelete={() => deleteColumn(col.id)}
-              onTaskClick={(taskId) => navigate(`/board/${boardId}/task/${taskId}`)}
-            />
-          ))}
-
-          <div className="shrink-0 w-64">
-            {showAddColumn ? (
-              <div className="bg-surface-raised border border-DEFAULT rounded-xl p-3">
-                <input
-                  autoFocus
-                  value={newColTitle}
-                  onChange={(e) => setNewColTitle(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleAddColumn()
-                    if (e.key === 'Escape') { setShowAddColumn(false); setNewColTitle('') }
-                  }}
-                  placeholder="Column name"
-                  className="w-full bg-surface-raised border border-DEFAULT rounded-lg px-3 py-2 text-fg placeholder:text-fg-faint outline-none focus:border-accent text-sm mb-2 transition-colors"
-                />
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleAddColumn}
-                    className="px-3 py-1.5 bg-accent hover:bg-accent-hover text-accent-fg rounded-xl text-sm font-semibold transition-colors"
-                  >
-                    Add
-                  </button>
-                  <button
-                    onClick={() => { setShowAddColumn(false); setNewColTitle('') }}
-                    className="px-3 py-1.5 text-fg-muted hover:text-fg rounded-xl text-sm font-semibold transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button
-                onClick={() => setShowAddColumn(true)}
-                className="w-full text-left text-fg-muted hover:text-fg px-3 py-2.5 rounded-xl hover:bg-surface-raised transition-colors text-sm font-semibold"
-              >
-                + Add column
-              </button>
-            )}
-          </div>
+        <div className="flex gap-4 p-6 h-full items-stretch">
+          {columns.length === 0 ? (
+            <div className="flex-1 flex items-center justify-center text-fg-faint text-sm">
+              No columns yet. Add one to get started.
+            </div>
+          ) : (
+            columns.map((col) => (
+              <KanbanColumnView
+                key={col.id}
+                column={col}
+                tasks={tasksByColumn[col.id] ?? []}
+                subtaskCounts={subtaskCounts}
+                allColumns={columns}
+                draggingTaskId={draggingTaskId}
+                onDragStart={(taskId) => setDraggingTaskId(taskId)}
+                onDragEnd={() => setDraggingTaskId(null)}
+                onAddTask={(title, desc) => addTask(col.id, title, desc)}
+                onMoveTask={moveTask}
+                onDeleteTask={deleteTask}
+                onRename={() => { setRenamingCol(col); setRenameValue(col.title) }}
+                onDelete={() => deleteColumn(col.id)}
+                onTaskClick={(taskId) => navigate(`/board/${boardId}/task/${taskId}`)}
+              />
+            ))
+          )}
         </div>
       </div>
+
+      {showAddColumn && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-surface-raised border border-DEFAULT rounded-2xl p-6 w-full max-w-sm shadow-dialog">
+            <h2 className="text-lg font-bold mb-4 text-fg">Add Column</h2>
+            <input
+              autoFocus
+              value={newColTitle}
+              onChange={(e) => setNewColTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleAddColumn()
+                if (e.key === 'Escape') { setShowAddColumn(false); setNewColTitle('') }
+              }}
+              placeholder="Column name"
+              className="w-full bg-surface-raised border border-DEFAULT rounded-lg px-3 py-2.5 text-fg placeholder:text-fg-faint outline-none focus:border-accent mb-4 transition-colors"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => { setShowAddColumn(false); setNewColTitle('') }}
+                className="px-4 py-2 text-fg-muted hover:text-fg text-sm rounded-xl font-semibold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddColumn}
+                disabled={!newColTitle.trim()}
+                className="px-4 py-2 bg-accent hover:bg-accent-hover disabled:opacity-40 text-accent-fg text-sm rounded-xl font-semibold transition-colors"
+              >
+                Add
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {renamingCol && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
@@ -199,7 +201,7 @@ export default function KanbanBoardPage() {
           </div>
         </div>
       )}
-    </div>
+    </AppShell>
   )
 }
 
@@ -223,6 +225,7 @@ function DropIndicator() {
 interface ColumnViewProps {
   column: Column
   tasks: Task[]
+  subtaskCounts: Record<string, SubtaskCount>
   allColumns: Column[]
   draggingTaskId: string | null
   onDragStart: (taskId: string) => void
@@ -236,7 +239,7 @@ interface ColumnViewProps {
 }
 
 function KanbanColumnView({
-  column, tasks, allColumns,
+  column, tasks, subtaskCounts, allColumns,
   draggingTaskId,
   onDragStart, onDragEnd,
   onAddTask, onMoveTask, onDeleteTask,
@@ -298,14 +301,14 @@ function KanbanColumnView({
 
   return (
     <div
-      className={`shrink-0 w-64 flex flex-col gap-2 rounded-xl p-1 transition-colors ${
+      className={`flex-1 min-w-[240px] flex flex-col rounded-xl p-1 transition-colors ${
         isDragging && hoverGap !== null ? 'bg-accent-soft ring-1 ring-accent/30' : ''
       }`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      <div className="flex items-center justify-between px-1">
+      <div className="flex items-center justify-between px-1 shrink-0">
         <div className="flex items-center gap-2">
           <span className="font-bold text-sm text-fg">{column.title}</span>
           <span className="text-xs text-fg-muted bg-surface-high px-2 py-0.5 rounded-full font-semibold">{tasks.length}</span>
@@ -336,12 +339,13 @@ function KanbanColumnView({
         </div>
       </div>
 
-      <div ref={tasksRef} className="flex flex-col gap-2">
+      <div ref={tasksRef} className="flex-1 overflow-y-auto flex flex-col gap-2 mt-2 min-h-0">
         {visibleTasks.map((task, i) => (
           <div key={task.id}>
             {isDragging && hoverGap === i && <DropIndicator />}
             <TaskCardView
               task={task}
+              subtaskCount={subtaskCounts[task.id]}
               allColumns={allColumns}
               onDragStart={onDragStart}
               onDragEnd={onDragEnd}
@@ -360,7 +364,7 @@ function KanbanColumnView({
       </div>
 
       {showAdd ? (
-        <div className="bg-surface-raised border border-DEFAULT rounded-xl p-3 mt-1">
+        <div className="bg-surface-raised border border-DEFAULT rounded-xl p-3 mt-1 shrink-0">
           <input
             autoFocus
             value={newTaskTitle}
@@ -387,7 +391,7 @@ function KanbanColumnView({
       ) : (
         <button
           onClick={() => setShowAdd(true)}
-          className="w-full text-left text-fg-faint hover:text-fg px-2 py-1.5 rounded-lg hover:bg-surface-raised transition-colors text-sm font-semibold mt-1"
+          className="w-full text-left text-fg-faint hover:text-fg px-2 py-1.5 rounded-lg hover:bg-surface-raised transition-colors text-sm font-semibold mt-1 shrink-0"
         >
           + Add task
         </button>
@@ -398,6 +402,7 @@ function KanbanColumnView({
 
 interface TaskCardProps {
   task: Task
+  subtaskCount?: SubtaskCount
   allColumns: Column[]
   onDragStart: (taskId: string) => void
   onDragEnd: () => void
@@ -406,10 +411,12 @@ interface TaskCardProps {
   onClick: () => void
 }
 
-function TaskCardView({ task, allColumns, onDragStart, onDragEnd, onMove, onDelete, onClick }: TaskCardProps) {
+function TaskCardView({ task, subtaskCount, allColumns, onDragStart, onDragEnd, onMove, onDelete, onClick }: TaskCardProps) {
   const [showMenu, setShowMenu] = useState(false)
   const [showMoveMenu, setShowMoveMenu] = useState(false)
   const otherColumns = allColumns.filter((c) => c.id !== task.columnId)
+  const hasSubtasks = subtaskCount && subtaskCount.total > 0
+  const allDone = hasSubtasks && subtaskCount!.completed === subtaskCount!.total
 
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.effectAllowed = 'move'
@@ -427,9 +434,20 @@ function TaskCardView({ task, allColumns, onDragStart, onDragEnd, onMove, onDele
       className="bg-surface-raised hover:bg-surface-high border border-DEFAULT rounded-xl p-3 cursor-grab active:cursor-grabbing transition-colors relative group select-none"
       onClick={onClick}
     >
-      <p className="text-sm text-fg leading-snug font-medium">{task.title}</p>
+      <p className="text-sm text-fg leading-snug font-medium pr-5">{task.title}</p>
       {task.description && (
         <p className="text-xs text-fg-faint mt-1 line-clamp-2">{task.description}</p>
+      )}
+
+      {hasSubtasks && (
+        <span
+          className={`inline-flex items-center gap-1 mt-2 text-xs font-medium font-mono px-1.5 py-0.5 rounded-md ${
+            allDone ? 'bg-accent-soft text-success-text' : 'bg-surface-high text-fg-muted'
+          }`}
+        >
+          <ListChecks size={12} />
+          {subtaskCount!.completed}/{subtaskCount!.total}
+        </span>
       )}
 
       <div

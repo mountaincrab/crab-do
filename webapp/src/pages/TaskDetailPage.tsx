@@ -4,6 +4,7 @@ import { ArrowLeft, Check, X } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useTask } from '../hooks/useTask'
 import { Subtask } from '../types'
+import AppShell from '../components/AppShell'
 
 export default function TaskDetailPage() {
   const { boardId, taskId } = useParams<{ boardId: string; taskId: string }>()
@@ -15,26 +16,43 @@ export default function TaskDetailPage() {
 
   const [titleDraft, setTitleDraft] = useState('')
   const [descDraft, setDescDraft] = useState('')
-  const [dirty, setDirty] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('')
-  const [saving, setSaving] = useState(false)
   const [draggingSubtaskId, setDraggingSubtaskId] = useState<string | null>(null)
   const [hoverGap, setHoverGap] = useState<number | null>(null)
   const subtaskListRef = useRef<HTMLDivElement>(null)
+  const saveTimer = useRef<ReturnType<typeof setTimeout>>()
+  const hydratedTaskId = useRef<string | null>(null)
 
+  // Hydrate drafts once per task; remote echoes of our own autosaves must not clobber the editor.
   useEffect(() => {
-    if (task && !dirty) {
+    if (task && hydratedTaskId.current !== task.id) {
       setTitleDraft(task.title)
       setDescDraft(task.description)
+      hydratedTaskId.current = task.id
     }
-  }, [task, dirty])
+  }, [task])
 
-  const handleSave = async () => {
+  useEffect(() => () => { if (saveTimer.current) clearTimeout(saveTimer.current) }, [])
+
+  const scheduleSave = (title: string, desc: string) => {
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    if (!title.trim()) {
+      setSaveStatus('idle')
+      return
+    }
+    setSaveStatus('saving')
+    saveTimer.current = setTimeout(async () => {
+      await updateTask({ title: title.trim(), description: desc.trim() })
+      setSaveStatus('saved')
+    }, 600)
+  }
+
+  const flushSave = async () => {
+    if (saveTimer.current) clearTimeout(saveTimer.current)
     if (!titleDraft.trim()) return
-    setSaving(true)
     await updateTask({ title: titleDraft.trim(), description: descDraft.trim() })
-    setDirty(false)
-    setSaving(false)
+    setSaveStatus('saved')
   }
 
   const handleAddSubtask = async () => {
@@ -87,8 +105,8 @@ export default function TaskDetailPage() {
   const completedCount = subtasks.filter((s) => s.isCompleted).length
 
   return (
-    <div className="min-h-screen bg-bg text-fg flex flex-col">
-      <header className="border-b border-DEFAULT bg-surface px-6 py-3 flex items-center gap-4 shrink-0">
+    <AppShell>
+      <header className="border-b border-DEFAULT bg-surface px-6 h-14 flex items-center gap-4 shrink-0">
         <button
           onClick={() => navigate(-1)}
           className="flex items-center gap-1 text-fg-muted hover:text-fg transition-colors text-sm font-semibold"
@@ -98,12 +116,19 @@ export default function TaskDetailPage() {
         <span className="font-bold flex-1 truncate text-fg">{task?.title ?? '…'}</span>
       </header>
 
-      <div className="flex-1 max-w-2xl mx-auto w-full px-6 py-8 flex flex-col gap-6">
+      <div className="flex-1 overflow-y-auto">
+      <div className="max-w-2xl mx-auto w-full px-6 py-8 flex flex-col gap-6">
         <div>
-          <label className="ds-eyebrow mb-1.5 block">Title</label>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="ds-eyebrow">Title</label>
+            <span className="text-xs text-fg-faint transition-opacity">
+              {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'Saved' : ''}
+            </span>
+          </div>
           <input
             value={titleDraft}
-            onChange={(e) => { setTitleDraft(e.target.value); setDirty(true) }}
+            onChange={(e) => { const v = e.target.value; setTitleDraft(v); scheduleSave(v, descDraft) }}
+            onBlur={flushSave}
             className="w-full bg-surface-raised border border-DEFAULT rounded-xl px-4 py-3 text-fg outline-none focus:border-accent transition-colors"
           />
         </div>
@@ -112,24 +137,13 @@ export default function TaskDetailPage() {
           <label className="ds-eyebrow mb-1.5 block">Description</label>
           <textarea
             value={descDraft}
-            onChange={(e) => { setDescDraft(e.target.value); setDirty(true) }}
+            onChange={(e) => { const v = e.target.value; setDescDraft(v); scheduleSave(titleDraft, v) }}
+            onBlur={flushSave}
             rows={4}
             placeholder="Add a description…"
             className="w-full bg-surface-raised border border-DEFAULT rounded-xl px-4 py-3 text-fg placeholder:text-fg-faint outline-none focus:border-accent transition-colors resize-none"
           />
         </div>
-
-        {dirty && (
-          <div className="flex justify-end">
-            <button
-              onClick={handleSave}
-              disabled={saving || !titleDraft.trim()}
-              className="px-5 py-2 bg-accent hover:bg-accent-hover disabled:opacity-40 text-accent-fg rounded-xl text-sm font-semibold transition-colors"
-            >
-              {saving ? 'Saving…' : 'Save changes'}
-            </button>
-          </div>
-        )}
 
         <hr className="border-DEFAULT" />
 
@@ -197,7 +211,8 @@ export default function TaskDetailPage() {
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </AppShell>
   )
 }
 
