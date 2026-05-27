@@ -163,9 +163,10 @@ fun KanbanColumn(
                 // While swiping: snap to finger. On release past threshold: keep
                 // sliding off-screen, then commit the column move. Otherwise:
                 // spring back to rest.
+                val exitTargetX = exitDirection * exitDistancePx
                 val swipeTranslationX by animateFloatAsState(
                     targetValue = when {
-                        isExiting -> exitDirection * exitDistancePx
+                        isExiting -> exitTargetX
                         isSwiping -> swipeDxState.floatValue * 0.9f
                         else -> 0f
                     },
@@ -174,8 +175,13 @@ fun KanbanColumn(
                         isSwiping -> androidx.compose.animation.core.snap()
                         else -> spring(dampingRatio = 0.6f, stiffness = 500f)
                     },
-                    finishedListener = {
-                        if (isExiting && capturedTaskId == exitingCardId) {
+                    finishedListener = { value ->
+                        // animateFloatAsState fires this for EVERY settled animation —
+                        // including the per-frame snap() while swiping. Only commit the
+                        // move once the card has actually slid to the off-screen target,
+                        // otherwise a snap settle commits instantly and the slide is skipped.
+                        if (isExiting && capturedTaskId == exitingCardId &&
+                            abs(value - exitTargetX) < 0.5f) {
                             exitTargetColumnId?.let { onCardMovedToColumnRef.value(capturedTaskId, it) }
                             exitingCardId = null
                             exitTargetColumnId = null

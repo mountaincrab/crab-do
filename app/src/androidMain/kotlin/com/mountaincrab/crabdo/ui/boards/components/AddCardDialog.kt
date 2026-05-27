@@ -30,6 +30,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -145,6 +146,20 @@ fun EditCardDialog(
     var reminderMillis by remember { mutableStateOf(task.reminderTimeMillis ?: defaultReminderTime()) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var newSubtask by remember { mutableStateOf("") }
+    val subtaskFocusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    // Add the subtask but keep the field focused and the keyboard up so the
+    // next one can be typed straight away (the IME "Done" tick / icon tap would
+    // otherwise dismiss the keyboard).
+    val addSubtaskAndContinue = {
+        if (newSubtask.isNotBlank()) {
+            onAddSubtask(newSubtask.trim())
+            newSubtask = ""
+            subtaskFocusRequester.requestFocus()
+            keyboardController?.show()
+        }
+    }
 
     // Local copy of the subtask list so long-press drag reorder can shuffle items
     // without waiting for the DB round-trip; resynced from the flow when not dragging.
@@ -305,30 +320,20 @@ fun EditCardDialog(
                                 value = newSubtask,
                                 onValueChange = { newSubtask = it },
                                 placeholder = { Text("Add a subtask…") },
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .focusRequester(subtaskFocusRequester),
                                 singleLine = true,
                                 shape = RoundedCornerShape(12.dp),
                                 keyboardOptions = KeyboardOptions(
                                     imeAction = ImeAction.Done,
                                     capitalization = KeyboardCapitalization.Sentences
                                 ),
-                                keyboardActions = KeyboardActions(
-                                    onDone = {
-                                        if (newSubtask.isNotBlank()) {
-                                            onAddSubtask(newSubtask.trim())
-                                            newSubtask = ""
-                                        }
-                                    }
-                                )
+                                keyboardActions = KeyboardActions(onDone = { addSubtaskAndContinue() })
                             )
                             Spacer(Modifier.width(8.dp))
                             IconButton(
-                                onClick = {
-                                    if (newSubtask.isNotBlank()) {
-                                        onAddSubtask(newSubtask.trim())
-                                        newSubtask = ""
-                                    }
-                                },
+                                onClick = addSubtaskAndContinue,
                                 enabled = newSubtask.isNotBlank()
                             ) {
                                 Icon(
