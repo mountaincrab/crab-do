@@ -5,7 +5,7 @@ import {
   getDocs, writeBatch,
 } from 'firebase/firestore'
 import { db } from '../firebase'
-import { Board, Column, Task } from '../types'
+import { Board, Column, Task, Subtask } from '../types'
 
 export interface SubtaskCount {
   total: number
@@ -17,6 +17,7 @@ export function useBoard(userId: string, boardId: string) {
   const [columns, setColumns] = useState<Column[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [subtaskCounts, setSubtaskCounts] = useState<Record<string, SubtaskCount>>({})
+  const [subtasksByTask, setSubtasksByTask] = useState<Record<string, Subtask[]>>({})
   const [loading, setLoading] = useState(true)
 
   const boardRef = doc(db, 'users', userId, 'boards', boardId)
@@ -60,6 +61,7 @@ export function useBoard(userId: string, boardId: string) {
     const ids = taskIdsKey ? taskIdsKey.split(',') : []
     if (ids.length === 0) {
       setSubtaskCounts({})
+      setSubtasksByTask({})
       return
     }
     const unsubs = ids.map((taskId) =>
@@ -69,9 +71,12 @@ export function useBoard(userId: string, boardId: string) {
           where('isDeleted', '==', false),
         ),
         (snap) => {
-          let completed = 0
-          snap.docs.forEach((d) => { if (d.data().isCompleted) completed++ })
-          setSubtaskCounts((prev) => ({ ...prev, [taskId]: { total: snap.size, completed } }))
+          const subs = snap.docs
+            .map((d) => ({ id: d.id, ...d.data() } as Subtask))
+            .sort((a, b) => a.order - b.order)
+          const completed = subs.filter((s) => s.isCompleted).length
+          setSubtaskCounts((prev) => ({ ...prev, [taskId]: { total: subs.length, completed } }))
+          setSubtasksByTask((prev) => ({ ...prev, [taskId]: subs }))
         },
       ),
     )
@@ -140,6 +145,13 @@ export function useBoard(userId: string, boardId: string) {
     )
   }
 
+  const toggleSubtask = async (taskId: string, subtaskId: string, isCompleted: boolean) => {
+    await updateDoc(
+      doc(db, 'users', userId, 'boards', boardId, 'tasks', taskId, 'subtasks', subtaskId),
+      { isCompleted, updatedAt: serverTimestamp() },
+    )
+  }
+
   const reorderColumns = async (orderedIds: string[]) => {
     const batch = writeBatch(db)
     orderedIds.forEach((id, i) => {
@@ -173,6 +185,7 @@ export function useBoard(userId: string, boardId: string) {
     tasks,
     tasksByColumn,
     subtaskCounts,
+    subtasksByTask,
     loading,
     addColumn,
     renameColumn,
@@ -181,5 +194,6 @@ export function useBoard(userId: string, boardId: string) {
     addTask,
     moveTask,
     deleteTask,
+    toggleSubtask,
   }
 }

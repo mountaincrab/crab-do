@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ChevronDown, ChevronRight, ChevronUp, ListChecks, MoreHorizontal, Plus, Settings2 } from 'lucide-react'
+import { Check, ChevronDown, ChevronRight, ChevronUp, ListChecks, MoreHorizontal, Plus, Settings2 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useBoard, SubtaskCount } from '../hooks/useBoard'
-import { Column, Task } from '../types'
+import { Column, Subtask, Task } from '../types'
 import AppShell from '../components/AppShell'
 
 export default function KanbanBoardPage() {
@@ -11,9 +11,9 @@ export default function KanbanBoardPage() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const {
-    board, columns, tasksByColumn, subtaskCounts, loading,
+    board, columns, tasksByColumn, subtaskCounts, subtasksByTask, loading,
     addColumn, renameColumn, deleteColumn, reorderColumns,
-    addTask, moveTask, deleteTask,
+    addTask, moveTask, deleteTask, toggleSubtask,
   } = useBoard(user!.uid, boardId!)
 
   const [showAddColumn, setShowAddColumn] = useState(false)
@@ -90,6 +90,8 @@ export default function KanbanBoardPage() {
                 column={col}
                 tasks={tasksByColumn[col.id] ?? []}
                 subtaskCounts={subtaskCounts}
+                subtasksByTask={subtasksByTask}
+                onToggleSubtask={toggleSubtask}
                 allColumns={columns}
                 draggingTaskId={draggingTaskId}
                 onDragStart={(taskId) => setDraggingTaskId(taskId)}
@@ -226,6 +228,8 @@ interface ColumnViewProps {
   column: Column
   tasks: Task[]
   subtaskCounts: Record<string, SubtaskCount>
+  subtasksByTask: Record<string, Subtask[]>
+  onToggleSubtask: (taskId: string, subtaskId: string, isCompleted: boolean) => void
   allColumns: Column[]
   draggingTaskId: string | null
   onDragStart: (taskId: string) => void
@@ -239,7 +243,7 @@ interface ColumnViewProps {
 }
 
 function KanbanColumnView({
-  column, tasks, subtaskCounts, allColumns,
+  column, tasks, subtaskCounts, subtasksByTask, onToggleSubtask, allColumns,
   draggingTaskId,
   onDragStart, onDragEnd,
   onAddTask, onMoveTask, onDeleteTask,
@@ -346,6 +350,8 @@ function KanbanColumnView({
             <TaskCardView
               task={task}
               subtaskCount={subtaskCounts[task.id]}
+              subtasks={subtasksByTask[task.id] ?? []}
+              onToggleSubtask={onToggleSubtask}
               allColumns={allColumns}
               onDragStart={onDragStart}
               onDragEnd={onDragEnd}
@@ -403,6 +409,8 @@ function KanbanColumnView({
 interface TaskCardProps {
   task: Task
   subtaskCount?: SubtaskCount
+  subtasks: Subtask[]
+  onToggleSubtask: (taskId: string, subtaskId: string, isCompleted: boolean) => void
   allColumns: Column[]
   onDragStart: (taskId: string) => void
   onDragEnd: () => void
@@ -411,12 +419,14 @@ interface TaskCardProps {
   onClick: () => void
 }
 
-function TaskCardView({ task, subtaskCount, allColumns, onDragStart, onDragEnd, onMove, onDelete, onClick }: TaskCardProps) {
+function TaskCardView({ task, subtaskCount, subtasks, onToggleSubtask, allColumns, onDragStart, onDragEnd, onMove, onDelete, onClick }: TaskCardProps) {
   const [showMenu, setShowMenu] = useState(false)
   const [showMoveMenu, setShowMoveMenu] = useState(false)
+  const [expanded, setExpanded] = useState(false)
   const otherColumns = allColumns.filter((c) => c.id !== task.columnId)
   const hasSubtasks = subtaskCount && subtaskCount.total > 0
   const allDone = hasSubtasks && subtaskCount!.completed === subtaskCount!.total
+  const incompleteSubtasks = subtasks.filter((s) => !s.isCompleted)
 
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.effectAllowed = 'move'
@@ -440,14 +450,38 @@ function TaskCardView({ task, subtaskCount, allColumns, onDragStart, onDragEnd, 
       )}
 
       {hasSubtasks && (
-        <span
-          className={`inline-flex items-center gap-1 mt-2 text-xs font-medium font-mono px-1.5 py-0.5 rounded-md ${
-            allDone ? 'bg-accent-soft text-success-text' : 'bg-surface-high text-fg-muted'
+        <button
+          onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v) }}
+          className={`inline-flex items-center gap-1 mt-2 text-xs font-medium font-mono px-1.5 py-0.5 rounded-md transition-colors ${
+            allDone ? 'bg-accent-soft text-success-text' : 'bg-surface-high text-fg-muted hover:text-fg'
           }`}
         >
           <ListChecks size={12} />
           {subtaskCount!.completed}/{subtaskCount!.total}
-        </span>
+          {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+        </button>
+      )}
+
+      {expanded && hasSubtasks && (
+        <div className="mt-2 flex flex-col gap-0.5" onClick={(e) => e.stopPropagation()}>
+          {incompleteSubtasks.length === 0 ? (
+            <span className="text-xs text-fg-faint py-1">All items complete</span>
+          ) : (
+            incompleteSubtasks.map((s) => (
+              <div key={s.id} className="flex items-center gap-2 py-0.5 group/sub">
+                <button
+                  onClick={(e) => { e.stopPropagation(); onToggleSubtask(task.id, s.id, true) }}
+                  className="w-4 h-4 rounded border border-fg-muted hover:border-accent hover:bg-accent-soft flex items-center justify-center shrink-0 transition-colors"
+                  style={{ borderWidth: '1.5px' }}
+                  aria-label="Complete subtask"
+                >
+                  <Check size={10} strokeWidth={3} className="text-accent opacity-0 group-hover/sub:opacity-60 transition-opacity" />
+                </button>
+                <span className="text-xs text-fg-muted leading-snug">{s.title}</span>
+              </div>
+            ))
+          )}
+        </div>
       )}
 
       <div
