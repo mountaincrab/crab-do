@@ -213,7 +213,7 @@ fun EditCardDialog(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    item {
+                    item(key = "task-form") {
                         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             TaskFormFields(
                                 title = title,
@@ -311,7 +311,13 @@ fun EditCardDialog(
                         )
                     }
 
-                    item {
+                    // Stable key: without it LazyColumn keys this trailing item
+                    // by position, so inserting a new subtask above shifts its
+                    // index and disposes/recreates the OutlinedTextField — which
+                    // drops focus and hides the keyboard on every add. A fixed
+                    // key keeps the same field instance so focus (and the IME)
+                    // survives, letting you type subtasks back-to-back.
+                    item(key = "subtask-composer") {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
