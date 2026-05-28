@@ -1,10 +1,6 @@
 package com.mountaincrab.crabdo.ui.boards.components
 
-import android.content.Context
-import android.graphics.Point
-import android.os.Build
 import android.view.ViewGroup
-import android.view.WindowManager
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
@@ -30,7 +26,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -213,23 +208,12 @@ fun EditCardDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        // A Compose Dialog's content view wrap-measures its height even after the
-        // window is set to MATCH_PARENT, so fillMaxSize/weight/verticalScroll never
-        // bound to the screen — the layout grows past the display and the pinned
-        // composer falls off the bottom. Pin the Surface to the real display height
-        // so the content tree is concretely bounded. Draw edge-to-edge so the window
-        // dispatches ime + nav-bar insets (needed by the composer's padding).
+        // With usePlatformDefaultWidth = false the dialog window keeps a
+        // WRAP_CONTENT height, so fillMaxSize/weight/verticalScroll get an unbounded
+        // height and the pinned composer slides off the bottom. Force the window to
+        // MATCH_PARENT in both dimensions so fillMaxSize bounds to the screen, and go
+        // edge-to-edge so the ime + nav-bar insets reach the composer's padding.
         val view = LocalView.current
-        val context = LocalContext.current
-        val windowHeightPx = remember {
-            val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                wm.currentWindowMetrics.bounds.height()
-            } else {
-                @Suppress("DEPRECATION")
-                Point().also { wm.defaultDisplay.getRealSize(it) }.y
-            }
-        }
         SideEffect {
             (view.parent as? DialogWindowProvider)?.window?.let { window ->
                 window.setLayout(
@@ -240,9 +224,7 @@ fun EditCardDialog(
             }
         }
         Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(with(LocalDensity.current) { windowHeightPx.toDp() }),
+            modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.surface
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
