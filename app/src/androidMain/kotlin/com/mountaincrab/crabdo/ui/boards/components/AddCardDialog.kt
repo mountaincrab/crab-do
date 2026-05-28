@@ -1,14 +1,14 @@
 package com.mountaincrab.crabdo.ui.boards.components
 
+import android.content.Context
+import android.graphics.Point
+import android.os.Build
 import android.view.ViewGroup
-import androidx.compose.animation.core.tween
+import android.view.WindowManager
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -42,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
+import androidx.core.view.WindowCompat
 import androidx.compose.ui.zIndex
 import com.mountaincrab.crabdo.data.local.entity.ColumnEntity
 import com.mountaincrab.crabdo.data.local.entity.SubtaskEntity
@@ -152,7 +154,7 @@ fun EditCardDialog(
     var newSubtask by remember { mutableStateOf("") }
     val subtaskFocusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
-    val listState = rememberLazyListState()
+    val scrollState = rememberScrollState()
     // Set when the user adds a subtask so the next list emission scrolls the
     // newest row into view; gated so the initial load (empty → populated) does
     // not yank an existing list to the bottom.
@@ -186,12 +188,11 @@ fun EditCardDialog(
         if (draggingSubtaskId == null) displaySubtasks.value = subtasks
     }
 
-    // After a user adds a subtask, scroll so the new last row sits at the bottom
-    // of the list, just above the pinned composer. Item index = subtask count
-    // because the form occupies index 0.
+    // After a user adds a subtask, scroll to the bottom so the new row and the
+    // composer are visible.
     LaunchedEffect(displaySubtasks.value.size) {
         if (scrollToNewSubtask) {
-            listState.animateScrollToItem(displaySubtasks.value.size)
+            scrollState.animateScrollTo(scrollState.maxValue)
             scrollToNewSubtask = false
         }
     }
@@ -212,18 +213,38 @@ fun EditCardDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        // Force the dialog window to fill the screen. Without this its height is
-        // wrap-content, so a weight(1f) child sizes to all its content and the
-        // pinned composer below it gets pushed off the bottom edge (it vanishes).
-        // MATCH_PARENT gives bounded height so weight distributes real space.
-        val dialogWindow = (LocalView.current.parent as? DialogWindowProvider)?.window
-        SideEffect {
-            dialogWindow?.setLayout(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-            )
+        // A Compose Dialog's content view wrap-measures its height even after the
+        // window is set to MATCH_PARENT, so fillMaxSize/weight/verticalScroll never
+        // bound to the screen — the layout grows past the display and the pinned
+        // composer falls off the bottom. Pin the Surface to the real display height
+        // so the content tree is concretely bounded. Draw edge-to-edge so the window
+        // dispatches ime + nav-bar insets (needed by the composer's padding).
+        val view = LocalView.current
+        val context = LocalContext.current
+        val windowHeightPx = remember {
+            val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                wm.currentWindowMetrics.bounds.height()
+            } else {
+                @Suppress("DEPRECATION")
+                Point().also { wm.defaultDisplay.getRealSize(it) }.y
+            }
         }
-        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+        SideEffect {
+            (view.parent as? DialogWindowProvider)?.window?.let { window ->
+                window.setLayout(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+                WindowCompat.setDecorFitsSystemWindows(window, false)
+            }
+        }
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(with(LocalDensity.current) { windowHeightPx.toDp() }),
+            color = MaterialTheme.colorScheme.surface
+        ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 DialogHeader(title = "Edit Task", onClose = onDismiss) {
                     IconButton(onClick = { showDeleteConfirm = true }) {
@@ -237,47 +258,43 @@ fun EditCardDialog(
                         Text("Save", fontWeight = FontWeight.Bold)
                     }
                 }
-                LazyColumn(
-                    state = listState,
+                // Whole form (fields + checklist) scrolls in this single region,
+                // which takes all the space left between the header and the pinned
+                // composer below.
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                        .weight(1f)
+                        .verticalScroll(scrollState)
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    item(key = "task-form") {
-                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            TaskFormFields(
-                                title = title,
-                                onTitleChange = { title = it },
-                                description = description,
-                                onDescriptionChange = { description = it },
-                                columns = columns,
-                                selectedColumnId = selectedColumnId,
-                                onColumnSelected = { selectedColumnId = it },
-                                reminderEnabled = reminderEnabled,
-                                onReminderEnabledChange = { reminderEnabled = it },
-                                reminderStyle = reminderStyle,
-                                onReminderStyleChange = { reminderStyle = it },
-                                reminderMillis = reminderMillis,
-                                onReminderMillisChange = { reminderMillis = it },
-                                titleFocusRequester = null,
-                            )
-                            Eyebrow("Checklist")
-                        }
-                    }
+                    TaskFormFields(
+                        title = title,
+                        onTitleChange = { title = it },
+                        description = description,
+                        onDescriptionChange = { description = it },
+                        columns = columns,
+                        selectedColumnId = selectedColumnId,
+                        onColumnSelected = { selectedColumnId = it },
+                        reminderEnabled = reminderEnabled,
+                        onReminderEnabledChange = { reminderEnabled = it },
+                        reminderStyle = reminderStyle,
+                        onReminderStyleChange = { reminderStyle = it },
+                        reminderMillis = reminderMillis,
+                        onReminderMillisChange = { reminderMillis = it },
+                        titleFocusRequester = null,
+                    )
+                    Eyebrow("Checklist")
 
-                    itemsIndexed(displaySubtasks.value, key = { _, s -> s.id }) { _, subtask ->
+                    displaySubtasks.value.forEach { subtask ->
                         val isDragging = subtask.id == draggingSubtaskId
-                        val itemModifier =
-                            if (isDragging) Modifier
-                            else Modifier.animateItem(placementSpec = tween(250))
                         SubtaskItem(
                             subtask = subtask,
                             onToggle = { onToggleSubtask(subtask.id, it) },
                             onDelete = { onDeleteSubtask(subtask.id) },
                             onRename = { onRenameSubtask(subtask.id, it) },
-                            modifier = itemModifier
+                            modifier = Modifier
                                 .zIndex(if (isDragging) 1f else 0f)
                                 .graphicsLayer {
                                     translationY = if (isDragging) dragOffsetY else 0f
@@ -342,51 +359,52 @@ fun EditCardDialog(
                                 }
                         )
                     }
-
                 }
-
-                HorizontalDivider(
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                )
-                // Composer is pinned below the scrolling list (not an item inside
-                // it) so it stays put above the keyboard and the system nav bar
-                // no matter how long the checklist grows. navigationBarsPadding +
-                // imePadding compose so the row sits above the nav bar when the
-                // keyboard is down and above the keyboard when it is up.
-                Row(
+                // Pinned composer: always visible, anchored to the bottom. Sits
+                // above the keyboard (imePadding) and the nav buttons
+                // (navigationBarsPadding); the scrolling form above shrinks to fit.
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .navigationBarsPadding()
                         .imePadding()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .navigationBarsPadding()
                 ) {
-                    OutlinedTextField(
-                        value = newSubtask,
-                        onValueChange = { newSubtask = it },
-                        placeholder = { Text("Add a subtask…") },
-                        modifier = Modifier
-                            .weight(1f)
-                            .focusRequester(subtaskFocusRequester),
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
-                        keyboardOptions = KeyboardOptions(
-                            imeAction = ImeAction.Done,
-                            capitalization = KeyboardCapitalization.Sentences
-                        ),
-                        keyboardActions = KeyboardActions(onDone = { addSubtaskAndContinue() })
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                     )
-                    Spacer(Modifier.width(8.dp))
-                    IconButton(
-                        onClick = addSubtaskAndContinue,
-                        enabled = newSubtask.isNotBlank()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            Icons.Default.Add,
-                            contentDescription = "Add subtask",
-                            tint = if (newSubtask.isNotBlank()) MaterialTheme.colorScheme.primary
-                                   else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                        OutlinedTextField(
+                            value = newSubtask,
+                            onValueChange = { newSubtask = it },
+                            placeholder = { Text("Add a subtask…") },
+                            modifier = Modifier
+                                .weight(1f)
+                                .focusRequester(subtaskFocusRequester),
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            keyboardOptions = KeyboardOptions(
+                                imeAction = ImeAction.Done,
+                                capitalization = KeyboardCapitalization.Sentences
+                            ),
+                            keyboardActions = KeyboardActions(onDone = { addSubtaskAndContinue() })
                         )
+                        Spacer(Modifier.width(8.dp))
+                        IconButton(
+                            onClick = addSubtaskAndContinue,
+                            enabled = newSubtask.isNotBlank()
+                        ) {
+                            Icon(
+                                Icons.Default.Add,
+                                contentDescription = "Add subtask",
+                                tint = if (newSubtask.isNotBlank()) MaterialTheme.colorScheme.primary
+                                       else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                            )
+                        }
                     }
                 }
             }
