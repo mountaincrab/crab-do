@@ -12,6 +12,7 @@ data class BoardEntity(
     val userId: String,
     val title: String,
     val columnOrder: String = "[]",
+    val defaultColumnId: String? = null,
     val createdAt: Long = currentTimeMillis(),
     val updatedAt: Long = currentTimeMillis(),
     val isShared: Boolean = false,

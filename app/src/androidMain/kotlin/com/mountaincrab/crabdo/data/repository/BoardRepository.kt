@@ -96,6 +96,16 @@ class BoardRepository(
         enqueueSyncWork()
     }
 
+    suspend fun setDefaultColumn(boardId: String, columnId: String) {
+        val board = boardDao.getBoardById(boardId) ?: return
+        boardDao.upsert(board.copy(
+            defaultColumnId = columnId,
+            updatedAt = System.currentTimeMillis(),
+            syncStatus = SyncStatus.PENDING
+        ))
+        enqueueSyncWork()
+    }
+
     fun triggerSync() = enqueueSyncWork()
 
     suspend fun refreshBoard(boardId: String) {

@@ -146,6 +146,10 @@ class KanbanBoardViewModel(
         viewModelScope.launch { boardRepository.reorderColumns(boardId, newOrderedIds) }
     }
 
+    fun setDefaultColumn(columnId: String) {
+        viewModelScope.launch { boardRepository.setDefaultColumn(boardId, columnId) }
+    }
+
     fun refresh() {
         viewModelScope.launch {
             _isRefreshing.value = true

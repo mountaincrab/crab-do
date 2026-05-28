@@ -19,6 +19,7 @@ fun BoardEntity.toFirestoreMap(): Map<String, Any?> = mapOf(
     "userId" to userId,
     "title" to title,
     "columnOrder" to columnOrder,
+    "defaultColumnId" to defaultColumnId,
     "createdAt" to createdAt,
     "updatedAt" to FieldValue.serverTimestamp(),
     "isDeleted" to isDeleted
@@ -32,6 +33,7 @@ fun DocumentSnapshot.toBoardEntity(userId: String): BoardEntity {
         userId = userId,
         title = getString("title") ?: "",
         columnOrder = getString("columnOrder") ?: "[]",
+        defaultColumnId = getString("defaultColumnId"),
         createdAt = getLong("createdAt") ?: 0L,
         isShared = !collaborators.isNullOrEmpty(),
         updatedAt = getTimestamp("updatedAt")?.toDate()?.time ?: currentTimeMillis(),

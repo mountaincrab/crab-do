@@ -15,4 +15,12 @@ private val MIGRATION_5_6 = object : Migration(5, 6) {
     }
 }
 
-val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_5_6)
+// v6 → v7: boards gain a per-board default column (the column shown first when
+// the board is opened). Nullable — null means fall back to the first column.
+private val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("ALTER TABLE boards ADD COLUMN defaultColumnId TEXT")
+    }
+}
+
+val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_5_6, MIGRATION_6_7)

@@ -43,16 +43,26 @@ fun KanbanBoardScreen(
     var editingTaskId by remember { mutableStateOf<String?>(null) }
 
     var activeColumnId by remember { mutableStateOf("") }
+    var hasAppliedDefault by remember { mutableStateOf(false) }
 
     val editingTask = tasksByColumn.values.flatten().find { it.id == editingTaskId }
     val editingSubtasks by remember(editingTaskId) {
         editingTaskId?.let { viewModel.observeSubtasks(it) } ?: flowOf(emptyList())
     }.collectAsStateWithLifecycle(emptyList())
 
-    LaunchedEffect(columns) {
+    LaunchedEffect(columns, board) {
         if (columns.isEmpty()) return@LaunchedEffect
-        if (activeColumnId.isEmpty() || columns.none { it.id == activeColumnId }) {
-            activeColumnId = columns.first().id
+        if (!hasAppliedDefault) {
+            // First selection prefers the board's default column. Wait for the board
+            // to load so a transient null doesn't strand us on the first column.
+            if (board == null) return@LaunchedEffect
+            val default = board?.defaultColumnId?.takeIf { id -> columns.any { it.id == id } }
+            activeColumnId = default ?: columns.first().id
+            hasAppliedDefault = true
+        } else if (columns.none { it.id == activeColumnId }) {
+            // Active column was deleted — fall back to the default (or first).
+            activeColumnId = board?.defaultColumnId?.takeIf { id -> columns.any { it.id == id } }
+                ?: columns.first().id
         }
     }
 
@@ -147,11 +157,13 @@ fun KanbanBoardScreen(
     if (showColumnConfig) {
         ColumnConfigSheet(
             columns = columns,
+            defaultColumnId = board?.defaultColumnId,
             onDismiss = { showColumnConfig = false },
             onRename = { col, title -> viewModel.renameColumn(col, title) },
             onDelete = { viewModel.deleteColumn(it) },
             onReorder = { viewModel.reorderColumns(it) },
-            onAdd = { viewModel.addColumn(it) }
+            onAdd = { viewModel.addColumn(it) },
+            onSetDefault = { viewModel.setDefaultColumn(it) }
         )
     }
 }

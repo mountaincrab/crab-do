@@ -21,11 +21,13 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
 @Composable
 fun ColumnConfigSheet(
     columns: List<ColumnEntity>,
+    defaultColumnId: String?,
     onDismiss: () -> Unit,
     onRename: (ColumnEntity, String) -> Unit,
     onDelete: (String) -> Unit,
     onReorder: (List<String>) -> Unit,
-    onAdd: (String) -> Unit
+    onAdd: (String) -> Unit,
+    onSetDefault: (String) -> Unit
 ) {
     var orderedColumns by remember(columns) { mutableStateOf(columns.toList()) }
     var showDeleteConfirm by remember { mutableStateOf<ColumnEntity?>(null) }
@@ -43,7 +45,13 @@ fun ColumnConfigSheet(
             Text(
                 text = "Configure Columns",
                 style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp)
+            )
+            Text(
+                text = "The selected column opens first when you open this board.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
             )
             HorizontalDivider()
             LazyColumn(state = lazyListState) {
@@ -51,7 +59,9 @@ fun ColumnConfigSheet(
                     ReorderableItem(reorderState, key = column.id) {
                         ColumnConfigRow(
                             column = column,
+                            isDefault = column.id == defaultColumnId,
                             dragHandleModifier = Modifier.longPressDraggableHandle(),
+                            onSetDefault = { onSetDefault(column.id) },
                             onRename = { onRename(column, it) },
                             onDelete = { showDeleteConfirm = column }
                         )
@@ -117,7 +127,9 @@ fun ColumnConfigSheet(
 @Composable
 private fun ColumnConfigRow(
     column: ColumnEntity,
+    isDefault: Boolean,
     dragHandleModifier: Modifier,
+    onSetDefault: () -> Unit,
     onRename: (String) -> Unit,
     onDelete: () -> Unit
 ) {
@@ -127,9 +139,13 @@ private fun ColumnConfigRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(start = 4.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        RadioButton(
+            selected = isDefault,
+            onClick = onSetDefault
+        )
         Icon(
             imageVector = Icons.Default.DragHandle,
             contentDescription = "Drag to reorder",
