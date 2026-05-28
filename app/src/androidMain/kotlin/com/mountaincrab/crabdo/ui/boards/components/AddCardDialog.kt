@@ -7,6 +7,7 @@ import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -148,6 +149,11 @@ fun EditCardDialog(
     var newSubtask by remember { mutableStateOf("") }
     val subtaskFocusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
+    val listState = rememberLazyListState()
+    // Set when the user adds a subtask so the next list emission scrolls the
+    // newest row into view; gated so the initial load (empty → populated) does
+    // not yank an existing list to the bottom.
+    var scrollToNewSubtask by remember { mutableStateOf(false) }
 
     // Add the subtask but keep the field focused and the keyboard up so the
     // next one can be typed straight away (the IME "Done" tick / icon tap would
@@ -156,6 +162,7 @@ fun EditCardDialog(
         if (newSubtask.isNotBlank()) {
             onAddSubtask(newSubtask.trim())
             newSubtask = ""
+            scrollToNewSubtask = true
             subtaskFocusRequester.requestFocus()
             keyboardController?.show()
         }
@@ -174,6 +181,16 @@ fun EditCardDialog(
 
     LaunchedEffect(subtasks) {
         if (draggingSubtaskId == null) displaySubtasks.value = subtasks
+    }
+
+    // After a user adds a subtask, scroll so the new last row sits at the bottom
+    // of the list, just above the pinned composer. Item index = subtask count
+    // because the form occupies index 0.
+    LaunchedEffect(displaySubtasks.value.size) {
+        if (scrollToNewSubtask) {
+            listState.animateScrollToItem(displaySubtasks.value.size)
+            scrollToNewSubtask = false
+        }
     }
 
     val submit = {
@@ -207,9 +224,10 @@ fun EditCardDialog(
                     }
                 }
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier
-                        .fillMaxSize()
-                        .imePadding(),
+                        .fillMaxWidth()
+                        .weight(1f),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
@@ -311,45 +329,50 @@ fun EditCardDialog(
                         )
                     }
 
-                    // Stable key: without it LazyColumn keys this trailing item
-                    // by position, so inserting a new subtask above shifts its
-                    // index and disposes/recreates the OutlinedTextField — which
-                    // drops focus and hides the keyboard on every add. A fixed
-                    // key keeps the same field instance so focus (and the IME)
-                    // survives, letting you type subtasks back-to-back.
-                    item(key = "subtask-composer") {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            OutlinedTextField(
-                                value = newSubtask,
-                                onValueChange = { newSubtask = it },
-                                placeholder = { Text("Add a subtask…") },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .focusRequester(subtaskFocusRequester),
-                                singleLine = true,
-                                shape = RoundedCornerShape(12.dp),
-                                keyboardOptions = KeyboardOptions(
-                                    imeAction = ImeAction.Done,
-                                    capitalization = KeyboardCapitalization.Sentences
-                                ),
-                                keyboardActions = KeyboardActions(onDone = { addSubtaskAndContinue() })
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            IconButton(
-                                onClick = addSubtaskAndContinue,
-                                enabled = newSubtask.isNotBlank()
-                            ) {
-                                Icon(
-                                    Icons.Default.Add,
-                                    contentDescription = "Add subtask",
-                                    tint = if (newSubtask.isNotBlank()) MaterialTheme.colorScheme.primary
-                                           else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                                )
-                            }
-                        }
+                }
+
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                )
+                // Composer is pinned below the scrolling list (not an item inside
+                // it) so it stays put above the keyboard and the system nav bar
+                // no matter how long the checklist grows. navigationBarsPadding +
+                // imePadding compose so the row sits above the nav bar when the
+                // keyboard is down and above the keyboard when it is up.
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .imePadding()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = newSubtask,
+                        onValueChange = { newSubtask = it },
+                        placeholder = { Text("Add a subtask…") },
+                        modifier = Modifier
+                            .weight(1f)
+                            .focusRequester(subtaskFocusRequester),
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        keyboardOptions = KeyboardOptions(
+                            imeAction = ImeAction.Done,
+                            capitalization = KeyboardCapitalization.Sentences
+                        ),
+                        keyboardActions = KeyboardActions(onDone = { addSubtaskAndContinue() })
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    IconButton(
+                        onClick = addSubtaskAndContinue,
+                        enabled = newSubtask.isNotBlank()
+                    ) {
+                        Icon(
+                            Icons.Default.Add,
+                            contentDescription = "Add subtask",
+                            tint = if (newSubtask.isNotBlank()) MaterialTheme.colorScheme.primary
+                                   else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                        )
                     }
                 }
             }
