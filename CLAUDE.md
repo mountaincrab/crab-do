@@ -80,8 +80,23 @@ When bumping `version`:
 2. `./gradlew :app:compileDebugKotlinAndroid` — emits new schema JSON.
 3. Diff old vs new JSON to derive SQL.
 4. Add a `Migration(oldVer, newVer) { db -> db.execSQL("...") }` to `ALL_MIGRATIONS` in `data/local/Migrations.kt`.
+5. **Always add a migration test** (see below). A new migration without a test is not done.
 
 If you bump the version without adding a migration, the app **will crash** on upgrade — this is the intended safety net (we deliberately replaced `fallbackToDestructiveMigration` with `fallbackToDestructiveMigrationOnDowngrade`, which only wipes on downgrade). Don't reintroduce destructive fallback for upgrades — the user's local data is the only copy of `syncStatus = PENDING` writes.
+
+#### Migration tests (required for every migration)
+
+Migration tests live in `app/src/androidInstrumentedTest/kotlin/com/mountaincrab/crabdo/data/local/MigrationTest.kt`. Each `@Database` version bump **must** add a `migrate{old}To{new}_…` method that:
+1. `helper.createDatabase(name, oldVersion)` — re-creates the DB from the exported `{old}.json` schema; seed any rows whose preservation you want to assert.
+2. `helper.runMigrationsAndValidate(name, newVersion, true, *ALL_MIGRATIONS)` — runs the migration and **validates the resulting schema against `{new}.json`** (this is the real safety net: it catches a missing/wrong migration before it ships).
+3. Assert the seeded data survived and any new column behaves as expected.
+
+These are **instrumented** tests (Room's `MigrationTestHelper` requires `Instrumentation`, and `BundledSQLiteDriver` ships only Android native libs), so they need a connected device/emulator. The exported schema JSONs are shipped into the test APK assets (`android.sourceSets["androidTest"].assets` → `$projectDir/schemas`).
+
+Run:
+```bash
+./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.mountaincrab.crabdo.data.local.MigrationTest
+```
 
 ## Web app (`webapp/`)
 

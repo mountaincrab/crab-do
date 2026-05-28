@@ -61,6 +61,16 @@ kotlin {
             // Glance (home screen widgets)
             implementation(libs.glance.appwidget)
         }
+        val androidInstrumentedTest by getting {
+            dependencies {
+                implementation(libs.junit)
+                implementation(libs.androidx.test.ext.junit)
+                implementation(libs.androidx.test.runner)
+                // MigrationTestHelper. Migration tests run on a device/emulator
+                // because BundledSQLiteDriver ships only Android native libs.
+                implementation(libs.room.testing)
+            }
+        }
     }
 }
 
@@ -86,7 +96,12 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
+
+    // Ship the exported Room schema JSONs into the instrumented-test APK so
+    // MigrationTestHelper can read them on-device to validate migrations.
+    sourceSets.getByName("androidTest").assets.srcDirs(files("$projectDir/schemas"))
 
     buildTypes {
         debug {
