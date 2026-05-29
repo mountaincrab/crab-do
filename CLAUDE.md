@@ -50,6 +50,14 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 **Themes** are defined in `ui/theme/Theme.kt`. Each theme needs an entry in: `AppTheme` enum, `buildScheme`/custom scheme, `paletteFor()`, `CrabbanTheme` when block, and the `ThemeSwatch` in `SettingsScreen.kt`.
 
+### Task editor dialog (non-obvious)
+
+`EditCardDialog` in `ui/boards/components/AddCardDialog.kt` is rendered as a **full-screen overlay in the activity window** (`BackHandler` + `Surface(Modifier.fillMaxSize())`), **not** a Compose `Dialog`. Do not turn it back into a `Dialog`.
+
+A Compose `Dialog(usePlatformDefaultWidth = false)` gets its own sub-window which, on Android 15/16, is positioned below the status bar yet sized to the full display height — so its bottom lands ~one status-bar-height below the screen and the bottom-pinned "Add a subtask" composer falls off the bottom edge. No window hacking fixes it (`setLayout(MATCH_PARENT)`, `setDecorFitsSystemWindows(false)`, explicit display-height bound, `setGravity(TOP)` all fail; the WindowManager keeps the sub-window inset and Compose double-counts the status-bar inset). In the activity window the height is bounded and system-bar/IME insets dispatch correctly, so `weight(1f)` + the pinned composer (`imePadding()` + `navigationBarsPadding()`) work. (This is how the original `TaskDetailScreen` route behaved before it was moved into a Dialog.)
+
+`AddCardDialog` (New Task) is still a `Dialog` — only safe because it has no pinned bottom element. If you add a pinned composer/bar there, convert it to an overlay too.
+
 ### Sync architecture (non-obvious)
 
 Two mechanisms run side-by-side:

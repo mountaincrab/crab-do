@@ -1,6 +1,6 @@
 package com.mountaincrab.crabdo.ui.boards.components
 
-import android.view.ViewGroup
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
@@ -29,7 +29,6 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -37,8 +36,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.window.DialogWindowProvider
-import androidx.core.view.WindowCompat
 import androidx.compose.ui.zIndex
 import com.mountaincrab.crabdo.data.local.entity.ColumnEntity
 import com.mountaincrab.crabdo.data.local.entity.SubtaskEntity
@@ -204,189 +201,177 @@ fun EditCardDialog(
         }
     }
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+    // Render the editor as a full-screen overlay in the host (activity) window
+    // rather than a Compose Dialog. A Dialog gets its own sub-window, which on
+    // Android 15/16 is inset below the status bar yet sized to the full display, so
+    // the bottom-pinned "Add a subtask" composer ends up off the bottom edge. The
+    // activity window bounds the height and dispatches system-bar/ime insets
+    // correctly, so weight(1f) distributes real space and the composer stays pinned
+    // above the keyboard and nav bar. Back press dismisses, mirroring the Dialog.
+    BackHandler(onBack = onDismiss)
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.surface
     ) {
-        // With usePlatformDefaultWidth = false the dialog window keeps a
-        // WRAP_CONTENT height, so fillMaxSize/weight/verticalScroll get an unbounded
-        // height and the pinned composer slides off the bottom. Force the window to
-        // MATCH_PARENT in both dimensions so fillMaxSize bounds to the screen, and go
-        // edge-to-edge so the ime + nav-bar insets reach the composer's padding.
-        val view = LocalView.current
-        SideEffect {
-            (view.parent as? DialogWindowProvider)?.window?.let { window ->
-                window.setLayout(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                )
-                WindowCompat.setDecorFitsSystemWindows(window, false)
+        Column(modifier = Modifier.fillMaxSize()) {
+            DialogHeader(title = "Edit Task", onClose = onDismiss) {
+                IconButton(onClick = { showDeleteConfirm = true }) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "Delete task",
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                }
+                TextButton(onClick = submit, enabled = title.isNotBlank()) {
+                    Text("Save", fontWeight = FontWeight.Bold)
+                }
             }
-        }
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.surface
-        ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                DialogHeader(title = "Edit Task", onClose = onDismiss) {
-                    IconButton(onClick = { showDeleteConfirm = true }) {
-                        Icon(
-                            Icons.Default.Delete,
-                            contentDescription = "Delete task",
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                    }
-                    TextButton(onClick = submit, enabled = title.isNotBlank()) {
-                        Text("Save", fontWeight = FontWeight.Bold)
-                    }
-                }
-                // Whole form (fields + checklist) scrolls in this single region,
-                // which takes all the space left between the header and the pinned
-                // composer below.
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .verticalScroll(scrollState)
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    TaskFormFields(
-                        title = title,
-                        onTitleChange = { title = it },
-                        description = description,
-                        onDescriptionChange = { description = it },
-                        columns = columns,
-                        selectedColumnId = selectedColumnId,
-                        onColumnSelected = { selectedColumnId = it },
-                        reminderEnabled = reminderEnabled,
-                        onReminderEnabledChange = { reminderEnabled = it },
-                        reminderStyle = reminderStyle,
-                        onReminderStyleChange = { reminderStyle = it },
-                        reminderMillis = reminderMillis,
-                        onReminderMillisChange = { reminderMillis = it },
-                        titleFocusRequester = null,
-                    )
-                    Eyebrow("Checklist")
+            // Whole form (fields + checklist) scrolls in this single region,
+            // which takes all the space left between the header and the pinned
+            // composer below.
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .verticalScroll(scrollState)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                TaskFormFields(
+                    title = title,
+                    onTitleChange = { title = it },
+                    description = description,
+                    onDescriptionChange = { description = it },
+                    columns = columns,
+                    selectedColumnId = selectedColumnId,
+                    onColumnSelected = { selectedColumnId = it },
+                    reminderEnabled = reminderEnabled,
+                    onReminderEnabledChange = { reminderEnabled = it },
+                    reminderStyle = reminderStyle,
+                    onReminderStyleChange = { reminderStyle = it },
+                    reminderMillis = reminderMillis,
+                    onReminderMillisChange = { reminderMillis = it },
+                    titleFocusRequester = null,
+                )
+                Eyebrow("Checklist")
 
-                    displaySubtasks.value.forEach { subtask ->
-                        val isDragging = subtask.id == draggingSubtaskId
-                        SubtaskItem(
-                            subtask = subtask,
-                            onToggle = { onToggleSubtask(subtask.id, it) },
-                            onDelete = { onDeleteSubtask(subtask.id) },
-                            onRename = { onRenameSubtask(subtask.id, it) },
-                            modifier = Modifier
-                                .zIndex(if (isDragging) 1f else 0f)
-                                .graphicsLayer {
-                                    translationY = if (isDragging) dragOffsetY else 0f
-                                    alpha = if (isDragging) 0.85f else 1f
-                                }
-                                .onSizeChanged { size ->
-                                    if (size.height > 0) itemHeightPx = size.height.toFloat()
-                                }
-                                .pointerInput(subtask.id) {
-                                    detectDragGesturesAfterLongPress(
-                                        onDragStart = {
-                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            draggingSubtaskId = subtask.id
-                                            dragOffsetY = 0f
-                                        },
-                                        onDrag = { change, dragAmount ->
-                                            change.consume()
-                                            dragOffsetY += dragAmount.y
-                                            val slotH = if (itemHeightPx > 0f)
-                                                itemHeightPx + subtaskSpacingPx
-                                            else with(density) { 56.dp.toPx() }
-                                            var curIdx = displaySubtasks.value
-                                                .indexOfFirst { it.id == subtask.id }
-                                            if (curIdx < 0) return@detectDragGesturesAfterLongPress
-                                            while (curIdx < displaySubtasks.value.size - 1 &&
-                                                dragOffsetY > slotH / 2f) {
-                                                val m = displaySubtasks.value.toMutableList()
-                                                m.add(curIdx + 1, m.removeAt(curIdx))
-                                                displaySubtasks.value = m
-                                                dragOffsetY -= slotH
-                                                curIdx++
-                                            }
-                                            while (curIdx > 0 && dragOffsetY < -slotH / 2f) {
-                                                val m = displaySubtasks.value.toMutableList()
-                                                m.add(curIdx - 1, m.removeAt(curIdx))
-                                                displaySubtasks.value = m
-                                                dragOffsetY += slotH
-                                                curIdx--
-                                            }
-                                        },
-                                        onDragEnd = {
-                                            val current = displaySubtasks.value
-                                            val idx = current.indexOfFirst { it.id == subtask.id }
-                                            if (idx >= 0) {
-                                                val prevOrder = current.getOrNull(idx - 1)?.order
-                                                val nextOrder = current.getOrNull(idx + 1)?.order
-                                                onReorderSubtask(
-                                                    subtask.id,
-                                                    prevOrder ?: ((nextOrder ?: 1.0) - 2.0),
-                                                    nextOrder ?: ((prevOrder ?: 0.0) + 2.0)
-                                                )
-                                            }
-                                            draggingSubtaskId = null
-                                            dragOffsetY = 0f
-                                        },
-                                        onDragCancel = {
-                                            draggingSubtaskId = null
-                                            dragOffsetY = 0f
-                                            displaySubtasks.value = currentSubtasksRef.value
+                displaySubtasks.value.forEach { subtask ->
+                    val isDragging = subtask.id == draggingSubtaskId
+                    SubtaskItem(
+                        subtask = subtask,
+                        onToggle = { onToggleSubtask(subtask.id, it) },
+                        onDelete = { onDeleteSubtask(subtask.id) },
+                        onRename = { onRenameSubtask(subtask.id, it) },
+                        modifier = Modifier
+                            .zIndex(if (isDragging) 1f else 0f)
+                            .graphicsLayer {
+                                translationY = if (isDragging) dragOffsetY else 0f
+                                alpha = if (isDragging) 0.85f else 1f
+                            }
+                            .onSizeChanged { size ->
+                                if (size.height > 0) itemHeightPx = size.height.toFloat()
+                            }
+                            .pointerInput(subtask.id) {
+                                detectDragGesturesAfterLongPress(
+                                    onDragStart = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        draggingSubtaskId = subtask.id
+                                        dragOffsetY = 0f
+                                    },
+                                    onDrag = { change, dragAmount ->
+                                        change.consume()
+                                        dragOffsetY += dragAmount.y
+                                        val slotH = if (itemHeightPx > 0f)
+                                            itemHeightPx + subtaskSpacingPx
+                                        else with(density) { 56.dp.toPx() }
+                                        var curIdx = displaySubtasks.value
+                                            .indexOfFirst { it.id == subtask.id }
+                                        if (curIdx < 0) return@detectDragGesturesAfterLongPress
+                                        while (curIdx < displaySubtasks.value.size - 1 &&
+                                            dragOffsetY > slotH / 2f) {
+                                            val m = displaySubtasks.value.toMutableList()
+                                            m.add(curIdx + 1, m.removeAt(curIdx))
+                                            displaySubtasks.value = m
+                                            dragOffsetY -= slotH
+                                            curIdx++
                                         }
-                                    )
-                                }
-                        )
-                    }
+                                        while (curIdx > 0 && dragOffsetY < -slotH / 2f) {
+                                            val m = displaySubtasks.value.toMutableList()
+                                            m.add(curIdx - 1, m.removeAt(curIdx))
+                                            displaySubtasks.value = m
+                                            dragOffsetY += slotH
+                                            curIdx--
+                                        }
+                                    },
+                                    onDragEnd = {
+                                        val current = displaySubtasks.value
+                                        val idx = current.indexOfFirst { it.id == subtask.id }
+                                        if (idx >= 0) {
+                                            val prevOrder = current.getOrNull(idx - 1)?.order
+                                            val nextOrder = current.getOrNull(idx + 1)?.order
+                                            onReorderSubtask(
+                                                subtask.id,
+                                                prevOrder ?: ((nextOrder ?: 1.0) - 2.0),
+                                                nextOrder ?: ((prevOrder ?: 0.0) + 2.0)
+                                            )
+                                        }
+                                        draggingSubtaskId = null
+                                        dragOffsetY = 0f
+                                    },
+                                    onDragCancel = {
+                                        draggingSubtaskId = null
+                                        dragOffsetY = 0f
+                                        displaySubtasks.value = currentSubtasksRef.value
+                                    }
+                                )
+                            }
+                    )
                 }
-                // Pinned composer: always visible, anchored to the bottom. Sits
-                // above the keyboard (imePadding) and the nav buttons
-                // (navigationBarsPadding); the scrolling form above shrinks to fit.
-                Column(
+            }
+            // Pinned composer: always visible, anchored to the bottom. Sits
+            // above the keyboard (imePadding) and the nav buttons
+            // (navigationBarsPadding); the scrolling form above shrinks to fit.
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .imePadding()
+                    .navigationBarsPadding()
+            ) {
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                )
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .imePadding()
-                        .navigationBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                    )
-                    Row(
+                    OutlinedTextField(
+                        value = newSubtask,
+                        onValueChange = { newSubtask = it },
+                        placeholder = { Text("Add a subtask…") },
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .weight(1f)
+                            .focusRequester(subtaskFocusRequester),
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        keyboardOptions = KeyboardOptions(
+                            imeAction = ImeAction.Done,
+                            capitalization = KeyboardCapitalization.Sentences
+                        ),
+                        keyboardActions = KeyboardActions(onDone = { addSubtaskAndContinue() })
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    IconButton(
+                        onClick = addSubtaskAndContinue,
+                        enabled = newSubtask.isNotBlank()
                     ) {
-                        OutlinedTextField(
-                            value = newSubtask,
-                            onValueChange = { newSubtask = it },
-                            placeholder = { Text("Add a subtask…") },
-                            modifier = Modifier
-                                .weight(1f)
-                                .focusRequester(subtaskFocusRequester),
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
-                            keyboardOptions = KeyboardOptions(
-                                imeAction = ImeAction.Done,
-                                capitalization = KeyboardCapitalization.Sentences
-                            ),
-                            keyboardActions = KeyboardActions(onDone = { addSubtaskAndContinue() })
+                        Icon(
+                            Icons.Default.Add,
+                            contentDescription = "Add subtask",
+                            tint = if (newSubtask.isNotBlank()) MaterialTheme.colorScheme.primary
+                                   else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                         )
-                        Spacer(Modifier.width(8.dp))
-                        IconButton(
-                            onClick = addSubtaskAndContinue,
-                            enabled = newSubtask.isNotBlank()
-                        ) {
-                            Icon(
-                                Icons.Default.Add,
-                                contentDescription = "Add subtask",
-                                tint = if (newSubtask.isNotBlank()) MaterialTheme.colorScheme.primary
-                                       else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                            )
-                        }
                     }
                 }
             }
