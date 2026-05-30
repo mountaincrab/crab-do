@@ -1,6 +1,11 @@
 package com.mountaincrab.crabdo.ui.boards.components
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector2D
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.VectorConverter
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
@@ -20,19 +25,24 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.round
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -48,6 +58,7 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import kotlinx.coroutines.launch
 
 @Composable
 fun AddCardDialog(
@@ -256,6 +267,7 @@ fun EditCardDialog(
                 Eyebrow("Checklist")
 
                 displaySubtasks.value.forEach { subtask ->
+                    key(subtask.id) {
                     val isDragging = subtask.id == draggingSubtaskId
                     SubtaskItem(
                         subtask = subtask,
@@ -264,6 +276,14 @@ fun EditCardDialog(
                         onRename = { onRenameSubtask(subtask.id, it) },
                         modifier = Modifier
                             .zIndex(if (isDragging) 1f else 0f)
+                            // Slide the row to its new slot when the list
+                            // re-sorts (e.g. checking it off moves it into the
+                            // completed group) so the toggle gives visible
+                            // feedback instead of snapping. Omitted for the row
+                            // being dragged — the drag's own translationY drives
+                            // it, and a placement offset would fight the
+                            // per-slot translationY compensation.
+                            .then(if (isDragging) Modifier else Modifier.animatePlacement())
                             .graphicsLayer {
                                 translationY = if (isDragging) dragOffsetY else 0f
                                 alpha = if (isDragging) 0.85f else 1f
@@ -326,16 +346,20 @@ fun EditCardDialog(
                                 )
                             }
                     )
+                    }
                 }
             }
             // Pinned composer: always visible, anchored to the bottom. Sits
-            // above the keyboard (imePadding) and the nav buttons
-            // (navigationBarsPadding); the scrolling form above shrinks to fit.
+            // above the keyboard (imePadding). It does NOT add
+            // navigationBarsPadding: this overlay is hosted inside the app's
+            // NavHost content region, which already sits above the bottom
+            // navigation bar (that bar consumes the system nav-bar inset), so
+            // adding it here would double-count and leave a large dead gap
+            // below the composer.
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .imePadding()
-                    .navigationBarsPadding()
             ) {
                 HorizontalDivider(
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
@@ -672,6 +696,44 @@ private fun TaskFormFields(
             }
         )
     }
+}
+
+/**
+ * Animates this composable's placement within its parent: when the layout moves
+ * the row to a new slot (e.g. the checklist re-sorts a just-completed subtask
+ * into the completed group), the row slides there instead of snapping, giving
+ * the user visible confirmation the toggle registered.
+ *
+ * The first real placement is adopted without animation (the [Animatable] is
+ * seeded from it), so rows don't fly in from the origin on first composition.
+ */
+private fun Modifier.animatePlacement(): Modifier = composed {
+    val scope = rememberCoroutineScope()
+    var targetOffset by remember { mutableStateOf<IntOffset?>(null) }
+    var animatable by remember {
+        mutableStateOf<Animatable<IntOffset, AnimationVector2D>?>(null)
+    }
+    this
+        .onPlaced { coordinates ->
+            targetOffset = coordinates.positionInParent().round()
+        }
+        .offset {
+            val target = targetOffset ?: return@offset IntOffset.Zero
+            val anim = animatable
+                ?: Animatable(target, IntOffset.VectorConverter).also { animatable = it }
+            if (anim.targetValue != target) {
+                scope.launch {
+                    anim.animateTo(
+                        target,
+                        spring(
+                            dampingRatio = Spring.DampingRatioNoBouncy,
+                            stiffness = Spring.StiffnessMediumLow
+                        )
+                    )
+                }
+            }
+            anim.value - target
+        }
 }
 
 @Composable
