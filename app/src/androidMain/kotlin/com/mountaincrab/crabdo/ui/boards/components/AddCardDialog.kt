@@ -181,14 +181,43 @@ fun EditCardDialog(
     val displaySubtasks = remember { mutableStateOf(subtasks) }
     val currentSubtasksRef = rememberUpdatedState(subtasks)
     var draggingSubtaskId by remember { mutableStateOf<String?>(null) }
+    // When a subtask is checked off we briefly hold the list in its current order
+    // (showing the tick in place) before letting it re-sort, so the completion is
+    // visible before the row slides into the completed group.
+    var holdReorderId by remember { mutableStateOf<String?>(null) }
     var dragOffsetY by remember { mutableFloatStateOf(0f) }
     var itemHeightPx by remember { mutableFloatStateOf(0f) }
     val density = LocalDensity.current
     val subtaskSpacingPx = with(density) { 8.dp.toPx() }
     val haptic = LocalHapticFeedback.current
 
+    // Don't pull the freshly re-sorted list from the flow while dragging or while
+    // holding a just-completed row in place — those windows manage the order
+    // locally (the hold is released by the timer effect below).
     LaunchedEffect(subtasks) {
-        if (draggingSubtaskId == null) displaySubtasks.value = subtasks
+        if (draggingSubtaskId == null && holdReorderId == null) displaySubtasks.value = subtasks
+    }
+
+    // Releases the post-completion hold: keep the ticked row in place for a beat,
+    // then resync to the sorted list so it slides into the completed group.
+    LaunchedEffect(holdReorderId) {
+        if (holdReorderId != null) {
+            kotlinx.coroutines.delay(500)
+            holdReorderId = null
+            if (draggingSubtaskId == null) displaySubtasks.value = currentSubtasksRef.value
+        }
+    }
+
+    // Persist the toggle immediately, but on completion optimistically flip the
+    // tick in place and start the hold so the slide is deferred ~500ms.
+    val handleToggleSubtask: (String, Boolean) -> Unit = { id, completed ->
+        onToggleSubtask(id, completed)
+        if (completed && holdReorderId == null && draggingSubtaskId == null) {
+            displaySubtasks.value = displaySubtasks.value.map {
+                if (it.id == id) it.copy(isCompleted = true) else it
+            }
+            holdReorderId = id
+        }
     }
 
     // After a user adds a subtask, scroll to the bottom so the new row and the
@@ -271,7 +300,7 @@ fun EditCardDialog(
                     val isDragging = subtask.id == draggingSubtaskId
                     SubtaskItem(
                         subtask = subtask,
-                        onToggle = { onToggleSubtask(subtask.id, it) },
+                        onToggle = { handleToggleSubtask(subtask.id, it) },
                         onDelete = { onDeleteSubtask(subtask.id) },
                         onRename = { onRenameSubtask(subtask.id, it) },
                         modifier = Modifier
