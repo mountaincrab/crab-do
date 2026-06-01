@@ -31,12 +31,18 @@ fun latestSemverTag(): Triple<Int, Int, Int> {
 // Monotonic build number = total commit count (always-increasing positive int).
 fun gitCommitCount(): Int = git("rev-list", "--count", "HEAD")?.toIntOrNull() ?: 1
 
+// VERSION_BRANCH/VERSION_SHA let CI inject the true branch + commit. On a
+// pull_request the reserved GITHUB_REF_NAME/GITHUB_SHA hold the merge ref
+// ("<pr>/merge") and the ephemeral merge commit, and GitHub forbids overriding
+// the GITHUB_* vars — so the workflow sets these unreserved names instead.
 fun currentBranch(): String =
-    System.getenv("GITHUB_REF_NAME")
+    System.getenv("VERSION_BRANCH")?.takeIf { it.isNotBlank() }
+        ?: System.getenv("GITHUB_REF_NAME")
         ?: git("rev-parse", "--abbrev-ref", "HEAD") ?: "local"
 
 fun shortSha(): String =
-    System.getenv("GITHUB_SHA")?.take(7)
+    (System.getenv("VERSION_SHA")?.takeIf { it.isNotBlank() }
+        ?: System.getenv("GITHUB_SHA"))?.take(7)
         ?: git("rev-parse", "--short=7", "HEAD") ?: "nogit"
 
 // True when HEAD sits exactly on a release tag (a clean release build).

@@ -12,11 +12,12 @@ jobs:
     runs-on: ubuntu-latest
 
     # On pull_request, GITHUB_REF_NAME is the synthetic merge ref ("<pr>/merge")
-    # and GITHUB_SHA is the ephemeral merge commit. Override both with the PR's
-    # real head branch + commit so Gradle bakes <base>-<branch>.<sha> correctly.
+    # and GITHUB_SHA is the ephemeral merge commit (and GITHUB_* vars can't be
+    # overridden). Pass the PR's real head branch + commit via these unreserved
+    # vars, which build.gradle.kts reads first, so the version is <base>-<branch>.<sha>.
     env:
-      GITHUB_REF_NAME: ${{ github.head_ref }}
-      GITHUB_SHA: ${{ github.event.pull_request.head.sha }}
+      VERSION_BRANCH: ${{ github.head_ref }}
+      VERSION_SHA: ${{ github.event.pull_request.head.sha }}
 
     steps:
       - uses: actions/checkout@v4
