@@ -2,7 +2,9 @@ name: Android Build
 
 on:
   push:
-    branches: ["**"]
+    # Branch/PR CI builds only. Pushes to main are handled by release.yml,
+    # which tags the commit and then builds the correctly-versioned release.
+    branches: ["**", "!main"]
   pull_request:
     branches: ["**"]
 
@@ -34,16 +36,12 @@ jobs:
       - name: Compute APK name
         id: apk_name
         run: |
+          # Pre-release builds: matches the X.Y.Z-<branch>.<sha> versionName Gradle derives.
           BASE=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null | sed 's/^v//')
           BASE=${BASE:-0.0.0}
           BRANCH="${GITHUB_REF_NAME//\//-}"
           SHORT_SHA="${GITHUB_SHA::7}"
-          if [ "$GITHUB_REF_NAME" = "main" ]; then
-            NAME="crabdo-v${BASE}"
-          else
-            NAME="crabdo-${BASE}-${BRANCH}-${SHORT_SHA}"
-          fi
-          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "name=crabdo-${BASE}-${BRANCH}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
 
       - name: Decode google-services.json
         run: |
