@@ -202,14 +202,14 @@ fun EditCardDialog(
     // then resync to the sorted list so it slides into the completed group.
     LaunchedEffect(holdReorderId) {
         if (holdReorderId != null) {
-            kotlinx.coroutines.delay(500)
+            kotlinx.coroutines.delay(167)
             holdReorderId = null
             if (draggingSubtaskId == null) displaySubtasks.value = currentSubtasksRef.value
         }
     }
 
     // Persist the toggle immediately, but on completion optimistically flip the
-    // tick in place and start the hold so the slide is deferred ~500ms.
+    // tick in place and start the hold so the slide is deferred ~167ms.
     val handleToggleSubtask: (String, Boolean) -> Unit = { id, completed ->
         onToggleSubtask(id, completed)
         if (completed && holdReorderId == null && draggingSubtaskId == null) {
