@@ -55,6 +55,12 @@ fun computeVersionName(): String {
     }
 }
 
+// Exposes the computed versionName to CI so the APK filename matches the
+// versionName baked into the APK exactly. Usage: `./gradlew -q :app:printVersionName`
+tasks.register("printVersionName") {
+    doLast { println(computeVersionName()) }
+}
+
 kotlin {
     androidTarget {
         compilations.all {
