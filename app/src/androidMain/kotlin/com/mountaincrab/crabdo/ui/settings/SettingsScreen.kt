@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.mountaincrab.crabdo.BuildConfig
 import com.mountaincrab.crabdo.ui.navigation.Screen
 import com.mountaincrab.crabdo.ui.theme.AppTheme
 import com.mountaincrab.crabdo.ui.theme.GradientIconBlock
@@ -201,7 +202,7 @@ fun SettingsScreen(
                         )
                     },
                     headlineContent = { Text("Crab Do", fontWeight = FontWeight.Bold) },
-                    supportingContent = { Text("Version 1.0") },
+                    supportingContent = { Text("Version ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})") },
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                 )
             }
