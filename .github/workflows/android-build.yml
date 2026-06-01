@@ -1,10 +1,8 @@
 name: Android Build
 
 on:
-  push:
-    # Branch/PR CI builds only. Pushes to main are handled by release.yml,
-    # which tags the commit and then builds the correctly-versioned release.
-    branches: ["**", "!main"]
+  # CI runs on pull requests only. Pushes to main are handled by release.yml,
+  # which tags the commit and then builds the correctly-versioned release.
   pull_request:
     branches: ["**"]
 
