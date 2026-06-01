@@ -13,6 +13,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history + tags so Gradle can derive the version from git
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -32,13 +34,14 @@ jobs:
       - name: Compute APK name
         id: apk_name
         run: |
-          VERSION=$(grep 'versionName' app/build.gradle.kts | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          BASE=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null | sed 's/^v//')
+          BASE=${BASE:-0.0.0}
           BRANCH="${GITHUB_REF_NAME//\//-}"
           SHORT_SHA="${GITHUB_SHA::7}"
           if [ "$GITHUB_REF_NAME" = "main" ]; then
-            NAME="crabdo-v${VERSION}"
+            NAME="crabdo-v${BASE}"
           else
-            NAME="crabdo-${BRANCH}-${SHORT_SHA}"
+            NAME="crabdo-${BASE}-${BRANCH}-${SHORT_SHA}"
           fi
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
 

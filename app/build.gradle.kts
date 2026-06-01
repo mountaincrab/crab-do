@@ -7,6 +7,54 @@ plugins {
     alias(libs.plugins.google.services)
 }
 
+// --- Versioning derived from git ---------------------------------------------
+// Git tags are the single source of truth. versionName/versionCode are computed
+// at build time so no version-bump commit is ever needed — see CLAUDE.md.
+fun git(vararg args: String): String? = try {
+    val out = providers.exec {
+        commandLine("git", *args)
+        isIgnoreExitValue = true
+    }
+    if (out.result.get().exitValue == 0)
+        out.standardOutput.asText.get().trim().ifEmpty { null }
+    else null
+} catch (_: Exception) { null }   // git missing / not a repo
+
+// Latest "v1.2.3" tag -> Triple(1,2,3); falls back to 0.0.0 when no tags exist.
+fun latestSemverTag(): Triple<Int, Int, Int> {
+    val tag = git("describe", "--tags", "--abbrev=0", "--match", "v[0-9]*")
+        ?.removePrefix("v") ?: "0.0.0"
+    val p = tag.split(".").mapNotNull { it.toIntOrNull() }
+    return Triple(p.getOrElse(0) { 0 }, p.getOrElse(1) { 0 }, p.getOrElse(2) { 0 })
+}
+
+// Monotonic build number = total commit count (always-increasing positive int).
+fun gitCommitCount(): Int = git("rev-list", "--count", "HEAD")?.toIntOrNull() ?: 1
+
+fun currentBranch(): String =
+    System.getenv("GITHUB_REF_NAME")
+        ?: git("rev-parse", "--abbrev-ref", "HEAD") ?: "local"
+
+fun shortSha(): String =
+    System.getenv("GITHUB_SHA")?.take(7)
+        ?: git("rev-parse", "--short=7", "HEAD") ?: "nogit"
+
+// True when HEAD sits exactly on a release tag (a clean release build).
+fun isTaggedRelease(): Boolean =
+    git("describe", "--tags", "--exact-match", "--match", "v[0-9]*") != null
+
+// Clean X.Y.Z on main/tagged builds; X.Y.Z-<branch>.<sha> on branch builds.
+fun computeVersionName(): String {
+    val (maj, min, pat) = latestSemverTag()
+    val base = "$maj.$min.$pat"
+    val branch = currentBranch()
+    return if (isTaggedRelease() || branch == "main" || branch == "HEAD") base
+    else {
+        val safe = branch.replace(Regex("[^A-Za-z0-9]+"), "-").trim('-').lowercase()
+        "$base-$safe.${shortSha()}"
+    }
+}
+
 kotlin {
     androidTarget {
         compilations.all {
@@ -94,8 +142,8 @@ android {
         applicationId = "com.mountaincrab.crabdo"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = gitCommitCount()
+        versionName = computeVersionName()
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
