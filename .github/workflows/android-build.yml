@@ -11,9 +11,17 @@ jobs:
     name: Build (Android)
     runs-on: ubuntu-latest
 
+    # On pull_request, GITHUB_REF_NAME is the synthetic merge ref ("<pr>/merge")
+    # and GITHUB_SHA is the ephemeral merge commit. Override both with the PR's
+    # real head branch + commit so Gradle bakes <base>-<branch>.<sha> correctly.
+    env:
+      GITHUB_REF_NAME: ${{ github.head_ref }}
+      GITHUB_SHA: ${{ github.event.pull_request.head.sha }}
+
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha }} # the branch tip, not the merge commit
           fetch-depth: 0 # full history + tags so Gradle can derive the version from git
 
       - name: Set up JDK 17
