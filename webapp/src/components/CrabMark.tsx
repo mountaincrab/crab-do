@@ -6,7 +6,7 @@ type Props = {
 export default function CrabMark({ size = 32, className }: Props) {
   return (
     <img
-      src="/brand/crab-mark.svg"
+      src="/brand/crab-mark.png"
       alt="Crab Do"
       width={size}
       height={size}
