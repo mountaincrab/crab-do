@@ -229,6 +229,9 @@ fun EditCardDialog(
         }
     }
 
+    // Persist the current field values. There is no Save button — edits autosave
+    // when the editor is closed (cross icon or back press). A blank title is left
+    // unsaved so closing never wipes the task's title to empty.
     val submit = {
         if (title.isNotBlank()) {
             onSave(
@@ -241,29 +244,33 @@ fun EditCardDialog(
         }
     }
 
+    // Both close affordances (cross icon, Android back button) save first, then
+    // dismiss — so there is no way to lose edits by exiting.
+    val saveAndDismiss = {
+        submit()
+        onDismiss()
+    }
+
     // Render the editor as a full-screen overlay in the host (activity) window
     // rather than a Compose Dialog. A Dialog gets its own sub-window, which on
     // Android 15/16 is inset below the status bar yet sized to the full display, so
     // the bottom-pinned "Add a subtask" composer ends up off the bottom edge. The
     // activity window bounds the height and dispatches system-bar/ime insets
     // correctly, so weight(1f) distributes real space and the composer stays pinned
-    // above the keyboard and nav bar. Back press dismisses, mirroring the Dialog.
-    BackHandler(onBack = onDismiss)
+    // above the keyboard and nav bar. Back press saves + dismisses (autosave).
+    BackHandler(onBack = saveAndDismiss)
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.surface
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            DialogHeader(title = "Edit Task", onClose = onDismiss) {
+            DialogHeader(title = "Edit Task", onClose = saveAndDismiss) {
                 IconButton(onClick = { showDeleteConfirm = true }) {
                     Icon(
                         Icons.Default.Delete,
                         contentDescription = "Delete task",
                         tint = MaterialTheme.colorScheme.error
                     )
-                }
-                TextButton(onClick = submit, enabled = title.isNotBlank()) {
-                    Text("Save", fontWeight = FontWeight.Bold)
                 }
             }
             // Whole form (fields + checklist) scrolls in this single region,
