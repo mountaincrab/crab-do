@@ -12,6 +12,30 @@ This repo contains **three deployable surfaces** sharing a Firestore backend:
 
 When making changes that affect shared data (Firestore schema, subtask fields, ordering logic, etc.) always check and update **all surfaces that touch the field** — that may include cloud functions too.
 
+## Commit messages (required: Conventional Commits)
+
+Every commit/PR **must** use [Conventional Commits](https://www.conventionalcommits.org/). This is not just style — the `Release` workflow (`.github/workflows/release.yml`) feeds the commit history through `mathieudutour/github-tag-action`, which both **bumps the semver tag** and **generates the GitHub Release notes from the commit subjects**. A commit without a recognised prefix is **silently dropped from the changelog**, so an unprefixed commit produces a release with empty notes.
+
+Prefix → bump:
+
+| Prefix | Bump | Example |
+|--------|------|---------|
+| `feat:` | minor | `feat: add dark mode toggle to settings` |
+| `fix:` | patch | `fix: stop reminders firing twice after snooze` |
+| `feat!:` or a `BREAKING CHANGE:` footer | major | `feat!: drop the legacy sync format` |
+| `ci:` `chore:` `docs:` `refactor:` `perf:` `test:` `style:` | patch | `ci: cache Gradle packages between runs` |
+
+Example:
+
+```
+feat: autosave task edits on close
+
+Removes the explicit Save button; title/description persist on a
+debounced timer and when the editor closes.
+```
+
+**Squash-merge caveat:** when a PR is squash-merged the **PR title** becomes the `main` commit subject, so the PR title is what needs the Conventional Commits prefix — a well-formed prefix only on the branch commits won't help if the PR title is plain prose.
+
 ## Android app (`app/`)
 
 **Stack:** Kotlin Multiplatform, Jetpack Compose, Room (local DB), Firestore (sync), Koin (DI), Glance (home-screen widgets), WorkManager (background sync).
