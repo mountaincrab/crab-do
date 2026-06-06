@@ -106,4 +106,28 @@ object NotificationHelper {
 
         manager.notify(notificationId, builder.build())
     }
+
+    /**
+     * Posted when an unattended ALARM is auto-dismissed after the user-configured timeout,
+     * so the reminder isn't silently lost.
+     */
+    fun showAutoDismissedNotification(
+        context: Context,
+        id: String,
+        title: String
+    ) {
+        val manager = context.getSystemService<NotificationManager>() ?: return
+        // Distinct id so it doesn't collide with (or get cancelled alongside) the alarm notification.
+        val notificationId = ((id.hashCode() and 0x7FFFFFFF) xor 0x55555555) and 0x7FFFFFFF
+
+        val builder = NotificationCompat.Builder(context, CHANNEL_NOTIFICATION)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(title)
+            .setContentText("Alarm auto-dismissed because it wasn't acknowledged")
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setAutoCancel(true)
+
+        manager.notify(notificationId, builder.build())
+    }
 }
