@@ -13,6 +13,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -89,6 +92,17 @@ private fun SnoozePickerDialog(
 ) {
     var showCustom by remember { mutableStateOf(false) }
     var customText by remember { mutableStateOf("") }
+    val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    // When the custom field is revealed, focus it and pop the keyboard immediately
+    // so the user can start typing without an extra tap.
+    LaunchedEffect(showCustom) {
+        if (showCustom) {
+            focusRequester.requestFocus()
+            keyboardController?.show()
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -120,7 +134,9 @@ private fun SnoozePickerDialog(
                             label = { Text("Minutes") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier
+                                .weight(1f)
+                                .focusRequester(focusRequester)
                         )
                         Button(
                             onClick = {
