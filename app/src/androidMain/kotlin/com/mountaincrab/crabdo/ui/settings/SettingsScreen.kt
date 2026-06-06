@@ -42,6 +42,7 @@ fun SettingsScreen(
 ) {
     val boards by viewModel.boards.collectAsStateWithLifecycle()
     val pinnedBoardId by viewModel.pinnedBoardId.collectAsStateWithLifecycle()
+    val autoDismissMinutes by viewModel.autoDismissMinutes.collectAsStateWithLifecycle()
     val currentTheme by themeViewModel.appTheme.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
@@ -142,6 +143,43 @@ fun SettingsScreen(
                                     DropdownMenuItem(
                                         text = { Text(board.title) },
                                         onClick = { viewModel.setPinnedBoard(board.id); expanded = false }
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                )
+            }
+
+            // Alarms
+            SectionLabel("ALARMS")
+            SectionCard {
+                var expanded by remember { mutableStateOf(false) }
+                ListItem(
+                    headlineContent = { Text("Auto-dismiss alarms", fontWeight = FontWeight.Bold) },
+                    supportingContent = {
+                        Text(
+                            if (autoDismissMinutes <= 0) "Ring until dismissed"
+                            else "After ${autoDismissMinutes} ${if (autoDismissMinutes == 1) "minute" else "minutes"}"
+                        )
+                    },
+                    trailingContent = {
+                        Box {
+                            TextButton(onClick = { expanded = true }) { Text("Change") }
+                            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                                listOf(0, 1, 2, 5, 10, 15, 30, 60).forEach { minutes ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                if (minutes <= 0) "Never"
+                                                else "$minutes ${if (minutes == 1) "minute" else "minutes"}"
+                                            )
+                                        },
+                                        onClick = {
+                                            viewModel.setAutoDismissMinutes(minutes)
+                                            expanded = false
+                                        }
                                     )
                                 }
                             }

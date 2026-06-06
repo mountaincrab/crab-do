@@ -16,6 +16,18 @@ class UserPreferencesRepository(private val context: Context) {
         val LAST_SYNC_TIMESTAMP = longPreferencesKey("last_sync_timestamp")
         val TIME_INPUT_KEYBOARD = booleanPreferencesKey("time_input_keyboard")
         val APP_THEME = stringPreferencesKey("app_theme")
+        val AUTO_DISMISS_MINUTES = intPreferencesKey("auto_dismiss_minutes")
+    }
+
+    /** Minutes an unattended ALARM keeps ringing before it is auto-dismissed. 0 = never. */
+    val autoDismissMinutes: Flow<Int> =
+        context.dataStore.data.map { it[Keys.AUTO_DISMISS_MINUTES] ?: DEFAULT_AUTO_DISMISS_MINUTES }
+
+    suspend fun getAutoDismissMinutes(): Int =
+        context.dataStore.data.first()[Keys.AUTO_DISMISS_MINUTES] ?: DEFAULT_AUTO_DISMISS_MINUTES
+
+    suspend fun setAutoDismissMinutes(value: Int) {
+        context.dataStore.edit { it[Keys.AUTO_DISMISS_MINUTES] = value }
     }
 
     val pinnedBoardId: Flow<String?> = context.dataStore.data.map { it[Keys.PINNED_BOARD_ID] }
@@ -48,5 +60,9 @@ class UserPreferencesRepository(private val context: Context) {
 
     suspend fun clearSyncState() {
         context.dataStore.edit { it[Keys.LAST_SYNC_TIMESTAMP] = 0L }
+    }
+
+    companion object {
+        const val DEFAULT_AUTO_DISMISS_MINUTES = 5
     }
 }

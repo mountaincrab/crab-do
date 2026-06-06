@@ -33,6 +33,13 @@ class SettingsViewModel(
         prefsRepository.pinnedBoardId
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
+    val autoDismissMinutes: StateFlow<Int> =
+        prefsRepository.autoDismissMinutes
+            .stateIn(
+                viewModelScope, SharingStarted.WhileSubscribed(5000),
+                UserPreferencesRepository.DEFAULT_AUTO_DISMISS_MINUTES
+            )
+
     val userEmail: String? get() = authRepository.currentUser?.email
     val userDisplayName: String? get() = authRepository.currentUser?.displayName
 
@@ -50,5 +57,9 @@ class SettingsViewModel(
 
     fun setPinnedBoard(boardId: String?) {
         viewModelScope.launch { prefsRepository.setPinnedBoardId(boardId) }
+    }
+
+    fun setAutoDismissMinutes(minutes: Int) {
+        viewModelScope.launch { prefsRepository.setAutoDismissMinutes(minutes) }
     }
 }
