@@ -396,14 +396,14 @@ function KanbanColumnView({
             Drop here
           </div>
         )}
-      </div>
 
-      <button
-        onClick={onAddTask}
-        className="w-full text-left text-fg-faint hover:text-fg px-2 py-1.5 rounded-lg hover:bg-surface-raised transition-colors text-sm font-semibold mt-1 shrink-0"
-      >
-        + Add task
-      </button>
+        <button
+          onClick={onAddTask}
+          className="w-full text-left text-fg-faint hover:text-fg px-2 py-1.5 rounded-lg hover:bg-surface-raised transition-colors text-sm font-semibold shrink-0"
+        >
+          + Add task
+        </button>
+      </div>
     </div>
   )
 }
