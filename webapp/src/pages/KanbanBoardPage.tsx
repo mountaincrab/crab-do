@@ -1,6 +1,6 @@
 import { Fragment, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { Check, ChevronDown, ChevronRight, ChevronUp, ListChecks, MoreHorizontal, Plus, Settings2 } from 'lucide-react'
+import { Bell, BellRing, Check, ChevronDown, ChevronRight, ChevronUp, ListChecks, MoreHorizontal, Plus, Settings2 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useBoard, SubtaskCount } from '../hooks/useBoard'
 import { Column, Subtask, Task } from '../types'
@@ -454,17 +454,30 @@ function TaskCardView({ task, subtaskCount, subtasks, onToggleSubtask, expanded,
         <p className="text-xs text-fg-faint mt-1 line-clamp-2">{task.description}</p>
       )}
 
-      {hasSubtasks && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onToggleExpand() }}
-          className={`inline-flex items-center gap-1 mt-2 text-xs font-medium font-mono px-1.5 py-0.5 rounded-md transition-colors ${
-            allDone ? 'bg-accent-soft text-success-text' : 'bg-surface-high text-fg-muted hover:text-fg'
-          }`}
-        >
-          <ListChecks size={12} />
-          {subtaskCount!.completed}/{subtaskCount!.total}
-          {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-        </button>
+      {(hasSubtasks || task.reminderTimeMillis != null) && (
+        <div className="flex items-center gap-2 mt-2 flex-wrap">
+          {hasSubtasks && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onToggleExpand() }}
+              className={`inline-flex items-center gap-1 text-xs font-medium font-mono px-1.5 py-0.5 rounded-md transition-colors ${
+                allDone ? 'bg-accent-soft text-success-text' : 'bg-surface-high text-fg-muted hover:text-fg'
+              }`}
+            >
+              <ListChecks size={12} />
+              {subtaskCount!.completed}/{subtaskCount!.total}
+              {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            </button>
+          )}
+          {task.reminderTimeMillis != null && (
+            <span
+              className="inline-flex items-center gap-1 text-xs font-medium text-accent"
+              title={`Reminder · ${new Date(task.reminderTimeMillis).toLocaleString()}`}
+            >
+              {task.reminderStyle === 'ALARM' ? <BellRing size={12} /> : <Bell size={12} />}
+              {new Date(task.reminderTimeMillis).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
+            </span>
+          )}
+        </div>
       )}
 
       {expanded && hasSubtasks && (
