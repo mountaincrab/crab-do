@@ -34,19 +34,26 @@
             </intent-filter>
         </activity>
 
-        <!-- Full-screen alarm alert activity -->
+        <!-- Full-screen alarm alert activity.
+             taskAffinity="" + excludeFromRecents keep this in its own isolated task so
+             dismissing/snoozing returns to whatever app was in the foreground, not Crabban. -->
         <activity
             android:name=".alarm.AlarmAlertActivity"
             android:exported="false"
             android:showOnLockScreen="true"
             android:turnScreenOn="true"
+            android:taskAffinity=""
+            android:excludeFromRecents="true"
             android:theme="@style/Theme.App.Fullscreen" />
 
-        <!-- Snooze duration picker (launched from notification action or alarm screen) -->
+        <!-- Snooze duration picker (launched from notification action or alarm screen).
+             Shares the empty taskAffinity so the snooze chain stays in the isolated task. -->
         <activity
             android:name=".alarm.SnoozePickerActivity"
             android:exported="false"
             android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:excludeFromRecents="true"
             android:theme="@style/Theme.Crabban" />
 
         <!-- Alarm ringer foreground service (loops alarm sound until dismissed) -->
