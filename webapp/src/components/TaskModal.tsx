@@ -1,7 +1,26 @@
 import { useRef, useState, useEffect } from 'react'
-import { Check, X } from 'lucide-react'
+import { AlarmClock, Bell, Check, Pencil, X } from 'lucide-react'
 import { useTask } from '../hooks/useTask'
 import { Subtask } from '../types'
+
+function millisToDatetimeLocal(ms: number): string {
+  const d = new Date(ms)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function defaultReminderDatetimeLocal(): string {
+  const d = new Date(Date.now() + 3_600_000)
+  d.setMinutes(0, 0, 0)
+  return millisToDatetimeLocal(d.getTime())
+}
+
+function formatReminderTime(ms: number): string {
+  return new Date(ms).toLocaleString([], {
+    weekday: 'short', day: 'numeric', month: 'short',
+    hour: '2-digit', minute: '2-digit',
+  })
+}
 
 interface TaskModalProps {
   userId: string
@@ -21,6 +40,9 @@ export default function TaskModal({ userId, boardId, taskId, isNew, onClose, onD
   const [descDraft, setDescDraft] = useState('')
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('')
+  const [editingReminder, setEditingReminder] = useState(false)
+  const [reminderDraft, setReminderDraft] = useState(defaultReminderDatetimeLocal())
+  const [reminderStyleDraft, setReminderStyleDraft] = useState<'ALARM' | 'NOTIFICATION'>('ALARM')
   const [draggingSubtaskId, setDraggingSubtaskId] = useState<string | null>(null)
   const [hoverGap, setHoverGap] = useState<number | null>(null)
   const subtaskListRef = useRef<HTMLDivElement>(null)
@@ -78,6 +100,30 @@ export default function TaskModal({ userId, boardId, taskId, isNew, onClose, onD
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   })
+
+  const openReminderEditor = () => {
+    setReminderDraft(
+      task?.reminderTimeMillis != null
+        ? millisToDatetimeLocal(task.reminderTimeMillis)
+        : defaultReminderDatetimeLocal(),
+    )
+    setReminderStyleDraft(task?.reminderStyle ?? 'ALARM')
+    setEditingReminder(true)
+  }
+
+  const saveReminder = async () => {
+    if (!reminderDraft) return
+    await updateTask({
+      reminderTimeMillis: new Date(reminderDraft).getTime(),
+      reminderStyle: reminderStyleDraft,
+    })
+    setEditingReminder(false)
+  }
+
+  const clearReminder = async () => {
+    await updateTask({ reminderTimeMillis: null })
+    setEditingReminder(false)
+  }
 
   const handleAddSubtask = async () => {
     if (!newSubtaskTitle.trim()) return
@@ -169,6 +215,94 @@ export default function TaskModal({ userId, boardId, taskId, isNew, onClose, onD
             placeholder="Add a description…"
             className="w-full bg-surface border border-DEFAULT rounded-xl px-4 py-3 text-fg text-sm placeholder:text-fg-faint outline-none focus:border-accent transition-colors resize-none"
           />
+
+          <hr className="border-DEFAULT" />
+
+          <div>
+            <span className="text-sm font-bold text-fg">Reminder</span>
+            <div className="mt-3">
+              {editingReminder ? (
+                <div className="flex flex-col gap-3 bg-surface border border-DEFAULT rounded-xl p-3">
+                  <input
+                    type="datetime-local"
+                    value={reminderDraft}
+                    onChange={(e) => setReminderDraft(e.target.value)}
+                    className="w-full bg-surface-raised border border-DEFAULT rounded-lg px-3 py-2 text-fg outline-none focus:border-accent transition-colors text-sm [color-scheme:dark]"
+                  />
+                  <div className="flex gap-2">
+                    {(['NOTIFICATION', 'ALARM'] as const).map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => setReminderStyleDraft(s)}
+                        className={`flex-1 py-2 rounded-lg text-sm font-semibold border transition-colors flex items-center justify-center gap-1.5 ${
+                          reminderStyleDraft === s
+                            ? 'bg-accent border-accent text-accent-fg'
+                            : 'border-DEFAULT text-fg-muted hover:text-fg'
+                        }`}
+                      >
+                        {s === 'NOTIFICATION' ? <Bell size={14} /> : <AlarmClock size={14} />}
+                        {s === 'NOTIFICATION' ? 'Notification' : 'Alarm'}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    {task?.reminderTimeMillis != null && (
+                      <button
+                        onClick={clearReminder}
+                        className="mr-auto px-3 py-1.5 rounded-lg text-danger-text hover:bg-surface-high text-sm font-semibold transition-colors"
+                      >
+                        Clear
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setEditingReminder(false)}
+                      className="px-3 py-1.5 rounded-lg text-fg-muted hover:text-fg text-sm font-semibold transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={saveReminder}
+                      disabled={!reminderDraft}
+                      className="px-3 py-1.5 bg-accent hover:bg-accent-hover disabled:opacity-40 text-accent-fg rounded-lg text-sm font-semibold transition-colors"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              ) : task?.reminderTimeMillis != null ? (
+                <div className="flex items-center gap-3 bg-surface border border-DEFAULT rounded-xl px-3 py-2.5">
+                  <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-accent-soft text-accent-text">
+                    {task.reminderStyle === 'ALARM' ? <AlarmClock size={16} /> : <Bell size={16} />}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-fg font-medium font-mono">{formatReminderTime(task.reminderTimeMillis)}</p>
+                    <p className="text-xs text-fg-muted mt-0.5">{task.reminderStyle === 'ALARM' ? 'Alarm' : 'Notification'}</p>
+                  </div>
+                  <button
+                    onClick={openReminderEditor}
+                    className="p-1.5 rounded-lg text-fg-muted hover:text-fg hover:bg-surface-high transition-colors"
+                    title="Edit reminder"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                  <button
+                    onClick={clearReminder}
+                    className="p-1.5 rounded-lg text-fg-muted hover:text-danger-text hover:bg-surface-high transition-colors"
+                    title="Clear reminder"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={openReminderEditor}
+                  className="flex items-center gap-2 text-fg-muted hover:text-fg px-3 py-2 rounded-lg border border-dashed border-DEFAULT hover:border-strong transition-colors text-sm font-semibold w-full"
+                >
+                  <Bell size={15} /> Set reminder
+                </button>
+              )}
+            </div>
+          </div>
 
           <hr className="border-DEFAULT" />
 

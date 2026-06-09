@@ -31,7 +31,9 @@ export function useTask(userId: string, boardId: string, taskId: string) {
     })
   }, [userId, boardId, taskId])
 
-  const updateTask = async (fields: Partial<Pick<Task, 'title' | 'description'>>) => {
+  const updateTask = async (
+    fields: Partial<Pick<Task, 'title' | 'description' | 'reminderTimeMillis' | 'reminderStyle'>>,
+  ) => {
     await updateDoc(
       doc(db, 'users', userId, 'boards', boardId, 'tasks', taskId),
       { ...fields, updatedAt: serverTimestamp() },

@@ -133,6 +133,8 @@ export function useBoard(userId: string, boardId: string) {
       title,
       description,
       order: maxOrder + 1,
+      reminderTimeMillis: null,
+      reminderStyle: 'ALARM',
       updatedAt: serverTimestamp(),
       isDeleted: false,
     })

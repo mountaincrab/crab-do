@@ -25,6 +25,8 @@ export interface Task {
   title: string
   description: string
   order: number
+  reminderTimeMillis: number | null
+  reminderStyle: 'ALARM' | 'NOTIFICATION'
   updatedAt: number
   isDeleted: boolean
 }
