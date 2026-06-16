@@ -157,7 +157,13 @@ fun AppNavigation(
         NavHost(
             navController = navController,
             startDestination = startDestination,
-            modifier = Modifier.padding(bottom = padding.calculateBottomPadding())
+            // Apply the bottom-bar inset as padding AND consume it, so descendants
+            // that read window insets (e.g. imePadding() in the task editor overlay)
+            // measure from the top of the bottom nav bar rather than the true window
+            // bottom — otherwise they double-count the nav-bar height and leave a gap.
+            modifier = Modifier
+                .padding(bottom = padding.calculateBottomPadding())
+                .consumeWindowInsets(PaddingValues(bottom = padding.calculateBottomPadding()))
         ) {
             composable(Screen.PinnedBoard.route) {
                 PinnedBoardScreen(navController = navController, innerPadding = padding)

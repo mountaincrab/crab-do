@@ -8,6 +8,7 @@ import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -26,6 +27,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.graphicsLayer
@@ -155,6 +157,9 @@ fun EditCardDialog(
     var reminderMillis by remember { mutableStateOf(task.reminderTimeMillis ?: defaultReminderTime()) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var newSubtask by remember { mutableStateOf("") }
+    // The subtask composer is hidden behind an "+ Add subtask" button until
+    // tapped (mirrors the board column's "+ Add task"). Back collapses it.
+    var composerVisible by remember { mutableStateOf(false) }
     val subtaskFocusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
     val scrollState = rememberScrollState()
@@ -254,11 +259,20 @@ fun EditCardDialog(
     // Render the editor as a full-screen overlay in the host (activity) window
     // rather than a Compose Dialog. A Dialog gets its own sub-window, which on
     // Android 15/16 is inset below the status bar yet sized to the full display, so
-    // the bottom-pinned "Add a subtask" composer ends up off the bottom edge. The
-    // activity window bounds the height and dispatches system-bar/ime insets
-    // correctly, so weight(1f) distributes real space and the composer stays pinned
-    // above the keyboard and nav bar. Back press saves + dismisses (autosave).
-    BackHandler(onBack = saveAndDismiss)
+    // a bottom-anchored composer ends up off the bottom edge. The activity window
+    // bounds the height and dispatches system-bar/ime insets correctly, so
+    // weight(1f) distributes real space and the scrolling form lifts above the
+    // keyboard via imePadding(). Back collapses the subtask composer if open,
+    // otherwise saves + dismisses (autosave).
+    BackHandler {
+        if (composerVisible) {
+            composerVisible = false
+            newSubtask = ""
+            keyboardController?.hide()
+        } else {
+            saveAndDismiss()
+        }
+    }
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.surface
@@ -273,14 +287,16 @@ fun EditCardDialog(
                     )
                 }
             }
-            // Whole form (fields + checklist) scrolls in this single region,
-            // which takes all the space left between the header and the pinned
-            // composer below.
+            // Whole form (fields + checklist + add-subtask composer) scrolls in
+            // this single region, which takes all the space left below the header.
+            // imePadding() shrinks it when the keyboard opens so the inline
+            // composer can scroll into view above it.
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
                     .verticalScroll(scrollState)
+                    .imePadding()
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
@@ -384,57 +400,78 @@ fun EditCardDialog(
                     )
                     }
                 }
-            }
-            // Pinned composer: always visible, anchored to the bottom. Sits
-            // above the keyboard (imePadding). It does NOT add
-            // navigationBarsPadding: this overlay is hosted inside the app's
-            // NavHost content region, which already sits above the bottom
-            // navigation bar (that bar consumes the system nav-bar inset), so
-            // adding it here would double-count and leave a large dead gap
-            // below the composer.
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .imePadding()
-            ) {
-                HorizontalDivider(
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedTextField(
-                        value = newSubtask,
-                        onValueChange = { newSubtask = it },
-                        placeholder = { Text("Add a subtask…") },
+
+                // Add-subtask affordance at the end of the checklist. Collapsed to
+                // a "+ Add subtask" button (like the board's "+ Add task"); tapping
+                // expands the inline composer. Done adds the subtask and keeps the
+                // field open + cleared so the next one can be typed straight away;
+                // back collapses it (handled by BackHandler above).
+                if (composerVisible) {
+                    Row(
                         modifier = Modifier
-                            .weight(1f)
-                            .focusRequester(subtaskFocusRequester),
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
-                        keyboardOptions = KeyboardOptions(
-                            imeAction = ImeAction.Done,
-                            capitalization = KeyboardCapitalization.Sentences
-                        ),
-                        keyboardActions = KeyboardActions(onDone = { addSubtaskAndContinue() })
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    IconButton(
-                        onClick = addSubtaskAndContinue,
-                        enabled = newSubtask.isNotBlank()
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            Icons.Default.Add,
-                            contentDescription = "Add subtask",
-                            tint = if (newSubtask.isNotBlank()) MaterialTheme.colorScheme.primary
-                                   else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                        OutlinedTextField(
+                            value = newSubtask,
+                            onValueChange = { newSubtask = it },
+                            placeholder = { Text("Add a subtask…") },
+                            modifier = Modifier
+                                .weight(1f)
+                                .focusRequester(subtaskFocusRequester),
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            keyboardOptions = KeyboardOptions(
+                                imeAction = ImeAction.Done,
+                                capitalization = KeyboardCapitalization.Sentences
+                            ),
+                            keyboardActions = KeyboardActions(onDone = { addSubtaskAndContinue() })
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        IconButton(
+                            onClick = addSubtaskAndContinue,
+                            enabled = newSubtask.isNotBlank()
+                        ) {
+                            Icon(
+                                Icons.Default.Add,
+                                contentDescription = "Add subtask",
+                                tint = if (newSubtask.isNotBlank()) MaterialTheme.colorScheme.primary
+                                       else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                            )
+                        }
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { composerVisible = true }
+                            .padding(horizontal = 8.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "+ Add subtask",
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                letterSpacing = 0.sp,
+                                fontSize = 13.sp,
+                            ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
             }
+        }
+    }
+
+    // When the composer is revealed, focus it, raise the keyboard, and scroll it
+    // into view above the keyboard.
+    LaunchedEffect(composerVisible) {
+        if (composerVisible) {
+            subtaskFocusRequester.requestFocus()
+            keyboardController?.show()
+            scrollState.animateScrollTo(scrollState.maxValue)
         }
     }
 
