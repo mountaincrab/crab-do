@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Bell, AlarmClock, Repeat, Pencil, Trash2, ChevronRight } from 'lucide-react'
+import { Bell, AlarmClock, Repeat, Pencil, Trash2, ChevronRight, RotateCcw } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useReminders } from '../hooks/useReminders'
 import { Reminder, RecurringReminder } from '../types'
@@ -288,23 +288,95 @@ function RecurringReminderRow({ reminder, onDelete, onToggleEnabled, dimmed }: R
   )
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
+// ── Section header ────────────────────────────────────────────────────────────
 
-type ActiveEntry =
-  | { kind: 'one-off'; sortKey: number; data: Reminder }
-  | { kind: 'recurring'; sortKey: number; data: RecurringReminder }
+function SectionHeader({ label }: { label: string }) {
+  return (
+    <p className="text-xs font-bold uppercase tracking-wide text-fg-faint pt-4 pb-1.5 px-1">
+      {label}
+    </p>
+  )
+}
+
+// ── Deleted row (with restore) ────────────────────────────────────────────────
+
+function DeletedRow({ title, subtitle, onRestore }: { title: string; subtitle: string; onRestore: () => void }) {
+  return (
+    <div className="bg-surface-raised border border-transparent hover:border-DEFAULT rounded-xl px-3 py-2.5 flex items-center gap-3 group transition-colors opacity-60">
+      <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-surface-high text-fg-faint">
+        <Trash2 size={16} />
+      </span>
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold truncate text-fg-muted line-through">{title}</p>
+        <p className="text-xs mt-0.5 text-fg-faint font-mono truncate">{subtitle}</p>
+      </div>
+      <button
+        onClick={onRestore}
+        className="p-1.5 rounded-lg text-fg-muted hover:text-accent-text hover:bg-surface-high transition-colors opacity-0 group-hover:opacity-100"
+        title="Restore"
+      >
+        <RotateCcw size={14} />
+      </button>
+    </div>
+  )
+}
+
+// ── Collapsible group (completed / deleted) ───────────────────────────────────
+
+function CollapsibleGroup({
+  label,
+  count,
+  children,
+}: {
+  label: string
+  count: number
+  children: ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="pt-4">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="text-sm text-fg-faint hover:text-fg-muted transition-colors flex items-center gap-1 mb-2 font-semibold"
+      >
+        <ChevronRight size={14} className={`transition-transform ${open ? 'rotate-90' : ''}`} />
+        {label} ({count})
+      </button>
+      {open && <div className="space-y-1.5">{children}</div>}
+    </div>
+  )
+}
+
+// ── Grouping helpers ──────────────────────────────────────────────────────────
+
+function dayBounds() {
+  const now = new Date()
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  return { todayStart, tomorrowStart: todayStart + 86_400_000, dayAfterStart: todayStart + 2 * 86_400_000 }
+}
+
+function recurringFireAt(r: RecurringReminder): number {
+  const now = Date.now()
+  return r.snoozedUntilMillis != null && r.snoozedUntilMillis > now ? r.snoozedUntilMillis : r.nextFireAt
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function RemindersPage() {
   const { user } = useAuth()
   const {
     reminders,
     completedReminders,
+    deletedReminders,
     recurringReminders,
+    deletedRecurring,
     loading,
     createReminder,
     updateReminder,
     deleteReminder,
+    restoreReminder,
     deleteRecurringReminder,
+    restoreRecurringReminder,
     toggleRecurringEnabled,
   } = useReminders(user!.uid)
 
@@ -312,26 +384,54 @@ export default function RemindersPage() {
   const view = searchParams.get('view') // 'one-off' | 'recurring' | null
   const showOneOff = view !== 'recurring'
   const showRecurring = view !== 'one-off'
+  const showBoth = showOneOff && showRecurring
 
   const [showCreate, setShowCreate] = useState(false)
   const [editing, setEditing] = useState<Reminder | null>(null)
-  const [showCompleted, setShowCompleted] = useState(false)
 
-  const activeEntries: ActiveEntry[] = [
-    ...(showOneOff ? reminders : []).map((r) => ({
-      kind: 'one-off' as const,
-      sortKey: r.snoozedUntilMillis ?? r.scheduledAt,
-      data: r,
-    })),
-    ...(showRecurring ? recurringReminders : []).map((r) => ({
-      kind: 'recurring' as const,
-      sortKey: r.snoozedUntilMillis ?? r.nextFireAt,
-      data: r,
-    })),
-  ].sort((a, b) => a.sortKey - b.sortKey)
+  const { todayStart, tomorrowStart, dayAfterStart } = dayBounds()
 
-  const visibleCompleted = showOneOff ? completedReminders : []
-  const isEmpty = activeEntries.length === 0 && visibleCompleted.length === 0
+  // One-off groups (by scheduled time)
+  const ooToday = reminders.filter((r) => r.scheduledAt >= todayStart && r.scheduledAt < tomorrowStart)
+  const ooUpcoming = reminders.filter((r) => r.scheduledAt >= tomorrowStart)
+  const ooPast = reminders.filter((r) => r.scheduledAt < todayStart)
+
+  // Recurring groups (by effective fire time, honouring snooze)
+  const recToday = recurringReminders.filter((r) => {
+    const e = recurringFireAt(r)
+    return e >= todayStart && e < tomorrowStart
+  })
+  const recTomorrow = recurringReminders.filter((r) => {
+    const e = recurringFireAt(r)
+    return e >= tomorrowStart && e < dayAfterStart
+  })
+  const recLater = recurringReminders.filter((r) => {
+    const e = recurringFireAt(r)
+    return e < todayStart || e >= dayAfterStart
+  })
+
+  const renderOneOff = (r: Reminder) => (
+    <OneOffReminderRow
+      key={r.id}
+      reminder={r}
+      onEdit={() => setEditing(r)}
+      onDelete={() => deleteReminder(r.id)}
+    />
+  )
+  const renderRecurring = (r: RecurringReminder) => (
+    <RecurringReminderRow
+      key={r.id}
+      reminder={r}
+      onDelete={() => deleteRecurringReminder(r.id)}
+      onToggleEnabled={() => toggleRecurringEnabled(r)}
+    />
+  )
+
+  const oneOffEmpty =
+    reminders.length === 0 && completedReminders.length === 0 && deletedReminders.length === 0
+  const recurringEmpty = recurringReminders.length === 0 && deletedRecurring.length === 0
+  const isEmpty = (!showOneOff || oneOffEmpty) && (!showRecurring || recurringEmpty)
+
   const heading = view === 'one-off' ? 'One-off Reminders' : view === 'recurring' ? 'Recurring Reminders' : 'Reminders'
 
   return (
@@ -358,44 +458,35 @@ export default function RemindersPage() {
             <p>No reminders yet. Create your first one.</p>
           </div>
         ) : (
-          <div className="space-y-1.5">
-            {activeEntries.length === 0 ? (
-              <p className="text-fg-faint text-center py-8">No upcoming reminders.</p>
-            ) : (
-              activeEntries.map((entry) =>
-                entry.kind === 'one-off' ? (
-                  <OneOffReminderRow
-                    key={entry.data.id}
-                    reminder={entry.data}
-                    onEdit={() => setEditing(entry.data)}
-                    onDelete={() => deleteReminder(entry.data.id)}
-                  />
-                ) : (
-                  <RecurringReminderRow
-                    key={entry.data.id}
-                    reminder={entry.data}
-                    onDelete={() => deleteRecurringReminder(entry.data.id)}
-                    onToggleEnabled={() => toggleRecurringEnabled(entry.data)}
-                  />
-                ),
-              )
-            )}
-
-            {visibleCompleted.length > 0 && (
-              <div className="pt-4">
-                <button
-                  onClick={() => setShowCompleted((v) => !v)}
-                  className="text-sm text-fg-faint hover:text-fg-muted transition-colors flex items-center gap-1 mb-2 font-semibold"
-                >
-                  <ChevronRight
-                    size={14}
-                    className={`transition-transform ${showCompleted ? 'rotate-90' : ''}`}
-                  />
-                  Completed ({visibleCompleted.length})
-                </button>
-                {showCompleted && (
-                  <div className="space-y-1.5">
-                    {visibleCompleted.map((r) => (
+          <div className="space-y-6">
+            {showOneOff && (
+              <div className="space-y-1.5">
+                {showBoth && (
+                  <h2 className="text-lg font-bold text-fg flex items-center gap-2">
+                    <Bell size={16} className="text-accent-text" /> One-off
+                  </h2>
+                )}
+                {ooToday.length > 0 && (
+                  <>
+                    <SectionHeader label="Today" />
+                    {ooToday.map(renderOneOff)}
+                  </>
+                )}
+                {ooUpcoming.length > 0 && (
+                  <>
+                    <SectionHeader label="Upcoming" />
+                    {ooUpcoming.map(renderOneOff)}
+                  </>
+                )}
+                {ooPast.length > 0 && (
+                  <>
+                    <SectionHeader label="Past" />
+                    {ooPast.map(renderOneOff)}
+                  </>
+                )}
+                {completedReminders.length > 0 && (
+                  <CollapsibleGroup label="Completed" count={completedReminders.length}>
+                    {completedReminders.map((r) => (
                       <OneOffReminderRow
                         key={r.id}
                         reminder={r}
@@ -404,7 +495,59 @@ export default function RemindersPage() {
                         dimmed
                       />
                     ))}
-                  </div>
+                  </CollapsibleGroup>
+                )}
+                {deletedReminders.length > 0 && (
+                  <CollapsibleGroup label="Deleted" count={deletedReminders.length}>
+                    {deletedReminders.map((r) => (
+                      <DeletedRow
+                        key={r.id}
+                        title={r.title}
+                        subtitle={formatTriggerTime(r.scheduledAt)}
+                        onRestore={() => restoreReminder(r.id)}
+                      />
+                    ))}
+                  </CollapsibleGroup>
+                )}
+              </div>
+            )}
+
+            {showRecurring && (
+              <div className="space-y-1.5">
+                {showBoth && (
+                  <h2 className="text-lg font-bold text-fg flex items-center gap-2 pt-2">
+                    <Repeat size={16} className="text-fg-muted" /> Recurring
+                  </h2>
+                )}
+                {recToday.length > 0 && (
+                  <>
+                    <SectionHeader label="Today" />
+                    {recToday.map(renderRecurring)}
+                  </>
+                )}
+                {recTomorrow.length > 0 && (
+                  <>
+                    <SectionHeader label="Tomorrow" />
+                    {recTomorrow.map(renderRecurring)}
+                  </>
+                )}
+                {recLater.length > 0 && (
+                  <>
+                    <SectionHeader label="Later" />
+                    {recLater.map(renderRecurring)}
+                  </>
+                )}
+                {deletedRecurring.length > 0 && (
+                  <CollapsibleGroup label="Deleted" count={deletedRecurring.length}>
+                    {deletedRecurring.map((r) => (
+                      <DeletedRow
+                        key={r.id}
+                        title={r.title}
+                        subtitle={describeRecurrence(r.recurrenceRuleJson, r.reminderTime)}
+                        onRestore={() => restoreRecurringReminder(r.id)}
+                      />
+                    ))}
+                  </CollapsibleGroup>
                 )}
               </div>
             )}

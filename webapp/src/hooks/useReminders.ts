@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  collection, doc, query, where, onSnapshot,
+  collection, doc, query, onSnapshot,
   addDoc, updateDoc, serverTimestamp,
 } from 'firebase/firestore'
 import { db } from '../firebase'
@@ -9,7 +9,9 @@ import { Reminder, RecurringReminder } from '../types'
 export function useReminders(userId: string) {
   const [reminders, setReminders] = useState<Reminder[]>([])
   const [completedReminders, setCompletedReminders] = useState<Reminder[]>([])
+  const [deletedReminders, setDeletedReminders] = useState<Reminder[]>([])
   const [recurringReminders, setRecurringReminders] = useState<RecurringReminder[]>([])
+  const [deletedRecurring, setDeletedRecurring] = useState<RecurringReminder[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -17,29 +19,33 @@ export function useReminders(userId: string) {
     let recurringReady = false
     const checkReady = () => { if (oneOffReady && recurringReady) setLoading(false) }
 
-    const q1 = query(
-      collection(db, 'users', userId, 'reminders'),
-      where('isDeleted', '==', false),
-    )
+    // Listen across all docs (including deleted) so we can show a Deleted section.
+    const q1 = query(collection(db, 'users', userId, 'reminders'))
     const unsub1 = onSnapshot(q1, (snap) => {
       const all = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Reminder))
+      const live = all.filter((r) => !r.isDeleted)
       setReminders(
-        all.filter((r) => !r.isCompleted).sort((a, b) => a.scheduledAt - b.scheduledAt),
+        live.filter((r) => !r.isCompleted).sort((a, b) => a.scheduledAt - b.scheduledAt),
       )
       setCompletedReminders(
-        all.filter((r) => r.isCompleted).sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0)),
+        live.filter((r) => r.isCompleted).sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0)),
+      )
+      setDeletedReminders(
+        all.filter((r) => r.isDeleted).sort((a, b) => b.scheduledAt - a.scheduledAt),
       )
       oneOffReady = true
       checkReady()
     })
 
-    const q2 = query(
-      collection(db, 'users', userId, 'recurringReminders'),
-      where('isDeleted', '==', false),
-    )
+    const q2 = query(collection(db, 'users', userId, 'recurringReminders'))
     const unsub2 = onSnapshot(q2, (snap) => {
       const all = snap.docs.map((d) => ({ id: d.id, ...d.data() } as RecurringReminder))
-      setRecurringReminders(all.sort((a, b) => a.nextFireAt - b.nextFireAt))
+      setRecurringReminders(
+        all.filter((r) => !r.isDeleted).sort((a, b) => a.nextFireAt - b.nextFireAt),
+      )
+      setDeletedRecurring(
+        all.filter((r) => r.isDeleted).sort((a, b) => b.nextFireAt - a.nextFireAt),
+      )
       recurringReady = true
       checkReady()
     })
@@ -87,9 +93,23 @@ export function useReminders(userId: string) {
     })
   }
 
+  const restoreReminder = async (reminderId: string) => {
+    await updateDoc(doc(db, 'users', userId, 'reminders', reminderId), {
+      isDeleted: false,
+      updatedAt: serverTimestamp(),
+    })
+  }
+
   const deleteRecurringReminder = async (reminderId: string) => {
     await updateDoc(doc(db, 'users', userId, 'recurringReminders', reminderId), {
       isDeleted: true,
+      updatedAt: serverTimestamp(),
+    })
+  }
+
+  const restoreRecurringReminder = async (reminderId: string) => {
+    await updateDoc(doc(db, 'users', userId, 'recurringReminders', reminderId), {
+      isDeleted: false,
       updatedAt: serverTimestamp(),
     })
   }
@@ -104,12 +124,16 @@ export function useReminders(userId: string) {
   return {
     reminders,
     completedReminders,
+    deletedReminders,
     recurringReminders,
+    deletedRecurring,
     loading,
     createReminder,
     updateReminder,
     deleteReminder,
+    restoreReminder,
     deleteRecurringReminder,
+    restoreRecurringReminder,
     toggleRecurringEnabled,
   }
 }
