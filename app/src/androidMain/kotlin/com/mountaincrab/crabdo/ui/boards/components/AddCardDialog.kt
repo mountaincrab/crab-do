@@ -30,6 +30,7 @@ import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -164,8 +165,14 @@ fun EditCardDialog(
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var newSubtask by remember { mutableStateOf("") }
     // The subtask composer is hidden behind an "+ Add subtask" button until
-    // tapped (mirrors the board column's "+ Add task"). Back collapses it.
+    // tapped (mirrors the board column's "+ Add task"). Back collapses it, and
+    // so does moving focus away (e.g. tapping the title field) — see
+    // subtaskFieldHadFocus below.
     var composerVisible by remember { mutableStateOf(false) }
+    // Tracks whether the composer's text field has actually held focus, so the
+    // initial unfocused onFocusChanged event (fired before requestFocus) isn't
+    // mistaken for the user moving focus away and doesn't collapse the composer.
+    var subtaskFieldHadFocus by remember { mutableStateOf(false) }
     val subtaskFocusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
     val scrollState = rememberScrollState()
@@ -425,7 +432,21 @@ fun EditCardDialog(
                             placeholder = { Text("Add a subtask…") },
                             modifier = Modifier
                                 .weight(1f)
-                                .focusRequester(subtaskFocusRequester),
+                                .focusRequester(subtaskFocusRequester)
+                                // Collapse the composer back to the "+ Add
+                                // subtask" button when focus leaves the field
+                                // (e.g. the user taps the title/notes field).
+                                // Guarded by subtaskFieldHadFocus so the initial
+                                // unfocused state — emitted before requestFocus
+                                // runs — doesn't immediately collapse it.
+                                .onFocusChanged { focusState ->
+                                    if (focusState.isFocused) {
+                                        subtaskFieldHadFocus = true
+                                    } else if (subtaskFieldHadFocus) {
+                                        composerVisible = false
+                                        newSubtask = ""
+                                    }
+                                },
                             singleLine = true,
                             shape = RoundedCornerShape(12.dp),
                             keyboardOptions = KeyboardOptions(
@@ -452,7 +473,7 @@ fun EditCardDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(10.dp))
-                            .clickable { composerVisible = true }
+                            .clickable { subtaskFieldHadFocus = false; composerVisible = true }
                             .padding(horizontal = 8.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
