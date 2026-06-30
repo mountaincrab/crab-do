@@ -127,6 +127,12 @@ fun AddCardDialog(
                         reminderMillis = reminderMillis,
                         onReminderMillisChange = { reminderMillis = it },
                         titleFocusRequester = focusRequester,
+                        // On the New Task dialog, the title field's return key
+                        // submits (adds the task + closes) instead of advancing
+                        // to Notes. The submit lambda no-ops on a blank title and
+                        // onAdd dismisses the dialog.
+                        titleImeAction = ImeAction.Done,
+                        onTitleImeAction = submit,
                     )
                 }
             }
@@ -539,6 +545,8 @@ private fun TaskFormFields(
     reminderMillis: Long,
     onReminderMillisChange: (Long) -> Unit,
     titleFocusRequester: FocusRequester?,
+    titleImeAction: ImeAction = ImeAction.Next,
+    onTitleImeAction: () -> Unit = {},
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
@@ -553,8 +561,11 @@ private fun TaskFormFields(
             .then(if (titleFocusRequester != null) Modifier.focusRequester(titleFocusRequester) else Modifier),
         singleLine = true,
         keyboardOptions = KeyboardOptions(
-            imeAction = ImeAction.Next,
+            imeAction = titleImeAction,
             capitalization = KeyboardCapitalization.Sentences
+        ),
+        keyboardActions = KeyboardActions(
+            onDone = { onTitleImeAction() }
         ),
         shape = RoundedCornerShape(12.dp)
     )
