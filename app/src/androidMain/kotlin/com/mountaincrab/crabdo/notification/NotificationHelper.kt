@@ -8,15 +8,20 @@ import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.content.getSystemService
+import com.mountaincrab.crabdo.MainActivity
 import com.mountaincrab.crabdo.R
 import com.mountaincrab.crabdo.alarm.AlarmAlertActivity
 import com.mountaincrab.crabdo.alarm.ReminderReceiver
 import com.mountaincrab.crabdo.alarm.SnoozePickerActivity
 import com.mountaincrab.crabdo.data.local.entity.ReminderStyle
+import com.mountaincrab.crabdo.ui.navigation.ReminderTarget
 
 object NotificationHelper {
     const val CHANNEL_ALARM = "channel_alarm_v2"
     const val CHANNEL_NOTIFICATION = "channel_notification"
+
+    /** Where tapping the notification body should take the user. */
+    enum class TapTarget { TASK, ONE_OFF, RECURRING }
 
     fun createChannels(context: Context) {
         val manager = context.getSystemService<NotificationManager>() ?: return
@@ -48,9 +53,31 @@ object NotificationHelper {
         id: String,
         title: String,
         notificationId: Int,
-        style: ReminderStyle
+        style: ReminderStyle,
+        tapTarget: TapTarget = TapTarget.ONE_OFF
     ) {
         val manager = context.getSystemService<NotificationManager>() ?: return
+
+        // Tapping the notification body opens the relevant editor: the task detail
+        // screen for a task reminder, or the reminder editor for a standalone reminder.
+        val contentIntent = PendingIntent.getActivity(
+            context, notificationId + 4000,
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                when (tapTarget) {
+                    TapTarget.TASK -> putExtra("open_task_id", id)
+                    TapTarget.ONE_OFF -> {
+                        putExtra("open_reminder_id", id)
+                        putExtra("reminder_type", ReminderTarget.ONE_OFF.name)
+                    }
+                    TapTarget.RECURRING -> {
+                        putExtra("open_reminder_id", id)
+                        putExtra("reminder_type", ReminderTarget.RECURRING.name)
+                    }
+                }
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
 
         val dismissIntent = PendingIntent.getBroadcast(
             context, notificationId + 1000,
@@ -76,17 +103,21 @@ object NotificationHelper {
 
         val channel = if (style == ReminderStyle.ALARM) CHANNEL_ALARM else CHANNEL_NOTIFICATION
 
+        val isAlarm = style == ReminderStyle.ALARM
+
         val builder = NotificationCompat.Builder(context, channel)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
-            .setContentText("Tap to dismiss")
+            .setContentText(if (isAlarm) "Tap to dismiss" else "Tap to open")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
-            .setAutoCancel(false)
+            .setContentIntent(contentIntent)
+            // Standalone notifications clear themselves when tapped; alarms stay until dismissed.
+            .setAutoCancel(!isAlarm)
             .addAction(R.drawable.ic_dismiss, "Dismiss", dismissIntent)
             .addAction(R.drawable.ic_snooze, "Snooze", snoozeIntent)
 
-        if (style == ReminderStyle.ALARM) {
+        if (isAlarm) {
             builder.setOngoing(true)
 
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {

@@ -34,11 +34,13 @@ class ReminderReceiver : BroadcastReceiver(), KoinComponent {
         val title = intent.getStringExtra(EXTRA_TITLE) ?: "Reminder"
         val styleStr = intent.getStringExtra(EXTRA_STYLE) ?: "ALARM"
         val style = try { ReminderStyle.valueOf(styleStr) } catch (e: Exception) { ReminderStyle.ALARM }
+        val type = intent.getStringExtra(EXTRA_TYPE) ?: TYPE_REMINDER
         val notificationId = reminderId.hashCode() and 0x7FFFFFFF
 
-        Log.d(TAG, "handleFire: reminderId=$reminderId, style=$style, title=$title")
+        Log.d(TAG, "handleFire: reminderId=$reminderId, style=$style, type=$type, title=$title")
 
-        if (style == ReminderStyle.ALARM) {
+        val isAlarm = style == ReminderStyle.ALARM
+        if (isAlarm) {
             val serviceIntent = Intent(context, AlarmRingerService::class.java).apply {
                 action = AlarmRingerService.ACTION_START
                 putExtra(EXTRA_REMINDER_ID, reminderId)
@@ -50,8 +52,6 @@ class ReminderReceiver : BroadcastReceiver(), KoinComponent {
             } else {
                 context.startService(serviceIntent)
             }
-        } else {
-            NotificationHelper.showAlarmNotification(context, reminderId, title, notificationId, style)
         }
 
         val pendingResult = goAsync()
@@ -59,6 +59,20 @@ class ReminderReceiver : BroadcastReceiver(), KoinComponent {
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         scope.launch {
             try {
+                // For notification-style reminders, resolve where a tap should navigate
+                // before firing (which may mark a one-off completed / advance a recurring),
+                // then post the notification with a matching content intent.
+                if (!isAlarm) {
+                    val tapTarget = when {
+                        type == TYPE_TASK -> NotificationHelper.TapTarget.TASK
+                        repo.getOneOffById(reminderId) != null -> NotificationHelper.TapTarget.ONE_OFF
+                        repo.getRecurringById(reminderId) != null -> NotificationHelper.TapTarget.RECURRING
+                        else -> NotificationHelper.TapTarget.ONE_OFF
+                    }
+                    NotificationHelper.showAlarmNotification(
+                        context, reminderId, title, notificationId, style, tapTarget
+                    )
+                }
                 repo.clearSnooze(reminderId)
                 repo.onReminderFired(reminderId)
             } finally {
@@ -109,5 +123,8 @@ class ReminderReceiver : BroadcastReceiver(), KoinComponent {
         const val EXTRA_TITLE = "title"
         const val EXTRA_TYPE = "type"
         const val EXTRA_STYLE = "style"
+        // EXTRA_TYPE values: distinguishes a task reminder from a standalone reminder.
+        const val TYPE_TASK = "task"
+        const val TYPE_REMINDER = "reminder"
     }
 }

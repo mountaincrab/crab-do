@@ -85,7 +85,7 @@ class AlarmScheduler(private val context: Context) {
             action = ReminderReceiver.ACTION_FIRE_REMINDER
             putExtra(ReminderReceiver.EXTRA_REMINDER_ID, id)
             putExtra(ReminderReceiver.EXTRA_TITLE, title)
-            putExtra(ReminderReceiver.EXTRA_TYPE, "reminder")
+            putExtra(ReminderReceiver.EXTRA_TYPE, ReminderReceiver.TYPE_REMINDER)
             putExtra(ReminderReceiver.EXTRA_STYLE, styleName)
         }
 
@@ -94,7 +94,7 @@ class AlarmScheduler(private val context: Context) {
             action = ReminderReceiver.ACTION_FIRE_REMINDER
             putExtra(ReminderReceiver.EXTRA_REMINDER_ID, taskId)
             putExtra(ReminderReceiver.EXTRA_TITLE, title)
-            putExtra(ReminderReceiver.EXTRA_TYPE, "task")
+            putExtra(ReminderReceiver.EXTRA_TYPE, ReminderReceiver.TYPE_TASK)
             putExtra(ReminderReceiver.EXTRA_STYLE, style.name)
         }
 

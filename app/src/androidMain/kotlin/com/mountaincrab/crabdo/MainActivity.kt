@@ -35,6 +35,7 @@ class MainActivity : ComponentActivity() {
     private var openAddReminder by mutableStateOf<ReminderTarget?>(null)
     private var openReminderId by mutableStateOf<String?>(null)
     private var openReminderType by mutableStateOf<ReminderTarget?>(null)
+    private var openTaskId by mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -62,6 +63,7 @@ class MainActivity : ComponentActivity() {
                     val shouldOpenAddReminder = openAddReminder
                     val shouldOpenReminderId = openReminderId
                     val shouldOpenReminderType = openReminderType
+                    val shouldOpenTaskId = openTaskId
                     LaunchedEffect(shouldOpenAddReminder) {
                         if (shouldOpenAddReminder != null) openAddReminder = null
                     }
@@ -71,12 +73,16 @@ class MainActivity : ComponentActivity() {
                             openReminderType = null
                         }
                     }
+                    LaunchedEffect(shouldOpenTaskId) {
+                        if (shouldOpenTaskId != null) openTaskId = null
+                    }
                     AppNavigation(
                         navController = navController,
                         startDestination = if (isSignedIn) Screen.PinnedBoard.route else Screen.Login.route,
                         openAddReminder = shouldOpenAddReminder,
                         openReminderId = shouldOpenReminderId,
                         openReminderType = shouldOpenReminderType,
+                        openTaskId = shouldOpenTaskId,
                     )
                 }
             }
@@ -99,6 +105,9 @@ class MainActivity : ComponentActivity() {
         intent.getStringExtra("open_reminder_id")?.let {
             openReminderId = it
             openReminderType = type ?: ReminderTarget.ONE_OFF
+        }
+        intent.getStringExtra("open_task_id")?.let {
+            openTaskId = it
         }
     }
 }
