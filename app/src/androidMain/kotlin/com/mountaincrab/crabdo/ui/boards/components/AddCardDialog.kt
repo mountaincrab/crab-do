@@ -301,16 +301,18 @@ fun EditCardDialog(
                     )
                 }
             }
-            // Whole form (fields + checklist + add-subtask composer) scrolls in
-            // this single region, which takes all the space left below the header.
-            // imePadding() shrinks it when the keyboard opens so the inline
-            // composer can scroll into view above it.
+            // Form + checklist scroll in this region, which takes the space left
+            // below the header and above the pinned subtask composer. imePadding()
+            // lifts it above the keyboard while the title/notes fields are being
+            // edited, but is dropped while the subtask composer is open — the
+            // composer is then a bar pinned below this region carrying its own
+            // imePadding(), so padding here too would double-count the keyboard.
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
                     .verticalScroll(scrollState)
-                    .imePadding()
+                    .then(if (composerVisible) Modifier else Modifier.imePadding())
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
@@ -415,16 +417,54 @@ fun EditCardDialog(
                     }
                 }
 
-                // Add-subtask affordance at the end of the checklist. Collapsed to
-                // a "+ Add subtask" button (like the board's "+ Add task"); tapping
-                // expands the inline composer. Done adds the subtask and keeps the
-                // field open + cleared so the next one can be typed straight away;
-                // back collapses it (handled by BackHandler above).
-                if (composerVisible) {
+                // Collapsed add-subtask affordance at the end of the checklist
+                // (like the board's "+ Add task"). Tapping it opens the composer,
+                // which is rendered as a bar pinned above the keyboard *below* this
+                // scroll region (see below) rather than inline here: an inline
+                // composer at the tail of a long checklist lands behind the keyboard
+                // and has to be scrolled to, whereas a pinned bar is always in view.
+                if (!composerVisible) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 4.dp),
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { subtaskFieldHadFocus = false; composerVisible = true }
+                            .padding(horizontal = 8.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "+ Add subtask",
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                letterSpacing = 0.sp,
+                                fontSize = 13.sp,
+                            ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+
+            // Subtask composer, pinned as a bar directly above the keyboard (and
+            // above the system nav bar when the keyboard is down) via imePadding() +
+            // navigationBarsPadding(), outside the scroll region. Because it is
+            // pinned it is visible the instant the keyboard opens — no scroll-into-
+            // view race, which is what made the inline version disappear behind the
+            // keyboard on a long checklist. Done adds the subtask and keeps the
+            // field open + cleared so the next one can be typed straight away; back
+            // collapses it (handled by BackHandler above).
+            if (composerVisible) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .imePadding()
+                        .navigationBarsPadding()
+                ) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         OutlinedTextField(
@@ -469,37 +509,16 @@ fun EditCardDialog(
                             )
                         }
                     }
-                } else {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .clickable { subtaskFieldHadFocus = false; composerVisible = true }
-                            .padding(horizontal = 8.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "+ Add subtask",
-                            style = MaterialTheme.typography.labelLarge.copy(
-                                fontWeight = FontWeight.SemiBold,
-                                letterSpacing = 0.sp,
-                                fontSize = 13.sp,
-                            ),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
                 }
             }
         }
     }
 
-    // When the composer is revealed, focus it, raise the keyboard, and scroll it
-    // into view above the keyboard. The keyboard opening applies imePadding(),
-    // which shrinks the scroll viewport and only raises scrollState.maxValue on a
-    // later frame — so scrolling to maxValue once here would use the stale
-    // pre-keyboard value and stop short, leaving the composer hidden behind the
-    // keyboard (you'd have to scroll down by hand). Instead follow maxValue as it
-    // grows and keep the bottom pinned in view until the layout settles.
+    // The composer is pinned above the keyboard, so it is always visible. Focus it
+    // and raise the keyboard, then keep the checklist scrolled to its bottom so the
+    // most recent rows sit right above the composer as the keyboard/layout settle
+    // (maxValue grows over several frames as imePadding takes effect, so follow it
+    // rather than reading it once).
     LaunchedEffect(composerVisible) {
         if (composerVisible) {
             subtaskFocusRequester.requestFocus()
