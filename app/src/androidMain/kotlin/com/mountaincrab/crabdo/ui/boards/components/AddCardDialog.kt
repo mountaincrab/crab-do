@@ -61,6 +61,7 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
 @Composable
@@ -493,12 +494,18 @@ fun EditCardDialog(
     }
 
     // When the composer is revealed, focus it, raise the keyboard, and scroll it
-    // into view above the keyboard.
+    // into view above the keyboard. The keyboard opening applies imePadding(),
+    // which shrinks the scroll viewport and only raises scrollState.maxValue on a
+    // later frame — so scrolling to maxValue once here would use the stale
+    // pre-keyboard value and stop short, leaving the composer hidden behind the
+    // keyboard (you'd have to scroll down by hand). Instead follow maxValue as it
+    // grows and keep the bottom pinned in view until the layout settles.
     LaunchedEffect(composerVisible) {
         if (composerVisible) {
             subtaskFocusRequester.requestFocus()
             keyboardController?.show()
-            scrollState.animateScrollTo(scrollState.maxValue)
+            snapshotFlow { scrollState.maxValue }
+                .collect { max -> scrollState.animateScrollTo(max) }
         }
     }
 
