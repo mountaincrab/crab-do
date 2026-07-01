@@ -37,6 +37,7 @@ fun AppNavigation(
     openAddReminder: ReminderTarget? = null,
     openReminderId: String? = null,
     openReminderType: ReminderTarget? = null,
+    openTaskId: String? = null,
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
@@ -72,6 +73,11 @@ fun AppNavigation(
                     Screen.AddEditRecurringReminder.createRoute(reminderId = openReminderId, fromWidget = true)
             }
             navController.navigate(route)
+        }
+    }
+    LaunchedEffect(openTaskId) {
+        if (openTaskId != null) {
+            navController.navigate(Screen.TaskDetail.createRoute(openTaskId))
         }
     }
 
