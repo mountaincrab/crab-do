@@ -8,6 +8,7 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -16,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -124,6 +126,10 @@ private fun SnoozePickerDialog(
                     Text("Custom…")
                 }
                 if (showCustom) {
+                    val confirmCustom = {
+                        val m = customText.toIntOrNull()
+                        if (m != null && m > 0) onSnooze(m)
+                    }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -132,17 +138,18 @@ private fun SnoozePickerDialog(
                             value = customText,
                             onValueChange = { customText = it.filter { c -> c.isDigit() } },
                             label = { Text("Minutes") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Number,
+                                imeAction = ImeAction.Done
+                            ),
+                            keyboardActions = KeyboardActions(onDone = { confirmCustom() }),
                             singleLine = true,
                             modifier = Modifier
                                 .weight(1f)
                                 .focusRequester(focusRequester)
                         )
                         Button(
-                            onClick = {
-                                val m = customText.toIntOrNull() ?: return@Button
-                                if (m > 0) onSnooze(m)
-                            },
+                            onClick = confirmCustom,
                             enabled = customText.toIntOrNull()?.let { it > 0 } == true
                         ) {
                             Text("OK")
