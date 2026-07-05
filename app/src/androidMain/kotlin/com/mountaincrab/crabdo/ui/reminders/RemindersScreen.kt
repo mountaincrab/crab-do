@@ -241,6 +241,7 @@ private fun RecurringTab(
     }.timeInMillis
     val tomorrowStart = todayStart + 86_400_000L
     val dayAfterStart = tomorrowStart + 86_400_000L
+    val next7End = todayStart + 8 * 86_400_000L
 
     fun effectiveFireAt(r: RecurringReminderEntity): Long {
         val snooze = r.snoozedUntilMillis
@@ -249,9 +250,10 @@ private fun RecurringTab(
 
     val todayItems = reminders.filter { effectiveFireAt(it) in todayStart until tomorrowStart }
     val tomorrowItems = reminders.filter { effectiveFireAt(it) in tomorrowStart until dayAfterStart }
-    val laterItems = reminders.filter {
+    val next7Items = reminders.filter { effectiveFireAt(it) in dayAfterStart until next7End }
+    val futureItems = reminders.filter {
         val e = effectiveFireAt(it)
-        e < todayStart || e >= dayAfterStart
+        e < todayStart || e >= next7End
     }
 
     LazyColumn(
@@ -270,9 +272,15 @@ private fun RecurringTab(
                 RecurringRow(reminder, navController, viewModel)
             }
         }
-        if (laterItems.isNotEmpty()) {
-            item { SectionHeader("Later") }
-            items(laterItems, key = { it.id }) { reminder ->
+        if (next7Items.isNotEmpty()) {
+            item { SectionHeader("Next 7 Days") }
+            items(next7Items, key = { it.id }) { reminder ->
+                RecurringRow(reminder, navController, viewModel)
+            }
+        }
+        if (futureItems.isNotEmpty()) {
+            item { SectionHeader("Future") }
+            items(futureItems, key = { it.id }) { reminder ->
                 RecurringRow(reminder, navController, viewModel)
             }
         }
