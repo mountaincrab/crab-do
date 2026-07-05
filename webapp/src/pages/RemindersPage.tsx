@@ -412,9 +412,13 @@ export default function RemindersPage() {
     const e = recurringFireAt(r)
     return e >= tomorrowStart && e < dayAfterStart
   })
-  const recLater = recurringReminders.filter((r) => {
+  const recNext7 = recurringReminders.filter((r) => {
     const e = recurringFireAt(r)
-    return e < todayStart || e >= dayAfterStart
+    return e >= dayAfterStart && e < next7End
+  })
+  const recFuture = recurringReminders.filter((r) => {
+    const e = recurringFireAt(r)
+    return e < todayStart || e >= next7End
   })
 
   const renderOneOff = (r: Reminder) => (
@@ -550,10 +554,16 @@ export default function RemindersPage() {
                     {recTomorrow.map(renderRecurring)}
                   </>
                 )}
-                {recLater.length > 0 && (
+                {recNext7.length > 0 && (
                   <>
-                    <SectionHeader label="Later" />
-                    {recLater.map(renderRecurring)}
+                    <SectionHeader label="Next 7 Days" />
+                    {recNext7.map(renderRecurring)}
+                  </>
+                )}
+                {recFuture.length > 0 && (
+                  <>
+                    <SectionHeader label="Future" />
+                    {recFuture.map(renderRecurring)}
                   </>
                 )}
                 {deletedRecurring.length > 0 && (
