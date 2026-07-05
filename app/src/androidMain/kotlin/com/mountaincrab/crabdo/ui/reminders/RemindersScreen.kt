@@ -134,9 +134,13 @@ private fun OneOffTab(
         set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
     }.timeInMillis
     val tomorrowStart = todayStart + 86_400_000L
+    val dayAfterStart = tomorrowStart + 86_400_000L
+    val next7End = todayStart + 8 * 86_400_000L
 
     val todayItems = reminders.filter { it.scheduledAt in todayStart until tomorrowStart }
-    val upcomingItems = reminders.filter { it.scheduledAt >= tomorrowStart }
+    val tomorrowItems = reminders.filter { it.scheduledAt in tomorrowStart until dayAfterStart }
+    val next7Items = reminders.filter { it.scheduledAt in dayAfterStart until next7End }
+    val futureItems = reminders.filter { it.scheduledAt >= next7End }
     val pastItems = reminders.filter { it.scheduledAt < todayStart }
 
     LazyColumn(
@@ -149,9 +153,21 @@ private fun OneOffTab(
                 OneOffRow(reminder, navController, viewModel)
             }
         }
-        if (upcomingItems.isNotEmpty()) {
-            item { SectionHeader("Upcoming") }
-            items(upcomingItems, key = { it.id }) { reminder ->
+        if (tomorrowItems.isNotEmpty()) {
+            item { SectionHeader("Tomorrow") }
+            items(tomorrowItems, key = { it.id }) { reminder ->
+                OneOffRow(reminder, navController, viewModel)
+            }
+        }
+        if (next7Items.isNotEmpty()) {
+            item { SectionHeader("Next 7 Days") }
+            items(next7Items, key = { it.id }) { reminder ->
+                OneOffRow(reminder, navController, viewModel)
+            }
+        }
+        if (futureItems.isNotEmpty()) {
+            item { SectionHeader("Future") }
+            items(futureItems, key = { it.id }) { reminder ->
                 OneOffRow(reminder, navController, viewModel)
             }
         }

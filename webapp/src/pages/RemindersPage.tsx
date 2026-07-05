@@ -352,7 +352,12 @@ function CollapsibleGroup({
 function dayBounds() {
   const now = new Date()
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
-  return { todayStart, tomorrowStart: todayStart + 86_400_000, dayAfterStart: todayStart + 2 * 86_400_000 }
+  return {
+    todayStart,
+    tomorrowStart: todayStart + 86_400_000,
+    dayAfterStart: todayStart + 2 * 86_400_000,
+    next7End: todayStart + 8 * 86_400_000,
+  }
 }
 
 function recurringFireAt(r: RecurringReminder): number {
@@ -389,11 +394,13 @@ export default function RemindersPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [editing, setEditing] = useState<Reminder | null>(null)
 
-  const { todayStart, tomorrowStart, dayAfterStart } = dayBounds()
+  const { todayStart, tomorrowStart, dayAfterStart, next7End } = dayBounds()
 
   // One-off groups (by scheduled time)
   const ooToday = reminders.filter((r) => r.scheduledAt >= todayStart && r.scheduledAt < tomorrowStart)
-  const ooUpcoming = reminders.filter((r) => r.scheduledAt >= tomorrowStart)
+  const ooTomorrow = reminders.filter((r) => r.scheduledAt >= tomorrowStart && r.scheduledAt < dayAfterStart)
+  const ooNext7 = reminders.filter((r) => r.scheduledAt >= dayAfterStart && r.scheduledAt < next7End)
+  const ooFuture = reminders.filter((r) => r.scheduledAt >= next7End)
   const ooPast = reminders.filter((r) => r.scheduledAt < todayStart)
 
   // Recurring groups (by effective fire time, honouring snooze)
@@ -472,10 +479,22 @@ export default function RemindersPage() {
                     {ooToday.map(renderOneOff)}
                   </>
                 )}
-                {ooUpcoming.length > 0 && (
+                {ooTomorrow.length > 0 && (
                   <>
-                    <SectionHeader label="Upcoming" />
-                    {ooUpcoming.map(renderOneOff)}
+                    <SectionHeader label="Tomorrow" />
+                    {ooTomorrow.map(renderOneOff)}
+                  </>
+                )}
+                {ooNext7.length > 0 && (
+                  <>
+                    <SectionHeader label="Next 7 Days" />
+                    {ooNext7.map(renderOneOff)}
+                  </>
+                )}
+                {ooFuture.length > 0 && (
+                  <>
+                    <SectionHeader label="Future" />
+                    {ooFuture.map(renderOneOff)}
                   </>
                 )}
                 {ooPast.length > 0 && (
