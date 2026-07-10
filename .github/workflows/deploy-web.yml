@@ -1,0 +1,44 @@
+name: Deploy Web
+
+# Builds and deploys the web app to Firebase Hosting. Normally called by
+# release.yml when a webapp-vX.Y.Z release is cut; can also be run on its own
+# from the Actions tab (workflow_dispatch) for a manual redeploy.
+# Uses the raw firebase-tools CLI so the deploy target can be extended later.
+on:
+  workflow_call: {}
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: webapp/package-lock.json
+
+      - name: Install web dependencies
+        run: npm ci
+        working-directory: webapp
+
+      - name: Build web app
+        run: npm run build
+        working-directory: webapp
+
+      - name: Write service account credentials
+        run: |
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Deploy to Firebase Hosting
+        run: npx --yes firebase-tools deploy --only hosting --project crabban --non-interactive

@@ -1,130 +1,148 @@
 name: Release
 
+# Continuous, per-surface releases. Every push to main auto-releases and deploys
+# ONLY the surfaces whose files changed in that push:
+#
+#   app/**       -> android-vX.Y.Z  + APK attached to the GitHub Release
+#   webapp/**    -> webapp-vX.Y.Z    + Firebase Hosting deploy
+#   functions/** -> functions-vX.Y.Z + Cloud Functions + Firestore rules/indexes deploy
+#
+# Each surface has its OWN tag series and is versioned independently: the bump
+# size comes from the Conventional Commits since that surface's last tag
+# (feat -> minor, fix/other -> patch, ! or BREAKING CHANGE -> major).
+#
+# Tagging AND deploying happen in this single workflow run, so the default
+# GITHUB_TOKEN is enough — no PAT. (That's the whole reason the deploy work is
+# jobs in THIS workflow: a tag pushed by GITHUB_TOKEN would not trigger a
+# separate tag-listening workflow.)
 on:
   push:
     branches: ["main"]
 
 permissions:
-  contents: write # push tags + create releases
+  contents: write # create tags + GitHub Releases
 
 jobs:
-  # Job 1: analyse conventional commits, bump semver, push the tag.
-  tag:
-    name: Tag
+  # 1. Which surfaces did this push touch? Root/shared files map to the surface
+  #    that ships them (rules/indexes -> functions; firebase.json -> both web
+  #    hosting and functions config).
+  changes:
+    name: Detect changed surfaces
     runs-on: ubuntu-latest
     outputs:
-      new_tag: ${{ steps.tag.outputs.new_tag }}
-      changelog: ${{ steps.tag.outputs.changelog }}
+      app: ${{ steps.filter.outputs.app }}
+      webapp: ${{ steps.filter.outputs.webapp }}
+      functions: ${{ steps.filter.outputs.functions }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            app:
+              - 'app/**'
+            webapp:
+              - 'webapp/**'
+              - 'firebase.json'
+            functions:
+              - 'functions/**'
+              - 'firestore.rules'
+              - 'firestore.indexes.json'
+              - 'firebase.json'
+
+  # 2. Bump each changed surface's own tag from its Conventional Commits and
+  #    publish a GitHub Release (the Android APK is attached later, by the
+  #    release-android job). mathieudutour tags off the last tag of the given
+  #    prefix, so the three series advance independently.
+  tag:
+    name: Tag & release
+    needs: changes
+    runs-on: ubuntu-latest
+    outputs:
+      android_tag: ${{ steps.android.outputs.new_tag }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # full history + tags for conventional-commit analysis
 
-      - name: Bump version and push tag
-        id: tag
+      - name: Bump webapp tag
+        id: webapp
+        if: needs.changes.outputs.webapp == 'true'
         uses: mathieudutour/github-tag-action@v6.2
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          tag_prefix: "webapp-v"
           default_bump: patch
-          tag_prefix: "v"
-          # Conventional-commit mapping (action defaults):
-          #   feat: -> minor, fix: -> patch, BREAKING CHANGE / ! -> major
 
-  # Job 2: build the tagged commit and publish the release.
-  # The single `if` gates the whole job — it only runs when job 1 created a tag,
-  # so no per-step conditionals are needed. The build runs AFTER tagging, so
-  # Gradle's `git describe` sees the new tag and emits a clean X.Y.Z versionName.
-  build-release:
-    name: Build & Release
-    runs-on: ubuntu-latest
-    needs: tag
-    if: needs.tag.outputs.new_tag != ''
-    steps:
-      - uses: actions/checkout@v4
+      - name: Bump functions tag
+        id: functions
+        if: needs.changes.outputs.functions == 'true'
+        uses: mathieudutour/github-tag-action@v6.2
         with:
-          fetch-depth: 0 # includes the tag job 1 just pushed, so the version resolves cleanly
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          tag_prefix: "functions-v"
+          default_bump: patch
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
+      - name: Bump android tag
+        id: android
+        if: needs.changes.outputs.app == 'true'
+        uses: mathieudutour/github-tag-action@v6.2
         with:
-          java-version: "17"
-          distribution: "temurin"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          tag_prefix: "android-v"
+          default_bump: patch
 
-      - name: Cache Gradle packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ hashFiles('**/*.gradle.kts', '**/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
-          restore-keys: gradle-
-
-      - name: Decode google-services.json
-        run: |
-          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
-            echo "$GOOGLE_SERVICES_JSON" | base64 --decode > app/google-services.json
-            echo "Using real google-services.json from secret"
-          else
-            cat > app/google-services.json <<'EOF'
-          {
-            "project_info": {
-              "project_number": "000000000000",
-              "project_id": "stub-project",
-              "storage_bucket": "stub-project.appspot.com"
-            },
-            "client": [
-              {
-                "client_info": {
-                  "mobilesdk_app_id": "1:000000000000:android:0000000000000000000000",
-                  "android_client_info": {
-                    "package_name": "com.mountaincrab.crabdo"
-                  }
-                },
-                "oauth_client": [],
-                "api_key": [
-                  {
-                    "current_key": "stub"
-                  }
-                ],
-                "services": {
-                  "appinvite_service": {
-                    "other_platform_oauth_client": []
-                  }
-                }
-              }
-            ],
-            "configuration_version": "1"
-          }
-          EOF
-            echo "GOOGLE_SERVICES_JSON secret not set; using stub (Firebase will not work at runtime)"
-          fi
-        env:
-          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
-
-      - name: Decode debug keystore
-        run: |
-          if [ -n "$DEBUG_KEYSTORE" ]; then
-            echo "$DEBUG_KEYSTORE" | base64 --decode > "$RUNNER_TEMP/debug.keystore"
-            echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/debug.keystore" >> "$GITHUB_ENV"
-            echo "Keystore decoded from secret"
-          else
-            echo "DEBUG_KEYSTORE secret not set; using ephemeral key (Google Sign-In won't work in this build)"
-          fi
-        env:
-          DEBUG_KEYSTORE: ${{ secrets.DEBUG_KEYSTORE }}
-
-      - name: Build debug APK
-        run: ./gradlew :app:assembleDebug
-
-      - name: Rename APK
-        run: mv app/build/outputs/apk/debug/app-debug.apk "app/build/outputs/apk/debug/crabdo-${{ needs.tag.outputs.new_tag }}.apk"
-
-      - name: Create GitHub Release
+      - name: Publish webapp release
+        if: needs.changes.outputs.webapp == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ needs.tag.outputs.new_tag }}
-          name: ${{ needs.tag.outputs.new_tag }}
-          body: ${{ needs.tag.outputs.changelog }}
-          files: app/build/outputs/apk/debug/crabdo-${{ needs.tag.outputs.new_tag }}.apk
+          tag_name: ${{ steps.webapp.outputs.new_tag }}
+          name: ${{ steps.webapp.outputs.new_tag }}
+          body: ${{ steps.webapp.outputs.changelog }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish functions release
+        if: needs.changes.outputs.functions == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.functions.outputs.new_tag }}
+          name: ${{ steps.functions.outputs.new_tag }}
+          body: ${{ steps.functions.outputs.changelog }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish android release
+        if: needs.changes.outputs.app == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.android.outputs.new_tag }}
+          name: ${{ steps.android.outputs.new_tag }}
+          body: ${{ steps.android.outputs.changelog }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # 3. Deploy the changed surfaces (reusable workflows; also runnable on their
+  #    own from the Actions tab for a manual redeploy).
+  deploy-web:
+    name: Deploy Web
+    needs: [changes, tag]
+    if: needs.changes.outputs.webapp == 'true'
+    uses: ./.github/workflows/deploy-web.yml
+    secrets: inherit
+
+  deploy-functions:
+    name: Deploy Functions
+    needs: [changes, tag]
+    if: needs.changes.outputs.functions == 'true'
+    uses: ./.github/workflows/deploy-functions.yml
+    secrets: inherit
+
+  release-android:
+    name: Release Android
+    needs: [changes, tag]
+    if: needs.changes.outputs.app == 'true'
+    uses: ./.github/workflows/release-android.yml
+    with:
+      tag: ${{ needs.tag.outputs.android_tag }}
+    secrets: inherit

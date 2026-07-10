@@ -1,0 +1,44 @@
+name: Deploy Functions
+
+# Builds and deploys the Cloud Functions backend, plus the Firestore rules +
+# indexes (backend config that versions alongside the functions). Normally
+# called by release.yml when a functions-vX.Y.Z release is cut; can also be run
+# on its own from the Actions tab (workflow_dispatch) for a manual redeploy.
+on:
+  workflow_call: {}
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Install function dependencies
+        run: npm ci
+        working-directory: functions
+
+      - name: Build functions
+        run: npm run build
+        working-directory: functions
+
+      - name: Write service account credentials
+        run: |
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Deploy functions, Firestore rules & indexes
+        run: npx --yes firebase-tools deploy --only functions,firestore:rules,firestore:indexes --project crabban --non-interactive
