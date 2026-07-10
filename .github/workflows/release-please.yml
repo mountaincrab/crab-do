@@ -1,0 +1,35 @@
+name: Release Please
+
+# Single orchestrator for all three deployable surfaces. On every push to main
+# it reads the Conventional Commits since the last release and, per component,
+# opens/updates a "release PR" (changelog + version bump). Merging that PR makes
+# the next run create the GitHub Release + tag for that component:
+#
+#   app/**       -> android-vX.Y.Z   (release-android.yml builds + publishes the APK)
+#   webapp/**    -> webapp-vX.Y.Z     (deploy-web.yml deploys Firebase Hosting)
+#   functions/** -> functions-vX.Y.Z  (deploy-functions.yml deploys functions + rules)
+#
+# Which component a commit bumps is decided by the PATH of the files it touches
+# (release-please "manifest" mode). Config lives in release-please-config.json
+# and .release-please-manifest.json.
+on:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: write # create tags + releases, push the release-PR branch
+  pull-requests: write # open/update the per-component release PRs
+
+jobs:
+  release-please:
+    name: Release Please
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          # A PAT (repo scope), NOT the default GITHUB_TOKEN. Tags/commits pushed
+          # by GITHUB_TOKEN deliberately do NOT trigger other workflows, so the
+          # deploy-*/release-* workflows would never fire. A PAT re-triggers them.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json

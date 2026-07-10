@@ -39,51 +39,44 @@ Both apps require a Firebase project with Firestore enabled.
 - **Android:** place `google-services.json` in the `app/` directory
 - **Web:** configure Firebase credentials in `webapp/src/firebase.ts`
 
-## Web deploys
+## CI, releases & versioning
 
-The web app deploys automatically to Firebase Hosting whenever changes to
-`webapp/**`, `firebase.json`, or `.firebaserc` land on `main`, via the
-[`Deploy Web` workflow](.github/workflows/deploy-web.yml) (it can also be run
-manually from the Actions tab). The job uses the raw `firebase-tools` CLI, so
-its `--only hosting` deploy target can later be extended to ship Firestore
-rules/indexes and Cloud Functions from the same workflow.
+The three surfaces (`app/`, `webapp/`, `functions/`) are **versioned and
+released independently**, each with its own semver tag and its own release
+pipeline. [release-please](https://github.com/googleapis/release-please) is the
+single orchestrator; the tag it cuts triggers the matching pipeline:
 
-### Required CI secrets
+| Surface | Tag | Triggered pipeline | What it does |
+|---------|-----|--------------------|--------------|
+| `app/` (Android) | `android-vX.Y.Z` | [`release-android.yml`](.github/workflows/release-android.yml) | Builds the APK, attaches it to the GitHub Release |
+| `webapp/` | `webapp-vX.Y.Z` | [`deploy-web.yml`](.github/workflows/deploy-web.yml) | Builds the web app, deploys Firebase Hosting |
+| `functions/` | `functions-vX.Y.Z` | [`deploy-functions.yml`](.github/workflows/deploy-functions.yml) | Deploys Cloud Functions + Firestore rules/indexes |
 
-| Secret | Used by | What it is / how to get it |
-|--------|---------|-----------------------------|
-| `FIREBASE_SERVICE_ACCOUNT` | `Deploy Web` | A Google service-account JSON key with permission to deploy Hosting. |
-| `GOOGLE_SERVICES_JSON` | `Release` (optional) | Base64-encoded `app/google-services.json` for a real Firebase-backed APK build. |
-| `DEBUG_KEYSTORE` | `Release` (optional) | Base64-encoded debug keystore so Google Sign-In works in the release APK. |
+### How a release happens
 
-**Getting `FIREBASE_SERVICE_ACCOUNT`:**
+1. You land Conventional-Commit commits on `main` (via merged PRs).
+2. [`release-please.yml`](.github/workflows/release-please.yml) opens a **release
+   PR per surface** — a changelog + version bump for that component.
+3. You merge a release PR → release-please creates that surface's tag + GitHub
+   Release → the matching pipeline above runs and ships it.
 
-1. Firebase Console → ⚙️ **Project settings** → **Service accounts** →
-   **Generate new private key**. (Or, in the Google Cloud console, use an
-   existing service account that has the **Firebase Hosting Admin** role —
-   add **Cloud Datastore / Firestore** and **Cloud Functions Admin** roles too
-   if you later extend the deploy to rules and functions.)
-2. Download the JSON key file.
-3. In the GitHub repo: **Settings → Secrets and variables → Actions → New
-   repository secret**. Name it `FIREBASE_SERVICE_ACCOUNT` and paste the **full
-   JSON contents** (not base64 — the workflow writes it to a file verbatim).
+**Which surface bumps is decided by the _path_ of the files a commit touched**
+(release-please "manifest" mode): a commit under `webapp/**` bumps only
+`webapp`, `app/**` bumps only `android`, etc. The Conventional-Commit **type**
+decides the bump _size_. Config: [`release-please-config.json`](release-please-config.json)
++ [`.release-please-manifest.json`](.release-please-manifest.json).
 
-The workflow writes that JSON to a temp file and points
-`GOOGLE_APPLICATION_CREDENTIALS` at it, which is how `firebase-tools`
-authenticates non-interactively — no `firebase login` or CI token needed.
+> **Root/shared files** (`firestore.rules`, `firestore.indexes.json`,
+> `firebase.json`) belong to no package, so a commit touching _only_ those won't
+> auto-trigger a release. Group such changes into the same commit as the surface
+> they support (rules/indexes ride the `functions` deploy), or run the relevant
+> `Deploy …` workflow manually via **workflow_dispatch**.
 
-## Releases & commit messages
+### Commit messages (required: Conventional Commits)
 
-Releases are cut automatically when commits land on `main`. The
-[`Release` workflow](.github/workflows/release.yml) analyses the commit history,
-bumps the semantic version, tags it, builds the APK, and publishes a GitHub
-Release whose **notes are generated from the commit messages**.
-
-Because of this, **commit messages must follow
-[Conventional Commits](https://www.conventionalcommits.org/)**. The prefix both
-determines the version bump and decides whether the commit appears in the
-release notes — a commit without a recognised prefix is **omitted from the
-changelog entirely**, which is how you end up with an empty release.
+The commit **type** determines the version bump _and_ whether the commit shows
+up in the changelog — a commit without a recognised prefix is **omitted from the
+release notes entirely**.
 
 | Prefix | Version bump | Example |
 |--------|--------------|---------|
@@ -92,15 +85,32 @@ changelog entirely**, which is how you end up with an empty release.
 | `feat!:` / `BREAKING CHANGE:` | major (1.1.0 → 2.0.0) | `feat!: drop support for the legacy sync format` |
 | `ci:` / `chore:` / `docs:` / `refactor:` / `perf:` / `test:` | patch | `ci: cache Gradle packages between runs` |
 
-Example commit:
-
-```
-feat: autosave task edits on close
-
-Removes the explicit Save button; title and description now persist
-on a debounced timer and when the editor closes.
-```
-
 > **Squash-merge note:** when a PR is squash-merged, the **PR title** becomes
-> the commit subject on `main`, so the *PR title* is what must carry the
-> Conventional Commits prefix.
+> the commit subject on `main`, so the *PR title* is what must carry the prefix.
+
+### Required CI secrets
+
+Set these under **Settings → Secrets and variables → Actions**:
+
+| Secret | Used by | What it is / how to get it |
+|--------|---------|-----------------------------|
+| `RELEASE_PLEASE_TOKEN` | `release-please.yml` | A GitHub **PAT** (classic, `repo` scope — or a fine-grained PAT with Contents + Pull requests read/write). **Required:** tags pushed by the default `GITHUB_TOKEN` don't trigger other workflows, so without a PAT the deploy/release pipelines never fire. |
+| `FIREBASE_SERVICE_ACCOUNT` | `deploy-web.yml`, `deploy-functions.yml` | A Google **service-account JSON key** authorised to deploy Hosting, Functions, and Firestore rules/indexes. |
+| `GOOGLE_SERVICES_JSON` | `release-android.yml` (optional) | Base64-encoded `app/google-services.json` for a real Firebase-backed APK build. Falls back to a stub if unset. |
+| `DEBUG_KEYSTORE` | `release-android.yml` (optional) | Base64-encoded debug keystore so Google Sign-In works in the built APK. |
+
+**Getting `RELEASE_PLEASE_TOKEN`:** GitHub → your avatar → **Settings →
+Developer settings → Personal access tokens** → generate a token with `repo`
+scope (classic) or Contents + Pull-requests read/write (fine-grained, scoped to
+this repo) → paste it as the secret.
+
+**Getting `FIREBASE_SERVICE_ACCOUNT`:**
+
+1. Firebase Console → ⚙️ **Project settings** → **Service accounts** →
+   **Generate new private key** (or use a Google Cloud service account with the
+   **Firebase Hosting Admin**, **Cloud Functions Admin**, and **Cloud Datastore
+   Owner** roles).
+2. Download the JSON key file.
+3. Paste the **full JSON contents** as the secret (not base64 — the workflows
+   write it to a file verbatim and point `GOOGLE_APPLICATION_CREDENTIALS` at it,
+   which is how `firebase-tools` authenticates non-interactively).

@@ -1,11 +1,12 @@
-name: Deploy Web
+name: Deploy Functions
 
-# Builds and deploys the web app to Firebase Hosting. Fires when release-please
-# publishes a webapp-vX.Y.Z tag (or on manual dispatch). Uses the raw
-# firebase-tools CLI so the deploy target can be extended later if needed.
+# Builds and deploys the Cloud Functions backend. Fires when release-please
+# publishes a functions-vX.Y.Z tag (or on manual dispatch). Also ships the
+# Firestore rules + indexes, since those are backend config that versions
+# alongside the functions.
 on:
   push:
-    tags: ["webapp-v*"]
+    tags: ["functions-v*"]
   workflow_dispatch: {} # allow manual redeploys from the Actions tab
 
 permissions:
@@ -23,15 +24,15 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: webapp/package-lock.json
+          cache-dependency-path: functions/package-lock.json
 
-      - name: Install web dependencies
+      - name: Install function dependencies
         run: npm ci
-        working-directory: webapp
+        working-directory: functions
 
-      - name: Build web app
+      - name: Build functions
         run: npm run build
-        working-directory: webapp
+        working-directory: functions
 
       - name: Write service account credentials
         run: |
@@ -40,5 +41,5 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
-      - name: Deploy to Firebase Hosting
-        run: npx --yes firebase-tools deploy --only hosting --project crabban --non-interactive
+      - name: Deploy functions, Firestore rules & indexes
+        run: npx --yes firebase-tools deploy --only functions,firestore:rules,firestore:indexes --project crabban --non-interactive

@@ -14,7 +14,9 @@ When making changes that affect shared data (Firestore schema, subtask fields, o
 
 ## Commit messages (required: Conventional Commits)
 
-Every commit/PR **must** use [Conventional Commits](https://www.conventionalcommits.org/). This is not just style — the `Release` workflow (`.github/workflows/release.yml`) feeds the commit history through `mathieudutour/github-tag-action`, which both **bumps the semver tag** and **generates the GitHub Release notes from the commit subjects**. A commit without a recognised prefix is **silently dropped from the changelog**, so an unprefixed commit produces a release with empty notes.
+Every commit/PR **must** use [Conventional Commits](https://www.conventionalcommits.org/). This is not just style — `release-please` (`.github/workflows/release-please.yml`) reads the commit history to **bump the per-surface semver tag** and **generate the GitHub Release notes from the commit subjects**. A commit without a recognised prefix is **silently dropped from the changelog**, so an unprefixed commit produces a release with empty notes.
+
+**Three independent releases (path-routed).** The repo has three separately-versioned surfaces, each with its own tag + release pipeline: `app/**` → `android-vX.Y.Z` ([`release-android.yml`](.github/workflows/release-android.yml)), `webapp/**` → `webapp-vX.Y.Z` ([`deploy-web.yml`](.github/workflows/deploy-web.yml)), `functions/**` → `functions-vX.Y.Z` ([`deploy-functions.yml`](.github/workflows/deploy-functions.yml)). release-please decides **which** surface a commit bumps by the **path** of the files it touched (manifest mode); the commit **type** decides the bump size. Config: `release-please-config.json` + `.release-please-manifest.json`. Android's `versionName` is derived by Gradle from the `android-v*` tag (see `app/build.gradle.kts`) — if you change the tag prefix, update that `--match` pattern too. Root/shared files (`firestore.rules`, `firestore.indexes.json`, `firebase.json`) map to no package, so commit them alongside the surface they support (rules/indexes ship with the `functions` deploy) or trigger the relevant `Deploy …` workflow manually.
 
 Prefix → bump:
 

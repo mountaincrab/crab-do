@@ -20,10 +20,11 @@ fun git(vararg args: String): String? = try {
     else null
 } catch (_: Exception) { null }   // git missing / not a repo
 
-// Latest "v1.2.3" tag -> Triple(1,2,3); falls back to 0.0.0 when no tags exist.
+// Latest "android-v1.2.3" tag -> Triple(1,2,3); falls back to 0.0.0 when none exist.
+// release-please cuts these per-component tags (see .github/workflows/release-please.yml).
 fun latestSemverTag(): Triple<Int, Int, Int> {
-    val tag = git("describe", "--tags", "--abbrev=0", "--match", "v[0-9]*")
-        ?.removePrefix("v") ?: "0.0.0"
+    val tag = git("describe", "--tags", "--abbrev=0", "--match", "android-v[0-9]*")
+        ?.removePrefix("android-v") ?: "0.0.0"
     val p = tag.split(".").mapNotNull { it.toIntOrNull() }
     return Triple(p.getOrElse(0) { 0 }, p.getOrElse(1) { 0 }, p.getOrElse(2) { 0 })
 }
@@ -47,7 +48,7 @@ fun shortSha(): String =
 
 // True when HEAD sits exactly on a release tag (a clean release build).
 fun isTaggedRelease(): Boolean =
-    git("describe", "--tags", "--exact-match", "--match", "v[0-9]*") != null
+    git("describe", "--tags", "--exact-match", "--match", "android-v[0-9]*") != null
 
 // Clean X.Y.Z on main/tagged builds; X.Y.Z-<branch>.<sha> on branch builds.
 fun computeVersionName(): String {
