@@ -1,0 +1,50 @@
+name: Deploy Web
+
+# Builds the web app and deploys it to Firebase Hosting. Uses the raw
+# firebase-tools CLI (rather than a wrapper action) so the same job can be
+# extended later to deploy Firestore rules/indexes and Cloud Functions.
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "webapp/**"
+      - "firebase.json"
+      - ".firebaserc"
+  workflow_dispatch: {} # allow manual runs from the Actions tab
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: webapp/package-lock.json
+
+      - name: Install web dependencies
+        run: npm ci
+        working-directory: webapp
+
+      - name: Build web app
+        run: npm run build
+        working-directory: webapp
+
+      - name: Write service account credentials
+        run: |
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Deploy to Firebase Hosting
+        # To also ship backend config in future, extend the --only list, e.g.
+        #   --only hosting,firestore:rules,firestore:indexes,functions
+        run: npx --yes firebase-tools deploy --only hosting --project crabban --non-interactive

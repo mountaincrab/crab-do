@@ -39,6 +39,39 @@ Both apps require a Firebase project with Firestore enabled.
 - **Android:** place `google-services.json` in the `app/` directory
 - **Web:** configure Firebase credentials in `webapp/src/firebase.ts`
 
+## Web deploys
+
+The web app deploys automatically to Firebase Hosting whenever changes to
+`webapp/**`, `firebase.json`, or `.firebaserc` land on `main`, via the
+[`Deploy Web` workflow](.github/workflows/deploy-web.yml) (it can also be run
+manually from the Actions tab). The job uses the raw `firebase-tools` CLI, so
+its `--only hosting` deploy target can later be extended to ship Firestore
+rules/indexes and Cloud Functions from the same workflow.
+
+### Required CI secrets
+
+| Secret | Used by | What it is / how to get it |
+|--------|---------|-----------------------------|
+| `FIREBASE_SERVICE_ACCOUNT` | `Deploy Web` | A Google service-account JSON key with permission to deploy Hosting. |
+| `GOOGLE_SERVICES_JSON` | `Release` (optional) | Base64-encoded `app/google-services.json` for a real Firebase-backed APK build. |
+| `DEBUG_KEYSTORE` | `Release` (optional) | Base64-encoded debug keystore so Google Sign-In works in the release APK. |
+
+**Getting `FIREBASE_SERVICE_ACCOUNT`:**
+
+1. Firebase Console → ⚙️ **Project settings** → **Service accounts** →
+   **Generate new private key**. (Or, in the Google Cloud console, use an
+   existing service account that has the **Firebase Hosting Admin** role —
+   add **Cloud Datastore / Firestore** and **Cloud Functions Admin** roles too
+   if you later extend the deploy to rules and functions.)
+2. Download the JSON key file.
+3. In the GitHub repo: **Settings → Secrets and variables → Actions → New
+   repository secret**. Name it `FIREBASE_SERVICE_ACCOUNT` and paste the **full
+   JSON contents** (not base64 — the workflow writes it to a file verbatim).
+
+The workflow writes that JSON to a temp file and points
+`GOOGLE_APPLICATION_CREDENTIALS` at it, which is how `firebase-tools`
+authenticates non-interactively — no `firebase login` or CI token needed.
+
 ## Releases & commit messages
 
 Releases are cut automatically when commits land on `main`. The
