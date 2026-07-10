@@ -42,12 +42,12 @@ Both apps require a Firebase project with Firestore enabled.
 ## CI, releases & versioning
 
 The three surfaces (`app/`, `webapp/`, `functions/`) are **versioned and
-released independently**, each with its own semver tag and its own release
-pipeline. [release-please](https://github.com/googleapis/release-please) is the
-single orchestrator; the tag it cuts triggers the matching pipeline:
+released independently**, each with its own semver tag and its own deploy job.
+[release-please](https://github.com/googleapis/release-please) is the single
+orchestrator ([`release-please.yml`](.github/workflows/release-please.yml)):
 
-| Surface | Tag | Triggered pipeline | What it does |
-|---------|-----|--------------------|--------------|
+| Surface | Tag | Deploy job (reusable workflow) | What it does |
+|---------|-----|--------------------------------|--------------|
 | `app/` (Android) | `android-vX.Y.Z` | [`release-android.yml`](.github/workflows/release-android.yml) | Builds the APK, attaches it to the GitHub Release |
 | `webapp/` | `webapp-vX.Y.Z` | [`deploy-web.yml`](.github/workflows/deploy-web.yml) | Builds the web app, deploys Firebase Hosting |
 | `functions/` | `functions-vX.Y.Z` | [`deploy-functions.yml`](.github/workflows/deploy-functions.yml) | Deploys Cloud Functions + Firestore rules/indexes |
@@ -55,10 +55,19 @@ single orchestrator; the tag it cuts triggers the matching pipeline:
 ### How a release happens
 
 1. You land Conventional-Commit commits on `main` (via merged PRs).
-2. [`release-please.yml`](.github/workflows/release-please.yml) opens a **release
-   PR per surface** — a changelog + version bump for that component.
-3. You merge a release PR → release-please creates that surface's tag + GitHub
-   Release → the matching pipeline above runs and ships it.
+2. `release-please.yml` opens a **release PR per surface** — a changelog +
+   version bump for that component — and keeps it updated as commits accumulate.
+   Nothing ships until you merge it; the PR is the "release button".
+3. You merge a release PR → on the next run, release-please creates that
+   surface's tag + GitHub Release **and, in the same workflow run, calls the
+   matching deploy job above** (gated on release-please's per-component
+   `*--release_created` output). This is why no PAT is needed — the deploy runs
+   as a job here rather than in a separate tag-triggered workflow (tags pushed
+   by the default `GITHUB_TOKEN` don't trigger other workflows).
+
+The deploy jobs are **reusable workflows** (`workflow_call`), so each can also
+be run on its own from the **Actions tab** (`workflow_dispatch`) for a manual
+redeploy — `release-android.yml` takes the tag to (re)attach the APK to.
 
 **Which surface bumps is decided by the _path_ of the files a commit touched**
 (release-please "manifest" mode): a commit under `webapp/**` bumps only
@@ -94,15 +103,13 @@ Set these under **Settings → Secrets and variables → Actions**:
 
 | Secret | Used by | What it is / how to get it |
 |--------|---------|-----------------------------|
-| `RELEASE_PLEASE_TOKEN` | `release-please.yml` | A GitHub **PAT** (classic, `repo` scope — or a fine-grained PAT with Contents + Pull requests read/write). **Required:** tags pushed by the default `GITHUB_TOKEN` don't trigger other workflows, so without a PAT the deploy/release pipelines never fire. |
 | `FIREBASE_SERVICE_ACCOUNT` | `deploy-web.yml`, `deploy-functions.yml` | A Google **service-account JSON key** authorised to deploy Hosting, Functions, and Firestore rules/indexes. |
 | `GOOGLE_SERVICES_JSON` | `release-android.yml` (optional) | Base64-encoded `app/google-services.json` for a real Firebase-backed APK build. Falls back to a stub if unset. |
 | `DEBUG_KEYSTORE` | `release-android.yml` (optional) | Base64-encoded debug keystore so Google Sign-In works in the built APK. |
 
-**Getting `RELEASE_PLEASE_TOKEN`:** GitHub → your avatar → **Settings →
-Developer settings → Personal access tokens** → generate a token with `repo`
-scope (classic) or Contents + Pull-requests read/write (fine-grained, scoped to
-this repo) → paste it as the secret.
+Note there's **no PAT** — release-please and the deploy jobs all run on the
+default `GITHUB_TOKEN`, so `FIREBASE_SERVICE_ACCOUNT` is the only secret you
+must add for deploys to work (the Android ones are optional).
 
 **Getting `FIREBASE_SERVICE_ACCOUNT`:**
 
