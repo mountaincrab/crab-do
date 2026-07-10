@@ -2,8 +2,8 @@ name: Deploy Functions
 
 # Builds and deploys the Cloud Functions backend, plus the Firestore rules +
 # indexes (backend config that versions alongside the functions). Normally
-# called by release-please.yml when a functions-vX.Y.Z release is cut; can also
-# be run on its own from the Actions tab (workflow_dispatch) for a manual redeploy.
+# called by release.yml when a functions-vX.Y.Z release is cut; can also be run
+# on its own from the Actions tab (workflow_dispatch) for a manual redeploy.
 on:
   workflow_call: {}
   workflow_dispatch: {}

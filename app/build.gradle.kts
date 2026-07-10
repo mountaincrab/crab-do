@@ -21,7 +21,7 @@ fun git(vararg args: String): String? = try {
 } catch (_: Exception) { null }   // git missing / not a repo
 
 // Latest "android-v1.2.3" tag -> Triple(1,2,3); falls back to 0.0.0 when none exist.
-// release-please cuts these per-component tags (see .github/workflows/release-please.yml).
+// The Release workflow cuts these per-surface tags (see .github/workflows/release.yml).
 fun latestSemverTag(): Triple<Int, Int, Int> {
     val tag = git("describe", "--tags", "--abbrev=0", "--match", "android-v[0-9]*")
         ?.removePrefix("android-v") ?: "0.0.0"

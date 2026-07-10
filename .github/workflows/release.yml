@@ -1,0 +1,148 @@
+name: Release
+
+# Continuous, per-surface releases. Every push to main auto-releases and deploys
+# ONLY the surfaces whose files changed in that push:
+#
+#   app/**       -> android-vX.Y.Z  + APK attached to the GitHub Release
+#   webapp/**    -> webapp-vX.Y.Z    + Firebase Hosting deploy
+#   functions/** -> functions-vX.Y.Z + Cloud Functions + Firestore rules/indexes deploy
+#
+# Each surface has its OWN tag series and is versioned independently: the bump
+# size comes from the Conventional Commits since that surface's last tag
+# (feat -> minor, fix/other -> patch, ! or BREAKING CHANGE -> major).
+#
+# Tagging AND deploying happen in this single workflow run, so the default
+# GITHUB_TOKEN is enough — no PAT. (That's the whole reason the deploy work is
+# jobs in THIS workflow: a tag pushed by GITHUB_TOKEN would not trigger a
+# separate tag-listening workflow.)
+on:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: write # create tags + GitHub Releases
+
+jobs:
+  # 1. Which surfaces did this push touch? Root/shared files map to the surface
+  #    that ships them (rules/indexes -> functions; firebase.json -> both web
+  #    hosting and functions config).
+  changes:
+    name: Detect changed surfaces
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.filter.outputs.app }}
+      webapp: ${{ steps.filter.outputs.webapp }}
+      functions: ${{ steps.filter.outputs.functions }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            app:
+              - 'app/**'
+            webapp:
+              - 'webapp/**'
+              - 'firebase.json'
+            functions:
+              - 'functions/**'
+              - 'firestore.rules'
+              - 'firestore.indexes.json'
+              - 'firebase.json'
+
+  # 2. Bump each changed surface's own tag from its Conventional Commits and
+  #    publish a GitHub Release (the Android APK is attached later, by the
+  #    release-android job). mathieudutour tags off the last tag of the given
+  #    prefix, so the three series advance independently.
+  tag:
+    name: Tag & release
+    needs: changes
+    runs-on: ubuntu-latest
+    outputs:
+      android_tag: ${{ steps.android.outputs.new_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history + tags for conventional-commit analysis
+
+      - name: Bump webapp tag
+        id: webapp
+        if: needs.changes.outputs.webapp == 'true'
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          tag_prefix: "webapp-v"
+          default_bump: patch
+
+      - name: Bump functions tag
+        id: functions
+        if: needs.changes.outputs.functions == 'true'
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          tag_prefix: "functions-v"
+          default_bump: patch
+
+      - name: Bump android tag
+        id: android
+        if: needs.changes.outputs.app == 'true'
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          tag_prefix: "android-v"
+          default_bump: patch
+
+      - name: Publish webapp release
+        if: needs.changes.outputs.webapp == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.webapp.outputs.new_tag }}
+          name: ${{ steps.webapp.outputs.new_tag }}
+          body: ${{ steps.webapp.outputs.changelog }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish functions release
+        if: needs.changes.outputs.functions == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.functions.outputs.new_tag }}
+          name: ${{ steps.functions.outputs.new_tag }}
+          body: ${{ steps.functions.outputs.changelog }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish android release
+        if: needs.changes.outputs.app == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.android.outputs.new_tag }}
+          name: ${{ steps.android.outputs.new_tag }}
+          body: ${{ steps.android.outputs.changelog }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # 3. Deploy the changed surfaces (reusable workflows; also runnable on their
+  #    own from the Actions tab for a manual redeploy).
+  deploy-web:
+    name: Deploy Web
+    needs: [changes, tag]
+    if: needs.changes.outputs.webapp == 'true'
+    uses: ./.github/workflows/deploy-web.yml
+    secrets: inherit
+
+  deploy-functions:
+    name: Deploy Functions
+    needs: [changes, tag]
+    if: needs.changes.outputs.functions == 'true'
+    uses: ./.github/workflows/deploy-functions.yml
+    secrets: inherit
+
+  release-android:
+    name: Release Android
+    needs: [changes, tag]
+    if: needs.changes.outputs.app == 'true'
+    uses: ./.github/workflows/release-android.yml
+    with:
+      tag: ${{ needs.tag.outputs.android_tag }}
+    secrets: inherit

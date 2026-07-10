@@ -1,8 +1,8 @@
 name: Deploy Web
 
 # Builds and deploys the web app to Firebase Hosting. Normally called by
-# release-please.yml when a webapp-vX.Y.Z release is cut; can also be run
-# on its own from the Actions tab (workflow_dispatch) for a manual redeploy.
+# release.yml when a webapp-vX.Y.Z release is cut; can also be run on its own
+# from the Actions tab (workflow_dispatch) for a manual redeploy.
 # Uses the raw firebase-tools CLI so the deploy target can be extended later.
 on:
   workflow_call: {}

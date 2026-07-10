@@ -1,12 +1,12 @@
 name: Release Android
 
 # Builds the release APK and attaches it to the GitHub Release for an
-# android-vX.Y.Z tag. Normally called by release-please.yml (which passes the
-# tag it just created); can also be run on its own from the Actions tab
+# android-vX.Y.Z tag. Normally called by release.yml (which passes the tag it
+# just created); can also be run on its own from the Actions tab
 # (workflow_dispatch) to (re)build and attach the APK for an existing tag.
 #
-# release-please owns the Release notes; this only uploads the APK asset onto it.
-# Checking out the tag makes Gradle derive a clean X.Y.Z versionName.
+# release.yml's tag job owns the Release notes; this only uploads the APK asset
+# onto that release. Checking out the tag makes Gradle derive a clean X.Y.Z name.
 on:
   workflow_call:
     inputs:
@@ -114,7 +114,7 @@ jobs:
           mv app/build/outputs/apk/debug/app-debug.apk "app/build/outputs/apk/debug/crabdo-${VERSION}.apk"
 
       - name: Attach APK to the release
-        # No name/body here on purpose: release-please owns the release notes.
+        # No name/body here on purpose: release.yml's tag job owns the notes.
         # softprops upserts onto the existing release for this tag and just
         # adds the APK asset.
         uses: softprops/action-gh-release@v2

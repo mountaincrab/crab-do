@@ -1,9 +1,9 @@
 name: Android Build
 
 on:
-  # CI runs on pull requests only. Releases are handled by release-please.yml
-  # (which cuts the android-v* tag) + release-android.yml (which builds and
-  # attaches the correctly-versioned APK to the release).
+  # CI runs on pull requests only. Releases are handled by release.yml (which
+  # cuts the android-v* tag on push to main) + release-android.yml (which builds
+  # and attaches the correctly-versioned APK to the release).
   pull_request:
     branches: ["**"]
 

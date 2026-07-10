@@ -42,44 +42,41 @@ Both apps require a Firebase project with Firestore enabled.
 ## CI, releases & versioning
 
 The three surfaces (`app/`, `webapp/`, `functions/`) are **versioned and
-released independently**, each with its own semver tag and its own deploy job.
-[release-please](https://github.com/googleapis/release-please) is the single
-orchestrator ([`release-please.yml`](.github/workflows/release-please.yml)):
+released independently** and **continuously** — every push to `main` auto-releases
+and deploys only the surfaces whose files changed in that push. The
+[`Release` workflow](.github/workflows/release.yml) orchestrates it:
 
-| Surface | Tag | Deploy job (reusable workflow) | What it does |
-|---------|-----|--------------------------------|--------------|
+| Surface | Tag series | Deploy job (reusable workflow) | What it does |
+|---------|------------|--------------------------------|--------------|
 | `app/` (Android) | `android-vX.Y.Z` | [`release-android.yml`](.github/workflows/release-android.yml) | Builds the APK, attaches it to the GitHub Release |
 | `webapp/` | `webapp-vX.Y.Z` | [`deploy-web.yml`](.github/workflows/deploy-web.yml) | Builds the web app, deploys Firebase Hosting |
 | `functions/` | `functions-vX.Y.Z` | [`deploy-functions.yml`](.github/workflows/deploy-functions.yml) | Deploys Cloud Functions + Firestore rules/indexes |
 
 ### How a release happens
 
-1. You land Conventional-Commit commits on `main` (via merged PRs).
-2. `release-please.yml` opens a **release PR per surface** — a changelog +
-   version bump for that component — and keeps it updated as commits accumulate.
-   Nothing ships until you merge it; the PR is the "release button".
-3. You merge a release PR → on the next run, release-please creates that
-   surface's tag + GitHub Release **and, in the same workflow run, calls the
-   matching deploy job above** (gated on release-please's per-component
-   `*--release_created` output). This is why no PAT is needed — the deploy runs
-   as a job here rather than in a separate tag-triggered workflow (tags pushed
-   by the default `GITHUB_TOKEN` don't trigger other workflows).
+On every push to `main`, `release.yml`:
+
+1. **Detects which surfaces changed** in the push (`dorny/paths-filter`).
+2. For each changed surface, **bumps its own tag** from the Conventional Commits
+   since that surface's last tag and **publishes a GitHub Release** (via
+   `mathieudutour/github-tag-action`). Each surface has an independent tag
+   series, so `android-v*`, `webapp-v*`, and `functions-v*` advance separately.
+3. **Deploys/ships** that surface — all in the **same workflow run**, which is
+   why no PAT is needed (a tag pushed by the default `GITHUB_TOKEN` won't trigger
+   a separate tag-listening workflow, so the deploy work lives here as jobs).
+
+There's no "release PR" or manual gate — merge to `main` and the affected surface
+ships. Which surface bumps is decided by the **path** of the changed files; the
+Conventional-Commit **type** decides the bump size.
 
 The deploy jobs are **reusable workflows** (`workflow_call`), so each can also
 be run on its own from the **Actions tab** (`workflow_dispatch`) for a manual
 redeploy — `release-android.yml` takes the tag to (re)attach the APK to.
 
-**Which surface bumps is decided by the _path_ of the files a commit touched**
-(release-please "manifest" mode): a commit under `webapp/**` bumps only
-`webapp`, `app/**` bumps only `android`, etc. The Conventional-Commit **type**
-decides the bump _size_. Config: [`release-please-config.json`](release-please-config.json)
-+ [`.release-please-manifest.json`](.release-please-manifest.json).
-
-> **Root/shared files** (`firestore.rules`, `firestore.indexes.json`,
-> `firebase.json`) belong to no package, so a commit touching _only_ those won't
-> auto-trigger a release. Group such changes into the same commit as the surface
-> they support (rules/indexes ride the `functions` deploy), or run the relevant
-> `Deploy …` workflow manually via **workflow_dispatch**.
+> **Root/shared files:** `firestore.rules` + `firestore.indexes.json` count as
+> the **functions** surface (they ship with that deploy) and `firebase.json`
+> counts as **both** web and functions — see the `filters` in `release.yml`. A
+> commit touching only those still triggers the right deploy.
 
 ### Commit messages (required: Conventional Commits)
 
@@ -107,9 +104,9 @@ Set these under **Settings → Secrets and variables → Actions**:
 | `GOOGLE_SERVICES_JSON` | `release-android.yml` (optional) | Base64-encoded `app/google-services.json` for a real Firebase-backed APK build. Falls back to a stub if unset. |
 | `DEBUG_KEYSTORE` | `release-android.yml` (optional) | Base64-encoded debug keystore so Google Sign-In works in the built APK. |
 
-Note there's **no PAT** — release-please and the deploy jobs all run on the
-default `GITHUB_TOKEN`, so `FIREBASE_SERVICE_ACCOUNT` is the only secret you
-must add for deploys to work (the Android ones are optional).
+Note there's **no PAT** — tagging and the deploy jobs all run on the default
+`GITHUB_TOKEN`, so `FIREBASE_SERVICE_ACCOUNT` is the only secret you must add for
+deploys to work (the Android ones are optional).
 
 **Getting `FIREBASE_SERVICE_ACCOUNT`:**
 
