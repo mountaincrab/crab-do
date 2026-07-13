@@ -451,7 +451,7 @@ function SubtaskRow({ subtask, onToggle, onDelete, onRename, onDragStart, onDrag
             e.stopPropagation()
             if (!subtask.isCompleted) { setEditValue(subtask.title); setEditing(true) }
           }}
-          className={`flex-1 text-sm cursor-text ${
+          className={`flex-1 text-sm ${
             subtask.isCompleted ? 'line-through text-fg-faint' : 'text-fg'
           }`}
         >
