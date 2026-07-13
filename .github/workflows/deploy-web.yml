@@ -29,6 +29,11 @@ jobs:
         run: npm ci
         working-directory: webapp
 
+      - name: Write build-time Firebase env
+        run: printf '%s' "$WEBAPP_ENV" > webapp/.env
+        env:
+          WEBAPP_ENV: ${{ secrets.WEBAPP_ENV }}
+
       - name: Build web app
         run: npm run build
         working-directory: webapp
