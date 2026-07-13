@@ -88,10 +88,14 @@ A Compose `Dialog(usePlatformDefaultWidth = false)` gets its own sub-window whic
 
 Two mechanisms run side-by-side:
 
-1. **Real-time Firestore listener** in `ReminderRepository.startFirestoreListener` and `BoardRepository` — `addSnapshotListener` reflects remote changes into Room immediately.
+1. **Real-time Firestore listeners** in `ReminderRepository.startFirestoreListener` (reminders) and `BoardRepository.startFirestoreListener` (boards → per-board columns + tasks) — `addSnapshotListener` reflects remote changes into Room immediately, so edits made on the webapp appear live.
 2. **`SyncWorker`** (WorkManager, unique work name `"sync"`) — pushes locally-pending writes (`syncStatus = PENDING`) up to Firestore, then pulls deltas via `updatedAt > lastSyncTimestamp`.
 
-**Critical invariant:** the Firestore listener checks `existing.syncStatus == SyncStatus.PENDING` before applying a remote document and **skips** if so. This prevents the listener from overwriting a local change before `SyncWorker` has had a chance to push it. When adding new entities/listeners, preserve this guard.
+**Listener lifecycle is app-scoped, in `AppSyncCoordinator`** (registered in `KanbanApplication.onCreate`). It starts both listeners — and kicks a catch-up `triggerSync()` + `rescheduleAllReminders()` — whenever the app is **foregrounded and a user is signed in** (via `ProcessLifecycleOwner` + a `FirebaseAuth.AuthStateListener`), and stops them when backgrounded. Do **not** start listeners from a ViewModel `init` (the reminders listener used to live in `BoardListViewModel`, so it only ran when the Boards tab's VM was alive — landing on the Reminders tab first meant no listener at all).
+
+**Scope of the board listener:** owned boards + their columns + tasks, in real time. **Subtasks are not listened to per-task**, and **shared boards** (owned by other users) are not listened to — both are reconciled by `SyncWorker` on the next foreground sync / pull-to-refresh. There is still **no background sync while the app is closed** (would need FCM or a `PeriodicWorkRequest`).
+
+**Critical invariant:** each listener checks `existing.syncStatus == SyncStatus.PENDING` before applying a remote document and **skips** if so. This prevents the listener from overwriting a local change before `SyncWorker` has had a chance to push it. When adding new entities/listeners, preserve this guard.
 
 Mutation methods on repositories should:
 1. Update Room with `syncStatus = SyncStatus.PENDING`.

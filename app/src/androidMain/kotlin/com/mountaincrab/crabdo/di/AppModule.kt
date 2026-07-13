@@ -10,6 +10,7 @@ import com.mountaincrab.crabdo.alarm.AlarmScheduler
 import com.mountaincrab.crabdo.auth.AuthRepository
 import com.mountaincrab.crabdo.data.local.ALL_MIGRATIONS
 import com.mountaincrab.crabdo.data.local.AppDatabase
+import com.mountaincrab.crabdo.data.remote.AppSyncCoordinator
 import com.mountaincrab.crabdo.data.repository.*
 import com.mountaincrab.crabdo.preferences.UserPreferencesRepository
 import com.mountaincrab.crabdo.ui.auth.LoginViewModel
@@ -80,6 +81,11 @@ val appModule = module {
     }
     single { AuthRepository(auth = get(), database = get(), userPreferences = get()) }
     single {
+        AppSyncCoordinator(
+            auth = get(), boardRepository = get(), reminderRepository = get()
+        )
+    }
+    single {
         InvitationRepository(
             firestore = get(), auth = get(), boardDao = get(),
             columnDao = get(), taskDao = get(), subtaskDao = get(),
@@ -93,7 +99,7 @@ val appModule = module {
         BoardListViewModel(
             boardRepository = get(), authRepository = get(),
             prefsRepository = get(), invitationRepository = get(),
-            workManager = get(), reminderRepository = get()
+            workManager = get()
         )
     }
     viewModel { (boardId: String) ->

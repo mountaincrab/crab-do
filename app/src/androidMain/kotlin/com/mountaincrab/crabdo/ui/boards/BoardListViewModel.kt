@@ -9,7 +9,6 @@ import com.mountaincrab.crabdo.data.local.entity.BoardEntity
 import com.mountaincrab.crabdo.data.model.Invitation
 import com.mountaincrab.crabdo.data.repository.BoardRepository
 import com.mountaincrab.crabdo.data.repository.InvitationRepository
-import com.mountaincrab.crabdo.data.repository.ReminderRepository
 import com.mountaincrab.crabdo.preferences.UserPreferencesRepository
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -23,17 +22,13 @@ class BoardListViewModel(
     private val prefsRepository: UserPreferencesRepository,
     private val invitationRepository: InvitationRepository,
     private val workManager: WorkManager,
-    private val reminderRepository: ReminderRepository,
 ) : ViewModel() {
 
     private val userId = authRepository.currentUserId ?: ""
 
-    init {
-        if (userId.isNotEmpty()) {
-            reminderRepository.startFirestoreListener(userId)
-            viewModelScope.launch { reminderRepository.rescheduleAllReminders() }
-        }
-    }
+    // The reminder + board Firestore listeners are started app-wide by
+    // AppSyncCoordinator (foreground + sign-in scoped), not here — landing on the
+    // Reminders tab without visiting Boards used to leave them off entirely.
 
     val boards: StateFlow<List<BoardEntity>> =
         boardRepository.observeBoards(userId)
@@ -105,10 +100,5 @@ class BoardListViewModel(
                 android.util.Log.e("BoardListVM", "Failed to send invitation", e)
             }
         }
-    }
-
-    override fun onCleared() {
-        super.onCleared()
-        reminderRepository.stopFirestoreListener()
     }
 }
