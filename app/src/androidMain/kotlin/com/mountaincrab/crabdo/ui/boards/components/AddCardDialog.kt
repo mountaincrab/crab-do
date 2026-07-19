@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.AccessAlarm
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -43,6 +44,8 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.input.getSelectedText
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.round
@@ -56,6 +59,8 @@ import com.mountaincrab.crabdo.data.local.entity.TaskEntity
 import com.mountaincrab.crabdo.ui.theme.Eyebrow
 import com.mountaincrab.crabdo.ui.theme.PillButton
 import com.mountaincrab.crabdo.ui.theme.PillGroup
+import com.mountaincrab.crabdo.ui.util.AddLinkDialog
+import com.mountaincrab.crabdo.ui.util.insertMarkdownLink
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -71,8 +76,8 @@ fun AddCardDialog(
     onAdd: (title: String, description: String, reminderTimeMillis: Long?, reminderStyle: TaskEntity.ReminderStyle, columnId: String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var title by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
+    var title by remember { mutableStateOf(TextFieldValue("")) }
+    var description by remember { mutableStateOf(TextFieldValue("")) }
     var selectedColumnId by remember { mutableStateOf(currentColumnId) }
     var reminderEnabled by remember { mutableStateOf(false) }
     var reminderStyle by remember { mutableStateOf(TaskEntity.ReminderStyle.NOTIFICATION) }
@@ -82,10 +87,10 @@ fun AddCardDialog(
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
     val submit = {
-        if (title.isNotBlank()) {
+        if (title.text.isNotBlank()) {
             onAdd(
-                title.trim(),
-                description.trim(),
+                title.text.trim(),
+                description.text.trim(),
                 if (reminderEnabled) reminderMillis else null,
                 reminderStyle,
                 selectedColumnId
@@ -100,7 +105,7 @@ fun AddCardDialog(
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
             Column(modifier = Modifier.fillMaxSize()) {
                 DialogHeader(title = "New Task", onClose = onDismiss) {
-                    TextButton(onClick = submit, enabled = title.isNotBlank()) {
+                    TextButton(onClick = submit, enabled = title.text.isNotBlank()) {
                         Text("Add", fontWeight = FontWeight.Bold)
                     }
                 }
@@ -157,8 +162,8 @@ fun EditCardDialog(
     onReorderSubtask: (String, Double, Double) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var title by remember { mutableStateOf(task.title) }
-    var description by remember { mutableStateOf(task.description) }
+    var title by remember { mutableStateOf(TextFieldValue(task.title)) }
+    var description by remember { mutableStateOf(TextFieldValue(task.description)) }
     var selectedColumnId by remember { mutableStateOf(task.columnId) }
     var reminderEnabled by remember { mutableStateOf(task.reminderTimeMillis != null) }
     var reminderStyle by remember { mutableStateOf(task.reminderStyle) }
@@ -252,10 +257,10 @@ fun EditCardDialog(
     // when the editor is closed (cross icon or back press). A blank title is left
     // unsaved so closing never wipes the task's title to empty.
     val submit = {
-        if (title.isNotBlank()) {
+        if (title.text.isNotBlank()) {
             onSave(
-                title.trim(),
-                description.trim(),
+                title.text.trim(),
+                description.text.trim(),
                 if (reminderEnabled) reminderMillis else null,
                 reminderStyle,
                 selectedColumnId
@@ -578,10 +583,10 @@ private fun DialogHeader(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TaskFormFields(
-    title: String,
-    onTitleChange: (String) -> Unit,
-    description: String,
-    onDescriptionChange: (String) -> Unit,
+    title: TextFieldValue,
+    onTitleChange: (TextFieldValue) -> Unit,
+    description: TextFieldValue,
+    onDescriptionChange: (TextFieldValue) -> Unit,
     columns: List<ColumnEntity>,
     selectedColumnId: String,
     onColumnSelected: (String) -> Unit,
@@ -597,6 +602,8 @@ private fun TaskFormFields(
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
+    var showTitleLinkDialog by remember { mutableStateOf(false) }
+    var showNotesLinkDialog by remember { mutableStateOf(false) }
 
     Eyebrow("Title")
     OutlinedTextField(
@@ -607,6 +614,15 @@ private fun TaskFormFields(
             .fillMaxWidth()
             .then(if (titleFocusRequester != null) Modifier.focusRequester(titleFocusRequester) else Modifier),
         singleLine = true,
+        trailingIcon = {
+            IconButton(onClick = { showTitleLinkDialog = true }) {
+                Icon(
+                    imageVector = Icons.Default.Link,
+                    contentDescription = "Add link",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
         keyboardOptions = KeyboardOptions(
             imeAction = titleImeAction,
             capitalization = KeyboardCapitalization.Sentences
@@ -617,7 +633,22 @@ private fun TaskFormFields(
         shape = RoundedCornerShape(12.dp)
     )
 
-    Eyebrow("Notes")
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Eyebrow("Notes")
+        TextButton(onClick = { showNotesLinkDialog = true }) {
+            Icon(
+                imageVector = Icons.Default.Link,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+            )
+            Spacer(Modifier.width(4.dp))
+            Text("Add link", style = MaterialTheme.typography.labelMedium)
+        }
+    }
     OutlinedTextField(
         value = description,
         onValueChange = onDescriptionChange,
@@ -628,6 +659,27 @@ private fun TaskFormFields(
         shape = RoundedCornerShape(12.dp),
         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
     )
+
+    if (showTitleLinkDialog) {
+        AddLinkDialog(
+            initialLabel = title.getSelectedText().text,
+            onDismiss = { showTitleLinkDialog = false },
+            onConfirm = { label, url ->
+                onTitleChange(insertMarkdownLink(title, label, url))
+                showTitleLinkDialog = false
+            },
+        )
+    }
+    if (showNotesLinkDialog) {
+        AddLinkDialog(
+            initialLabel = description.getSelectedText().text,
+            onDismiss = { showNotesLinkDialog = false },
+            onConfirm = { label, url ->
+                onDescriptionChange(insertMarkdownLink(description, label, url))
+                showNotesLinkDialog = false
+            },
+        )
+    }
 
     Eyebrow("Column")
     Row(

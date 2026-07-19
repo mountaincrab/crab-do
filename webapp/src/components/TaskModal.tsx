@@ -2,6 +2,7 @@ import { useRef, useState, useEffect } from 'react'
 import { AlarmClock, Bell, Check, Pencil, X } from 'lucide-react'
 import { useTask } from '../hooks/useTask'
 import { Subtask } from '../types'
+import { Linkified, makeLinkPasteHandler, makeLinkKeyHandler } from '../lib/linkify'
 
 function millisToDatetimeLocal(ms: number): string {
   const d = new Date(ms)
@@ -201,6 +202,8 @@ export default function TaskModal({ userId, boardId, taskId, isNew, onClose, onD
             ref={titleRef}
             value={titleDraft}
             onChange={(e) => { const v = e.target.value; setTitleDraft(v); scheduleSave(v, descDraft) }}
+            onPaste={makeLinkPasteHandler(titleDraft, (v) => { setTitleDraft(v); scheduleSave(v, descDraft) })}
+            onKeyDown={makeLinkKeyHandler(titleDraft, (v) => { setTitleDraft(v); scheduleSave(v, descDraft) })}
             onBlur={flushSave}
             rows={1}
             placeholder="Task title"
@@ -210,9 +213,11 @@ export default function TaskModal({ userId, boardId, taskId, isNew, onClose, onD
           <textarea
             value={descDraft}
             onChange={(e) => { const v = e.target.value; setDescDraft(v); scheduleSave(titleDraft, v) }}
+            onPaste={makeLinkPasteHandler(descDraft, (v) => { setDescDraft(v); scheduleSave(titleDraft, v) })}
+            onKeyDown={makeLinkKeyHandler(descDraft, (v) => { setDescDraft(v); scheduleSave(titleDraft, v) })}
             onBlur={flushSave}
             rows={3}
-            placeholder="Add a description…"
+            placeholder="Add a description… (select text and paste a URL, or press ⌘K, to add a link)"
             className="w-full bg-surface border border-DEFAULT rounded-xl px-4 py-3 text-fg text-sm placeholder:text-fg-faint outline-none focus:border-accent transition-colors resize-none"
           />
 
@@ -356,6 +361,7 @@ export default function TaskModal({ userId, boardId, taskId, isNew, onClose, onD
               <input
                 value={newSubtaskTitle}
                 onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                onPaste={makeLinkPasteHandler(newSubtaskTitle, setNewSubtaskTitle)}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleAddSubtask() }}
                 placeholder="Add checklist item…"
                 className="flex-1 bg-surface border border-DEFAULT rounded-lg px-3 py-2 text-fg placeholder:text-fg-faint outline-none focus:border-accent text-sm transition-colors"
@@ -436,6 +442,7 @@ function SubtaskRow({ subtask, onToggle, onDelete, onRename, onDragStart, onDrag
           ref={inputRef}
           value={editValue}
           onChange={(e) => setEditValue(e.target.value)}
+          onPaste={makeLinkPasteHandler(editValue, setEditValue)}
           onBlur={commitRename}
           onKeyDown={(e) => {
             if (e.key === 'Enter') commitRename()
@@ -455,7 +462,7 @@ function SubtaskRow({ subtask, onToggle, onDelete, onRename, onDragStart, onDrag
             subtask.isCompleted ? 'line-through text-fg-faint' : 'text-fg'
           }`}
         >
-          {subtask.title}
+          <Linkified text={subtask.title} />
         </span>
       )}
 

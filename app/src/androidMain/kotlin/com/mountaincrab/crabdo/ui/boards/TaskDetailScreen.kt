@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material3.*
@@ -29,6 +30,8 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.input.getSelectedText
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
@@ -37,6 +40,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.mountaincrab.crabdo.data.local.entity.TaskEntity
 import com.mountaincrab.crabdo.ui.boards.components.SubtaskItem
+import com.mountaincrab.crabdo.ui.util.AddLinkDialog
+import com.mountaincrab.crabdo.ui.util.insertMarkdownLink
 import com.mountaincrab.crabdo.ui.reminders.ReminderTimePickerDialog
 import com.mountaincrab.crabdo.ui.theme.Eyebrow
 import com.mountaincrab.crabdo.ui.theme.PillButton
@@ -57,8 +62,10 @@ fun TaskDetailScreen(
     val task by viewModel.task.collectAsStateWithLifecycle()
     val subtasks by viewModel.subtasks.collectAsStateWithLifecycle()
 
-    var titleText by remember(task?.title) { mutableStateOf(task?.title ?: "") }
-    var descriptionText by remember(task?.description) { mutableStateOf(task?.description ?: "") }
+    var titleText by remember(task?.title) { mutableStateOf(TextFieldValue(task?.title ?: "")) }
+    var descriptionText by remember(task?.description) { mutableStateOf(TextFieldValue(task?.description ?: "")) }
+    var showTitleLinkDialog by remember { mutableStateOf(false) }
+    var showDescLinkDialog by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showReminderDialog by remember { mutableStateOf(false) }
     var showAddSubtaskSheet by remember { mutableStateOf(false) }
@@ -76,9 +83,9 @@ fun TaskDetailScreen(
     }
 
     val onBack = {
-        if (titleText.isNotBlank()) {
-            viewModel.updateTitle(titleText.trim())
-            viewModel.updateDescription(descriptionText.trim())
+        if (titleText.text.isNotBlank()) {
+            viewModel.updateTitle(titleText.text.trim())
+            viewModel.updateDescription(descriptionText.text.trim())
         }
         navController.popBackStack()
         Unit
@@ -123,13 +130,30 @@ fun TaskDetailScreen(
                     placeholder = { Text("Task title") },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .onFocusChanged { if (!it.isFocused && titleText.isNotBlank()) viewModel.updateTitle(titleText.trim()) },
+                        .onFocusChanged { if (!it.isFocused && titleText.text.isNotBlank()) viewModel.updateTitle(titleText.text.trim()) },
                     singleLine = true,
+                    trailingIcon = {
+                        IconButton(onClick = { showTitleLinkDialog = true }) {
+                            Icon(Icons.Default.Link, contentDescription = "Add link",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    },
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
                 )
             }
             item {
-                Eyebrow("Description")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Eyebrow("Description")
+                    TextButton(onClick = { showDescLinkDialog = true }) {
+                        Icon(Icons.Default.Link, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Add link", style = MaterialTheme.typography.labelMedium)
+                    }
+                }
                 Spacer(Modifier.height(6.dp))
                 OutlinedTextField(
                     value = descriptionText,
@@ -137,7 +161,7 @@ fun TaskDetailScreen(
                     placeholder = { Text("Add details or notes…") },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .onFocusChanged { if (!it.isFocused) viewModel.updateDescription(descriptionText.trim()) },
+                        .onFocusChanged { if (!it.isFocused) viewModel.updateDescription(descriptionText.text.trim()) },
                     minLines = 3,
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
                 )
@@ -309,6 +333,27 @@ fun TaskDetailScreen(
         AddSubtaskSheet(
             onAdd = { title -> viewModel.addSubtask(title) },
             onDismiss = { showAddSubtaskSheet = false }
+        )
+    }
+
+    if (showTitleLinkDialog) {
+        AddLinkDialog(
+            initialLabel = titleText.getSelectedText().text,
+            onDismiss = { showTitleLinkDialog = false },
+            onConfirm = { label, url ->
+                titleText = insertMarkdownLink(titleText, label, url)
+                showTitleLinkDialog = false
+            },
+        )
+    }
+    if (showDescLinkDialog) {
+        AddLinkDialog(
+            initialLabel = descriptionText.getSelectedText().text,
+            onDismiss = { showDescLinkDialog = false },
+            onConfirm = { label, url ->
+                descriptionText = insertMarkdownLink(descriptionText, label, url)
+                showDescLinkDialog = false
+            },
         )
     }
 }
