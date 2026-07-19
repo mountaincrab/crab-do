@@ -6,6 +6,7 @@ import { useBoard, SubtaskCount } from '../hooks/useBoard'
 import { Column, Subtask, Task } from '../types'
 import AppShell from '../components/AppShell'
 import TaskModal from '../components/TaskModal'
+import { Linkified } from '../lib/linkify'
 
 export default function KanbanBoardPage() {
   const { boardId } = useParams<{ boardId: string }>()
@@ -449,9 +450,9 @@ function TaskCardView({ task, subtaskCount, subtasks, onToggleSubtask, expanded,
       className={`bg-surface-raised border border-DEFAULT rounded-xl p-3 cursor-grab active:cursor-grabbing transition-colors relative group select-none ${isDragging ? '' : 'hover:bg-surface-high'}`}
       onClick={onClick}
     >
-      <p className="text-sm text-fg leading-snug font-medium pr-5">{task.title}</p>
+      <p className="text-sm text-fg leading-snug font-medium pr-5"><Linkified text={task.title} /></p>
       {task.description && (
-        <p className="text-xs text-fg-faint mt-1 line-clamp-2">{task.description}</p>
+        <p className="text-xs text-fg-faint mt-1 line-clamp-2"><Linkified text={task.description} /></p>
       )}
 
       {(hasSubtasks || task.reminderTimeMillis != null) && (
@@ -495,7 +496,7 @@ function TaskCardView({ task, subtaskCount, subtasks, onToggleSubtask, expanded,
                 >
                   <Check size={10} strokeWidth={3} className="text-accent opacity-0 group-hover/sub:opacity-60 transition-opacity" />
                 </button>
-                <span className="text-xs text-fg-muted leading-snug">{s.title}</span>
+                <span className="text-xs text-fg-muted leading-snug"><Linkified text={s.title} /></span>
               </div>
             ))
           )}

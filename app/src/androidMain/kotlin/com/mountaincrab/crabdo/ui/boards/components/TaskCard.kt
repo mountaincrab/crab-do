@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mountaincrab.crabdo.data.local.entity.TaskEntity
 import com.mountaincrab.crabdo.ui.theme.LocalAppPalette
+import com.mountaincrab.crabdo.ui.util.LinkedText
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -61,17 +62,16 @@ fun TaskCard(
             // Card with surfaceVariant container is onSurfaceVariant (--fg-muted),
             // which would render the title at the muted weight — set the colour
             // explicitly so the title reads as the row's primary text.
-            Text(
+            LinkedText(
                 text = task.title,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
                 color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.SemiBold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
             if (task.description.isNotBlank()) {
                 Spacer(modifier = Modifier.height(2.dp))
-                Text(
+                LinkedText(
                     text = task.description,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
