@@ -11,6 +11,7 @@ import android.util.Log
 import androidx.core.content.getSystemService
 import com.mountaincrab.crabdo.data.local.entity.ReminderStyle
 import com.mountaincrab.crabdo.data.repository.ReminderRepository
+import com.mountaincrab.crabdo.data.repository.TaskRepository
 import com.mountaincrab.crabdo.notification.NotificationHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -56,6 +57,7 @@ class ReminderReceiver : BroadcastReceiver(), KoinComponent {
 
         val pendingResult = goAsync()
         val repo: ReminderRepository = get()
+        val taskRepo: TaskRepository = get()
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         scope.launch {
             try {
@@ -73,8 +75,14 @@ class ReminderReceiver : BroadcastReceiver(), KoinComponent {
                         context, reminderId, title, notificationId, style, tapTarget
                     )
                 }
-                repo.clearSnooze(reminderId)
-                repo.onReminderFired(reminderId)
+                // A task reminder lives on the task, not in the reminders tables —
+                // onReminderFired would find nothing and leave it armed forever.
+                if (type == TYPE_TASK) {
+                    taskRepo.onTaskReminderFired(reminderId)
+                } else {
+                    repo.clearSnooze(reminderId)
+                    repo.onReminderFired(reminderId)
+                }
             } finally {
                 pendingResult.finish()
             }
