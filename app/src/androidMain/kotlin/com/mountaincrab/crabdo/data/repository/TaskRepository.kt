@@ -46,9 +46,32 @@ class TaskRepository(
             updatedAt = System.currentTimeMillis(),
             syncStatus = SyncStatus.PENDING
         ))
-        task.reminderTimeMillis?.let { time ->
+        // Only re-arm a reminder that is still in the future. AlarmManager delivers a
+        // past trigger time immediately, so rescheduling an already-fired reminder here
+        // would re-ping the user on every subsequent edit of the task.
+        val time = task.reminderTimeMillis
+        if (time != null && time > System.currentTimeMillis()) {
             alarmScheduler.scheduleTaskReminder(task.id, task.title, time, task.reminderStyle)
-        } ?: alarmScheduler.cancelTaskReminder(task.id)
+        } else {
+            alarmScheduler.cancelTaskReminder(task.id)
+        }
+        enqueueSyncWork()
+    }
+
+    /**
+     * A task reminder is one-shot. Once it has fired, clear the scheduled time so
+     * nothing can re-arm it — otherwise the task stays permanently "armed" and later
+     * edits (or a reboot) would fire it again.
+     */
+    suspend fun onTaskReminderFired(taskId: String) {
+        val task = taskDao.getTaskById(taskId) ?: return
+        if (task.isDeleted || task.reminderTimeMillis == null) return
+        taskDao.upsert(task.copy(
+            reminderTimeMillis = null,
+            updatedAt = System.currentTimeMillis(),
+            syncStatus = SyncStatus.PENDING
+        ))
+        alarmScheduler.cancelTaskReminder(taskId)
         enqueueSyncWork()
     }
 
