@@ -212,7 +212,7 @@ fun EditCardDialog(
     var dragOffsetY by remember { mutableFloatStateOf(0f) }
     var itemHeightPx by remember { mutableFloatStateOf(0f) }
     val density = LocalDensity.current
-    val subtaskSpacingPx = with(density) { 8.dp.toPx() }
+    val subtaskSpacingPx = with(density) { SubtaskRowSpacing.toPx() }
     val haptic = LocalHapticFeedback.current
 
     // Don't pull the freshly re-sorted list from the flow while dragging or while
@@ -339,6 +339,13 @@ fun EditCardDialog(
                 )
                 Eyebrow("Checklist")
 
+                // The checklist gets its own column so its rows sit tight
+                // against each other (SubtaskRowSpacing) instead of inheriting
+                // the form's 12dp gap between fields.
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(SubtaskRowSpacing)
+                ) {
                 displaySubtasks.value.forEach { subtask ->
                     key(subtask.id) {
                     val isDragging = subtask.id == draggingSubtaskId
@@ -420,6 +427,7 @@ fun EditCardDialog(
                             }
                     )
                     }
+                }
                 }
 
                 // Collapsed add-subtask affordance at the end of the checklist

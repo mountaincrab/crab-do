@@ -40,6 +40,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.mountaincrab.crabdo.data.local.entity.TaskEntity
 import com.mountaincrab.crabdo.ui.boards.components.SubtaskItem
+import com.mountaincrab.crabdo.ui.boards.components.SubtaskRowSpacing
 import com.mountaincrab.crabdo.ui.util.AddLinkDialog
 import com.mountaincrab.crabdo.ui.util.insertMarkdownLink
 import com.mountaincrab.crabdo.ui.reminders.ReminderTimePickerDialog
@@ -74,7 +75,7 @@ fun TaskDetailScreen(
     var dragOffsetY by remember { mutableFloatStateOf(0f) }
     var itemHeightPx by remember { mutableFloatStateOf(0f) }
     val density = LocalDensity.current
-    val subtaskSpacingPx = with(density) { 8.dp.toPx() }
+    val subtaskSpacingPx = with(density) { SubtaskRowSpacing.toPx() }
     val haptic = LocalHapticFeedback.current
 
     // Keep dragList in sync with the ViewModel when not mid-drag.
@@ -218,7 +219,7 @@ fun TaskDetailScreen(
             item {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(SubtaskRowSpacing)
                 ) {
                     dragList.forEach { subtask ->
                         key(subtask.id) {
