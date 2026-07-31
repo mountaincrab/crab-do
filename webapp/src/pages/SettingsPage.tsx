@@ -319,6 +319,15 @@ export default function SettingsPage() {
   "reminderStyle": "NOTIFICATION"
 }`}</pre>
         </div>
+
+        {/* About */}
+        <section className="mt-12">
+          <div className="ds-eyebrow mb-3">About</div>
+          <div className="border border-DEFAULT rounded-xl px-6 py-4 bg-surface-raised">
+            <div className="text-sm font-bold text-fg">Crab Do</div>
+            <div className="text-sm text-fg-muted mt-0.5">Version {__APP_VERSION__}</div>
+          </div>
+        </section>
       </main>
       </div>
 

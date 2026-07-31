@@ -17,6 +17,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history + tags: vite.config.ts derives the displayed app
+          # version from the latest webapp-v* tag (release.yml pushes it
+          # earlier in this same run).
+          fetch-depth: 0
 
       - name: Set up Node
         uses: actions/setup-node@v4

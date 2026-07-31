@@ -146,6 +146,13 @@ cd webapp && npm run dev
 cd webapp && npx tsc --noEmit
 ```
 
+**Version display:** `vite.config.ts` derives the version from the latest `webapp-v*` tag
+(the same series `release.yml` bumps) and bakes it in as the `__APP_VERSION__` global
+(declared in `src/vite-env.d.ts`); Settings → About shows it, mirroring the Android
+`BuildConfig.VERSION_NAME` row. Clean `X.Y.Z` on `main`/tagged builds,
+`X.Y.Z-<branch>.<sha>` elsewhere, `0.0.0` when no tag is reachable — which is why
+`deploy-web.yml` checks out with `fetch-depth: 0`. `VITE_APP_VERSION` overrides it.
+
 **Build:**
 ```bash
 cd webapp && npm run build
