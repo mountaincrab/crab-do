@@ -169,7 +169,8 @@ fun EditCardDialog(
     var reminderStyle by remember { mutableStateOf(task.reminderStyle) }
     var reminderMillis by remember { mutableStateOf(task.reminderTimeMillis ?: defaultReminderTime()) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
-    var newSubtask by remember { mutableStateOf("") }
+    var newSubtask by remember { mutableStateOf(TextFieldValue("")) }
+    var showSubtaskLinkDialog by remember { mutableStateOf(false) }
     // The subtask composer is hidden behind an "+ Add subtask" button until
     // tapped (mirrors the board column's "+ Add task"). Back collapses it, and
     // so does moving focus away (e.g. tapping the title field) — see
@@ -191,9 +192,9 @@ fun EditCardDialog(
     // next one can be typed straight away (the IME "Done" tick / icon tap would
     // otherwise dismiss the keyboard).
     val addSubtaskAndContinue = {
-        if (newSubtask.isNotBlank()) {
-            onAddSubtask(newSubtask.trim())
-            newSubtask = ""
+        if (newSubtask.text.isNotBlank()) {
+            onAddSubtask(newSubtask.text.trim())
+            newSubtask = TextFieldValue("")
             scrollToNewSubtask = true
             subtaskFocusRequester.requestFocus()
             keyboardController?.show()
@@ -286,7 +287,7 @@ fun EditCardDialog(
     BackHandler {
         if (composerVisible) {
             composerVisible = false
-            newSubtask = ""
+            newSubtask = TextFieldValue("")
             keyboardController?.hide()
         } else {
             saveAndDismiss()
@@ -493,16 +494,29 @@ fun EditCardDialog(
                                 // Guarded by subtaskFieldHadFocus so the initial
                                 // unfocused state — emitted before requestFocus
                                 // runs — doesn't immediately collapse it.
+                                // The Add-link dialog takes focus off this field;
+                                // collapsing then would discard the draft the
+                                // user is in the middle of linking, so hold the
+                                // composer open while that dialog is up.
                                 .onFocusChanged { focusState ->
                                     if (focusState.isFocused) {
                                         subtaskFieldHadFocus = true
-                                    } else if (subtaskFieldHadFocus) {
+                                    } else if (subtaskFieldHadFocus && !showSubtaskLinkDialog) {
                                         composerVisible = false
-                                        newSubtask = ""
+                                        newSubtask = TextFieldValue("")
                                     }
                                 },
                             singleLine = true,
                             shape = RoundedCornerShape(12.dp),
+                            trailingIcon = {
+                                IconButton(onClick = { showSubtaskLinkDialog = true }) {
+                                    Icon(
+                                        Icons.Default.Link,
+                                        contentDescription = "Add link",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            },
                             keyboardOptions = KeyboardOptions(
                                 imeAction = ImeAction.Done,
                                 capitalization = KeyboardCapitalization.Sentences
@@ -512,12 +526,12 @@ fun EditCardDialog(
                         Spacer(Modifier.width(8.dp))
                         IconButton(
                             onClick = addSubtaskAndContinue,
-                            enabled = newSubtask.isNotBlank()
+                            enabled = newSubtask.text.isNotBlank()
                         ) {
                             Icon(
                                 Icons.Default.Add,
                                 contentDescription = "Add subtask",
-                                tint = if (newSubtask.isNotBlank()) MaterialTheme.colorScheme.primary
+                                tint = if (newSubtask.text.isNotBlank()) MaterialTheme.colorScheme.primary
                                        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                             )
                         }
@@ -539,6 +553,21 @@ fun EditCardDialog(
             snapshotFlow { scrollState.maxValue }
                 .collect { max -> scrollState.animateScrollTo(max) }
         }
+    }
+
+    if (showSubtaskLinkDialog) {
+        AddLinkDialog(
+            initialLabel = newSubtask.getSelectedText().text,
+            onDismiss = {
+                showSubtaskLinkDialog = false
+                subtaskFocusRequester.requestFocus()
+            },
+            onConfirm = { label, url ->
+                newSubtask = insertMarkdownLink(newSubtask, label, url)
+                showSubtaskLinkDialog = false
+                subtaskFocusRequester.requestFocus()
+            },
+        )
     }
 
     if (showDeleteConfirm) {

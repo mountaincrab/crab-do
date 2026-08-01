@@ -18,17 +18,36 @@ import androidx.compose.ui.text.withLink
 import androidx.compose.material3.Text as M3Text
 
 // Web links are stored inline in the existing plain-string fields (task
-// title/description, subtask title) as Markdown — `[label](url)` — and bare
-// `https://…` URLs are autolinked. No schema/migration change: the field stays a
-// String everywhere (Room, Firestore, the cloud function). This file provides
-// the read-only renderer plus the authoring helper. Kept link-only (no other
+// title/description, subtask title) as Markdown — `[label](url)` — and bare URLs
+// are autolinked. No schema/migration change: the field stays a String
+// everywhere (Room, Firestore, the cloud function). This file provides the
+// read-only renderer plus the authoring helper. Kept link-only (no other
 // Markdown) so a stray `#`/`*`/`_` in normal text never renders as formatting.
 
-// A Markdown link `[label](url)` OR a bare http(s) URL.
-private val TOKEN = Regex("""\[([^\]\n]+)]\((https?://[^\s)]+)\)|(https?://[^\s<]+)""")
+// A Markdown link `[label](target)` OR a bare URL. The Markdown target accepts
+// any non-space text so scheme-less links (`[docs](www.google.com)`) work — it
+// is normalised by toHref below. Bare URLs need either an explicit scheme or a
+// `www.` prefix: matching every `word.word` would linkify "node.js" and "3.5s".
+private val TOKEN = Regex("""\[([^\]\n]+)]\(([^)\s]+)\)|(https?://[^\s<]+|www\.[^\s<]+)""")
 
 // Trailing prose punctuation that shouldn't be swallowed into a bare URL.
 private val TRAILING = Regex("""[.,;:!?)]+$""")
+
+private val HAS_SCHEME = Regex("""^[a-zA-Z][a-zA-Z0-9+.\-]*:""")
+private val SAFE_SCHEME = Regex("""^(https?:|mailto:)""", RegexOption.IGNORE_CASE)
+
+/**
+ * Resolve a link target to a safe URL, or null if it must not be linkified.
+ * Scheme-less targets (`www.google.com`) are assumed https. Anything carrying a
+ * non-http(s)/mailto scheme is rejected so stored text can't produce a
+ * surprising intent target.
+ */
+fun toHref(target: String): String? {
+    val t = target.trim()
+    if (t.isEmpty()) return null
+    if (HAS_SCHEME.containsMatchIn(t)) return if (SAFE_SCHEME.containsMatchIn(t)) t else null
+    return "https://$t"
+}
 
 /** Build an [AnnotatedString] where Markdown links and bare URLs are clickable. */
 fun buildLinkedString(text: String, linkColor: Color): AnnotatedString {
@@ -41,19 +60,25 @@ fun buildLinkedString(text: String, linkColor: Color): AnnotatedString {
             if (m.range.first > last) append(text.substring(last, m.range.first))
             val bare = m.groupValues[3]
             val label: String
-            val url: String
+            val target: String
             var trailing = ""
             if (bare.isNotEmpty()) {
                 val stripped = bare.replace(TRAILING, "")
                 trailing = bare.substring(stripped.length)
-                url = stripped
+                target = stripped
                 label = stripped
             } else {
                 label = m.groupValues[1]
-                url = m.groupValues[2]
+                target = m.groupValues[2]
             }
-            withLink(LinkAnnotation.Url(url, linkStyles)) { append(label) }
-            if (trailing.isNotEmpty()) append(trailing)
+            val href = toHref(target)
+            if (href == null) {
+                // Unsafe or empty target — emit the original text verbatim.
+                append(m.value)
+            } else {
+                withLink(LinkAnnotation.Url(href, linkStyles)) { append(label) }
+                if (trailing.isNotEmpty()) append(trailing)
+            }
             last = m.range.last + 1
         }
         if (last < text.length) append(text.substring(last))

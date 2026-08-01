@@ -491,7 +491,8 @@ private fun AddSubtaskSheet(
     onAdd: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var text by remember { mutableStateOf("") }
+    var text by remember { mutableStateOf(TextFieldValue("")) }
+    var showLinkDialog by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
 
@@ -500,9 +501,9 @@ private fun AddSubtaskSheet(
     // keyboard counteracts the IME "Done" action (and the icon tap) dismissing
     // the keyboard / stealing focus.
     val addAndContinue = {
-        if (text.isNotBlank()) {
-            onAdd(text.trim())
-            text = ""
+        if (text.text.isNotBlank()) {
+            onAdd(text.text.trim())
+            text = TextFieldValue("")
             focusRequester.requestFocus()
             keyboardController?.show()
         }
@@ -533,22 +534,43 @@ private fun AddSubtaskSheet(
                     .weight(1f)
                     .focusRequester(focusRequester),
                 singleLine = true,
+                trailingIcon = {
+                    IconButton(onClick = { showLinkDialog = true }) {
+                        Icon(
+                            Icons.Default.Link,
+                            contentDescription = "Add link",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                },
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done, capitalization = KeyboardCapitalization.Sentences),
                 keyboardActions = KeyboardActions(onDone = { addAndContinue() })
             )
             Spacer(Modifier.width(8.dp))
             IconButton(
                 onClick = addAndContinue,
-                enabled = text.isNotBlank()
+                enabled = text.text.isNotBlank()
             ) {
                 Icon(
                     Icons.Default.Check,
                     contentDescription = "Add subtask",
-                    tint = if (text.isNotBlank()) MaterialTheme.colorScheme.primary
+                    tint = if (text.text.isNotBlank()) MaterialTheme.colorScheme.primary
                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                 )
             }
         }
+    }
+
+    if (showLinkDialog) {
+        AddLinkDialog(
+            initialLabel = text.getSelectedText().text,
+            onDismiss = { showLinkDialog = false; focusRequester.requestFocus() },
+            onConfirm = { label, url ->
+                text = insertMarkdownLink(text, label, url)
+                showLinkDialog = false
+                focusRequester.requestFocus()
+            },
+        )
     }
 }
 
