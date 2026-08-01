@@ -362,7 +362,10 @@ export default function TaskModal({ userId, boardId, taskId, isNew, onClose, onD
                 value={newSubtaskTitle}
                 onChange={(e) => setNewSubtaskTitle(e.target.value)}
                 onPaste={makeLinkPasteHandler(newSubtaskTitle, setNewSubtaskTitle)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleAddSubtask() }}
+                onKeyDown={(e) => {
+                  makeLinkKeyHandler(newSubtaskTitle, setNewSubtaskTitle)(e)
+                  if (!e.defaultPrevented && e.key === 'Enter') handleAddSubtask()
+                }}
                 placeholder="Add checklist item…"
                 className="flex-1 bg-surface border border-DEFAULT rounded-lg px-3 py-2 text-fg placeholder:text-fg-faint outline-none focus:border-accent text-sm transition-colors"
               />
@@ -402,8 +405,13 @@ function SubtaskRow({ subtask, onToggle, onDelete, onRename, onDragStart, onDrag
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState(subtask.title)
   const inputRef = useRef<HTMLInputElement>(null)
+  // The ⌘K link prompt blurs the field; committing on that blur would close the
+  // editor and drop the link being inserted, so suppress the blur-commit while
+  // the prompt is up (cleared a frame later, once focus has been restored).
+  const linkingRef = useRef(false)
 
   const commitRename = () => {
+    if (linkingRef.current) return
     const trimmed = editValue.trim()
     if (trimmed && trimmed !== subtask.title) onRename(trimmed)
     else setEditValue(subtask.title)
@@ -445,6 +453,12 @@ function SubtaskRow({ subtask, onToggle, onDelete, onRename, onDragStart, onDrag
           onPaste={makeLinkPasteHandler(editValue, setEditValue)}
           onBlur={commitRename}
           onKeyDown={(e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+              linkingRef.current = true
+              makeLinkKeyHandler(editValue, setEditValue)(e)
+              requestAnimationFrame(() => { linkingRef.current = false })
+              return
+            }
             if (e.key === 'Enter') commitRename()
             if (e.key === 'Escape') { setEditValue(subtask.title); setEditing(false) }
           }}
