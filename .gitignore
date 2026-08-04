@@ -16,6 +16,8 @@ google-services.json
 # Kotlin
 *.class
 *.jar
+# Kotlin compiler scratch/error logs
+.kotlin/
 
 # Cloud Functions
 functions/lib/
