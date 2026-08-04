@@ -10,6 +10,7 @@ import com.mountaincrab.crabdo.alarm.AlarmScheduler
 import com.mountaincrab.crabdo.auth.AuthRepository
 import com.mountaincrab.crabdo.data.local.ALL_MIGRATIONS
 import com.mountaincrab.crabdo.data.local.AppDatabase
+import com.mountaincrab.crabdo.data.remote.ForegroundSyncObserver
 import com.mountaincrab.crabdo.data.repository.*
 import com.mountaincrab.crabdo.preferences.UserPreferencesRepository
 import com.mountaincrab.crabdo.ui.auth.LoginViewModel
@@ -35,6 +36,9 @@ val appModule = module {
 
     // AlarmScheduler
     single { AlarmScheduler(androidContext()) }
+
+    // Syncs on every return to the foreground; observed from KanbanApplication
+    single { ForegroundSyncObserver(auth = get(), workManager = get()) }
 
     // UserPreferences (DataStore)
     single { UserPreferencesRepository(androidContext()) }

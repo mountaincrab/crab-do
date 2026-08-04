@@ -147,13 +147,38 @@ fun AddCardDialog(
     }
 }
 
+/**
+ * The reminder state after an edit. A null [timeMillis] means the user turned the
+ * reminder off; the field only appears in [TaskEdits] when it actually changed.
+ */
+data class ReminderEdit(
+    val timeMillis: Long?,
+    val style: TaskEntity.ReminderStyle
+)
+
+/**
+ * The fields the user actually changed in [EditCardDialog]. A null field means
+ * "untouched" and must not be written back — the editor autosaves on close, so
+ * writing an untouched field would push whatever value the editor opened with
+ * over a newer one that arrived from another device in the meantime.
+ */
+data class TaskEdits(
+    val title: String? = null,
+    val description: String? = null,
+    val reminder: ReminderEdit? = null,
+    val columnId: String? = null
+) {
+    val isEmpty: Boolean
+        get() = title == null && description == null && reminder == null && columnId == null
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun EditCardDialog(
     task: TaskEntity,
     columns: List<ColumnEntity>,
     subtasks: List<SubtaskEntity>,
-    onSave: (title: String, description: String, reminderTimeMillis: Long?, reminderStyle: TaskEntity.ReminderStyle, columnId: String) -> Unit,
+    onSave: (TaskEdits) -> Unit,
     onDelete: () -> Unit,
     onAddSubtask: (String) -> Unit,
     onToggleSubtask: (String, Boolean) -> Unit,
@@ -162,6 +187,14 @@ fun EditCardDialog(
     onReorderSubtask: (String, Double, Double) -> Unit,
     onDismiss: () -> Unit
 ) {
+    // The task as it looked when the editor opened. The field state below is
+    // seeded from it once and never re-seeded, so this is the baseline the
+    // autosave diffs against to tell a real user edit from an untouched field.
+    // Deliberately not the live `task` parameter: that recomposes when a remote
+    // change lands, and diffing against it would mistake the remote change for a
+    // local edit and write the editor's stale value straight back over it.
+    val opened = remember { task }
+
     var title by remember { mutableStateOf(TextFieldValue(task.title)) }
     var description by remember { mutableStateOf(TextFieldValue(task.description)) }
     var selectedColumnId by remember { mutableStateOf(task.columnId) }
@@ -257,16 +290,23 @@ fun EditCardDialog(
     // Persist the current field values. There is no Save button — edits autosave
     // when the editor is closed (cross icon or back press). A blank title is left
     // unsaved so closing never wipes the task's title to empty.
+    //
+    // Only fields the user actually changed are sent: opening and closing the
+    // editor without typing must be a no-op, and editing one field must not
+    // rewrite the others. Otherwise a close would push every field as the editor
+    // saw it on open, clobbering any edit made elsewhere (e.g. a description
+    // typed in the web app) that had not yet reached this device.
     val submit = {
-        if (title.text.isNotBlank()) {
-            onSave(
-                title.text.trim(),
-                description.text.trim(),
-                if (reminderEnabled) reminderMillis else null,
-                reminderStyle,
-                selectedColumnId
-            )
-        }
+        val newReminderMillis = if (reminderEnabled) reminderMillis else null
+        val reminderChanged = newReminderMillis != opened.reminderTimeMillis ||
+            (newReminderMillis != null && reminderStyle != opened.reminderStyle)
+        val edits = TaskEdits(
+            title = title.text.trim().takeIf { it != opened.title },
+            description = description.text.trim().takeIf { it != opened.description },
+            reminder = if (reminderChanged) ReminderEdit(newReminderMillis, reminderStyle) else null,
+            columnId = selectedColumnId.takeIf { it != opened.columnId }
+        )
+        if (title.text.isNotBlank() && !edits.isEmpty) onSave(edits)
     }
 
     // Both close affordances (cross icon, Android back button) save first, then

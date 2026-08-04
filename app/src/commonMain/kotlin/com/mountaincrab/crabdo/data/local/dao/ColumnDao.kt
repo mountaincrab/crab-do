@@ -13,6 +13,9 @@ interface ColumnDao {
     @Query("SELECT * FROM columns WHERE boardId = :boardId AND isDeleted = 0 ORDER BY `order`")
     suspend fun getColumnsByBoard(boardId: String): List<ColumnEntity>
 
+    @Query("SELECT * FROM columns WHERE id = :columnId")
+    suspend fun getColumnById(columnId: String): ColumnEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(column: ColumnEntity)
 

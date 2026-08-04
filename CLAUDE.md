@@ -84,14 +84,19 @@ A Compose `Dialog(usePlatformDefaultWidth = false)` gets its own sub-window whic
 
 `AddCardDialog` (New Task) is still a `Dialog` — only safe because it has no pinned bottom element. If you add a pinned composer/bar there, convert it to an overlay too.
 
+**Autosave must stay field-scoped.** `EditCardDialog` has no Save button — it persists on close (cross icon or back). It diffs the current field values against `opened` (a `remember`ed snapshot of the task as the editor opened, deliberately *not* the live `task` parameter, which recomposes when a remote change lands) and emits a `TaskEdits` carrying only changed fields; `KanbanBoardViewModel.saveTaskChanges` applies those onto the task's current row re-read from the DB. Do not go back to saving all fields unconditionally: since `SyncWorker` pushes the whole document, opening and closing the editor on a task whose description was edited elsewhere would otherwise push the editor's stale copy over it and destroy the remote edit.
+
 ### Sync architecture (non-obvious)
 
-Two mechanisms run side-by-side:
+Three mechanisms run side-by-side:
 
-1. **Real-time Firestore listener** in `ReminderRepository.startFirestoreListener` and `BoardRepository` — `addSnapshotListener` reflects remote changes into Room immediately.
+1. **Real-time Firestore listeners** — `addSnapshotListener` reflects remote changes into Room immediately. `ReminderRepository.startFirestoreListener` covers `reminders/` + `recurringReminders/` (started by `BoardListViewModel`); `BoardRepository.startBoardListener` covers the board doc, its `columns/`, `tasks/` and each task's `subtasks/` (started by `KanbanBoardViewModel`, stopped in `onCleared`). Subtasks are a per-task subcollection, so the tasks listener attaches/detaches one subtask listener per task as tasks appear and disappear.
 2. **`SyncWorker`** (WorkManager, unique work name `"sync"`) — pushes locally-pending writes (`syncStatus = PENDING`) up to Firestore, then pulls deltas via `updatedAt > lastSyncTimestamp`.
+3. **`ForegroundSyncObserver`** (`data/remote/`) — a `ProcessLifecycleOwner` observer registered in `KanbanApplication`; enqueues a sync on every foreground entry, throttled to once per 30s. This is the backstop for what listeners can't cover (the window before a listener attaches, and changes that landed while the process was dead). It enqueues with `ExistingWorkPolicy.KEEP`, **not** `REPLACE`, so returning to the app can't cancel an in-flight push of pending local writes.
 
 **Critical invariant:** the Firestore listener checks `existing.syncStatus == SyncStatus.PENDING` before applying a remote document and **skips** if so. This prevents the listener from overwriting a local change before `SyncWorker` has had a chance to push it. When adding new entities/listeners, preserve this guard.
+
+**Critical invariant:** `SyncWorker` pushes a whole entity document (`set(map, merge)`), so any Room row it pushes overwrites the remote copy of *every* field in that map. A UI write must therefore never persist a field the user did not change — see the editor autosave below.
 
 Mutation methods on repositories should:
 1. Update Room with `syncStatus = SyncStatus.PENDING`.
