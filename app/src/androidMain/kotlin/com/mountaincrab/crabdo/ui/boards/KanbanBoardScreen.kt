@@ -137,8 +137,8 @@ fun KanbanBoardScreen(
             task = task,
             columns = columns,
             subtasks = editingSubtasks,
-            onSave = { title, description, reminderAt, style, columnId ->
-                viewModel.saveTaskChanges(task.id, title, description, reminderAt, style, columnId)
+            onSave = { edits ->
+                viewModel.saveTaskChanges(task.id, edits)
                 editingTaskId = null
             },
             onDelete = {

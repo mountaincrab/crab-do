@@ -10,6 +10,7 @@ import com.mountaincrab.crabdo.data.local.entity.TaskEntity
 import com.mountaincrab.crabdo.data.repository.BoardRepository
 import com.mountaincrab.crabdo.data.repository.SubtaskRepository
 import com.mountaincrab.crabdo.data.repository.TaskRepository
+import com.mountaincrab.crabdo.ui.boards.components.TaskEdits
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import android.util.Log
@@ -23,6 +24,12 @@ class KanbanBoardViewModel(
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing
+
+    init {
+        // Keep Room in step with remote edits (other devices, the web app) for as
+        // long as this board is on screen.
+        boardRepository.startBoardListener(boardId)
+    }
 
     val board: StateFlow<BoardEntity?> =
         boardRepository.observeBoard(boardId)
@@ -66,25 +73,27 @@ class KanbanBoardViewModel(
         }
     }
 
-    fun saveTaskChanges(
-        taskId: String,
-        title: String,
-        description: String,
-        reminderTimeMillis: Long?,
-        reminderStyle: TaskEntity.ReminderStyle,
-        toColumnId: String
-    ) {
+    /**
+     * Applies only the fields the user actually edited on top of the task's
+     * *current* row, re-read from the database rather than taken from the copy
+     * the editor was opened with. Between opening and closing the editor a
+     * remote change may have landed, and anything the user did not touch must
+     * keep that newer value.
+     */
+    fun saveTaskChanges(taskId: String, edits: TaskEdits) {
+        if (edits.isEmpty) return
         viewModelScope.launch {
-            val existing = tasksByColumn.value.values.flatten()
-                .firstOrNull { it.id == taskId } ?: return@launch
+            val existing = taskRepository.getTask(taskId) ?: return@launch
             val updated = existing.copy(
-                title = title,
-                description = description,
-                reminderTimeMillis = reminderTimeMillis,
-                reminderStyle = reminderStyle,
+                title = edits.title ?: existing.title,
+                description = edits.description ?: existing.description,
+                reminderTimeMillis = if (edits.reminder != null) edits.reminder.timeMillis
+                                     else existing.reminderTimeMillis,
+                reminderStyle = edits.reminder?.style ?: existing.reminderStyle,
             )
-            taskRepository.updateTask(updated)
-            if (toColumnId != existing.columnId) {
+            if (updated != existing) taskRepository.updateTask(updated)
+            val toColumnId = edits.columnId
+            if (toColumnId != null && toColumnId != existing.columnId) {
                 val targetTasks = tasksByColumn.value[toColumnId] ?: emptyList()
                 val minOrder = targetTasks.minOfOrNull { it.order } ?: 1.0
                 taskRepository.moveTask(taskId, toColumnId, minOrder - 2.0, minOrder)
@@ -148,6 +157,11 @@ class KanbanBoardViewModel(
 
     fun setDefaultColumn(columnId: String) {
         viewModelScope.launch { boardRepository.setDefaultColumn(boardId, columnId) }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        boardRepository.stopBoardListener()
     }
 
     fun refresh() {

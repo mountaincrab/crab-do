@@ -17,6 +17,8 @@ class TaskRepository(
     fun observeTasksByColumn(columnId: String) = taskDao.observeTasksByColumn(columnId)
     fun observeTask(taskId: String) = taskDao.observeTask(taskId)
 
+    suspend fun getTask(taskId: String) = taskDao.getTaskById(taskId)
+
     suspend fun createTask(
         boardId: String,
         columnId: String,
