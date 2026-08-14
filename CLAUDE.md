@@ -169,7 +169,9 @@ cd webapp && npm run build
 - `src/components/AppShell.tsx` — sidebar + content layout wrapper used by all authed pages
 - `src/components/Sidebar.tsx` — persistent left nav; lists boards + reminder views
 - `src/pages/KanbanBoardPage.tsx` — board view; columns are `flex-1` (divide the width evenly), cards show a checklist progress badge, add-column is a header dialog
-- `src/pages/TaskDetailPage.tsx` — task detail with subtask drag-and-drop + rename; title/description **autosave** (debounced, no Save button)
+- `src/components/TaskEditor.tsx` — presentational task editor dialog (title/description, reminder, checklist with drag-and-drop). Owns no persistence; the two modals below supply the handlers
+- `src/components/TaskModal.tsx` — editing an **existing** task: title/description **autosave** (debounced, no Save button), everything else writes immediately
+- `src/components/NewTaskModal.tsx` — creating a task: the whole draft (title, description, reminder, checklist items) is held in local state and written in **one batch** when "Add task" is pressed, via `useBoard.createTask`. Opening "+ Add task" must never write a placeholder task to Firestore
 - `src/pages/RemindersPage.tsx` — one-off and recurring reminders; reads `?view=one-off|recurring` to filter to one section (matches the sidebar children)
 - `src/pages/SettingsPage.tsx` — settings including API key management
 - `src/hooks/useBoard.ts` — board/column/task Firestore hooks; also attaches one subtask listener per task to expose `subtaskCounts` for board card badges

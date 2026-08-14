@@ -6,6 +6,7 @@ import { useBoard, SubtaskCount } from '../hooks/useBoard'
 import { Column, Subtask, Task } from '../types'
 import AppShell from '../components/AppShell'
 import TaskModal from '../components/TaskModal'
+import NewTaskModal from '../components/NewTaskModal'
 import { Linkified } from '../lib/linkify'
 
 export default function KanbanBoardPage() {
@@ -14,7 +15,7 @@ export default function KanbanBoardPage() {
   const {
     board, columns, tasksByColumn, subtaskCounts, subtasksByTask, loading,
     addColumn, renameColumn, deleteColumn, reorderColumns,
-    addTask, moveTask, deleteTask, toggleSubtask,
+    createTask, moveTask, deleteTask, toggleSubtask,
   } = useBoard(user!.uid, boardId!)
 
   const [showAddColumn, setShowAddColumn] = useState(false)
@@ -25,7 +26,7 @@ export default function KanbanBoardPage() {
   const [draggingHeight, setDraggingHeight] = useState<number | null>(null)
   const [showManageColumns, setShowManageColumns] = useState(false)
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
-  const [editingIsNew, setEditingIsNew] = useState(false)
+  const [newTaskColumnId, setNewTaskColumnId] = useState<string | null>(null)
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set())
 
   const toggleExpand = (taskId: string) => {
@@ -37,13 +38,8 @@ export default function KanbanBoardPage() {
     })
   }
 
-  const openTask = (taskId: string) => { setEditingTaskId(taskId); setEditingIsNew(false) }
-  const closeTask = () => { setEditingTaskId(null); setEditingIsNew(false) }
-  const createAndOpenTask = async (columnId: string) => {
-    const id = await addTask(columnId, '', '')
-    setEditingTaskId(id)
-    setEditingIsNew(true)
-  }
+  const openTask = (taskId: string) => setEditingTaskId(taskId)
+  const closeTask = () => setEditingTaskId(null)
 
   if (loading) {
     return (
@@ -121,7 +117,7 @@ export default function KanbanBoardPage() {
                 draggingHeight={draggingHeight}
                 onDragStart={(taskId, height) => { setDraggingTaskId(taskId); setDraggingHeight(height) }}
                 onDragEnd={() => { setDraggingTaskId(null); setDraggingHeight(null) }}
-                onAddTask={() => createAndOpenTask(col.id)}
+                onAddTask={() => setNewTaskColumnId(col.id)}
                 onMoveTask={moveTask}
                 onDeleteTask={deleteTask}
                 onRename={() => { setRenamingCol(col); setRenameValue(col.title) }}
@@ -234,9 +230,14 @@ export default function KanbanBoardPage() {
           userId={user!.uid}
           boardId={boardId!}
           taskId={editingTaskId}
-          isNew={editingIsNew}
           onClose={closeTask}
-          onDiscard={() => deleteTask(editingTaskId)}
+        />
+      )}
+
+      {newTaskColumnId && (
+        <NewTaskModal
+          onCreate={(draft) => createTask(newTaskColumnId, draft)}
+          onClose={() => setNewTaskColumnId(null)}
         />
       )}
     </AppShell>
