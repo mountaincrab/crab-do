@@ -6,6 +6,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import { Board, Column, Task, Subtask } from '../types'
+import { NewTaskDraft } from '../components/NewTaskModal'
 
 export interface SubtaskCount {
   total: number
@@ -124,21 +125,38 @@ export function useBoard(userId: string, boardId: string) {
     await batch.commit()
   }
 
-  const addTask = async (columnId: string, title: string, description = '') => {
+  /**
+   * Creates a task and its checklist items in one batch, so a task only ever
+   * reaches Firestore once the user has committed to it (see NewTaskModal).
+   */
+  const createTask = async (columnId: string, draft: NewTaskDraft) => {
     const colTasks = tasks.filter((t) => t.columnId === columnId)
     const maxOrder = colTasks.length > 0 ? Math.max(...colTasks.map((t) => t.order)) : 0
-    const ref = await addDoc(collection(db, 'users', userId, 'boards', boardId, 'tasks'), {
+    const taskRef = doc(collection(db, 'users', userId, 'boards', boardId, 'tasks'))
+    const batch = writeBatch(db)
+    batch.set(taskRef, {
       boardId,
       columnId,
-      title,
-      description,
+      title: draft.title,
+      description: draft.description,
       order: maxOrder + 1,
-      reminderTimeMillis: null,
-      reminderStyle: 'ALARM',
+      reminderTimeMillis: draft.reminderTimeMillis,
+      reminderStyle: draft.reminderStyle,
       updatedAt: serverTimestamp(),
       isDeleted: false,
     })
-    return ref.id
+    draft.subtasks.forEach((s, i) => {
+      batch.set(doc(collection(taskRef, 'subtasks')), {
+        taskId: taskRef.id,
+        title: s.title,
+        isCompleted: s.isCompleted,
+        order: i + 1,
+        updatedAt: serverTimestamp(),
+        isDeleted: false,
+      })
+    })
+    await batch.commit()
+    return taskRef.id
   }
 
   const moveTask = async (taskId: string, targetColumnId: string, newOrder: number) => {
@@ -194,7 +212,7 @@ export function useBoard(userId: string, boardId: string) {
     renameColumn,
     deleteColumn,
     reorderColumns,
-    addTask,
+    createTask,
     moveTask,
     deleteTask,
     toggleSubtask,
