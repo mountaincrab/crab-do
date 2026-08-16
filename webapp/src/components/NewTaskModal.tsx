@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Subtask } from '../types'
+import ConfirmDialog from './ConfirmDialog'
 import TaskEditor, { orderBetween } from './TaskEditor'
 
 export interface NewTaskDraft {
@@ -28,6 +29,7 @@ export default function NewTaskModal({ onCreate, onClose }: NewTaskModalProps) {
   const [reminderStyle, setReminderStyle] = useState<'ALARM' | 'NOTIFICATION'>('ALARM')
   const [subtasks, setSubtasks] = useState<Subtask[]>([])
   const [submitting, setSubmitting] = useState(false)
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false)
 
   const canSubmit = title.trim().length > 0 && !submitting
   const isEmpty = !title.trim() && !description.trim() && subtasks.length === 0 && reminderTimeMillis == null
@@ -52,8 +54,10 @@ export default function NewTaskModal({ onCreate, onClose }: NewTaskModalProps) {
   }
 
   const handleClose = () => {
-    if (!isEmpty && !window.confirm('Discard this task?')) return
-    onClose()
+    // The editor's own Escape handler also fires while the confirmation is up.
+    if (confirmingDiscard) return
+    if (isEmpty) onClose()
+    else setConfirmingDiscard(true)
   }
 
   const handleCreate = async () => {
@@ -76,41 +80,54 @@ export default function NewTaskModal({ onCreate, onClose }: NewTaskModalProps) {
   }
 
   return (
-    <TaskEditor
-      title={title}
-      description={description}
-      onTitleChange={setTitle}
-      onDescriptionChange={setDescription}
-      autoFocusTitle
-      reminderTimeMillis={reminderTimeMillis}
-      reminderStyle={reminderStyle}
-      onSaveReminder={(millis, style) => { setReminderTimeMillis(millis); setReminderStyle(style) }}
-      onClearReminder={() => setReminderTimeMillis(null)}
-      subtasks={subtasks}
-      onAddSubtask={addSubtask}
-      onToggleSubtask={(id, isCompleted) => patchSubtask(id, { isCompleted })}
-      onDeleteSubtask={(id) => setSubtasks((prev) => prev.filter((s) => s.id !== id))}
-      onRenameSubtask={(id, newTitle) => patchSubtask(id, { title: newTitle })}
-      onReorderSubtask={(id, orderBefore, orderAfter) => patchSubtask(id, { order: orderBetween(orderBefore, orderAfter) })}
-      headerStatus={<span className="text-sm font-bold text-fg mr-auto pl-2">New task</span>}
-      footer={
-        <div className="flex justify-end gap-2 border-t border-DEFAULT pt-4">
-          <button
-            onClick={handleClose}
-            className="px-4 py-2 text-fg-muted hover:text-fg text-sm rounded-xl font-semibold transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleCreate}
-            disabled={!canSubmit}
-            className="px-4 py-2 bg-accent hover:bg-accent-hover disabled:opacity-40 text-accent-fg text-sm rounded-xl font-semibold transition-colors"
-          >
-            {submitting ? 'Adding…' : 'Add task'}
-          </button>
-        </div>
-      }
-      onClose={handleClose}
-    />
+    <>
+      <TaskEditor
+        title={title}
+        description={description}
+        onTitleChange={setTitle}
+        onDescriptionChange={setDescription}
+        autoFocusTitle
+        reminderTimeMillis={reminderTimeMillis}
+        reminderStyle={reminderStyle}
+        onSaveReminder={(millis, style) => { setReminderTimeMillis(millis); setReminderStyle(style) }}
+        onClearReminder={() => setReminderTimeMillis(null)}
+        subtasks={subtasks}
+        onAddSubtask={addSubtask}
+        onToggleSubtask={(id, isCompleted) => patchSubtask(id, { isCompleted })}
+        onDeleteSubtask={(id) => setSubtasks((prev) => prev.filter((s) => s.id !== id))}
+        onRenameSubtask={(id, newTitle) => patchSubtask(id, { title: newTitle })}
+        onReorderSubtask={(id, orderBefore, orderAfter) => patchSubtask(id, { order: orderBetween(orderBefore, orderAfter) })}
+        headerStatus={<span className="text-sm font-bold text-fg mr-auto pl-2">New task</span>}
+        footer={
+          <div className="flex justify-end gap-2 border-t border-DEFAULT pt-4">
+            <button
+              onClick={handleClose}
+              className="px-4 py-2 text-fg-muted hover:text-fg text-sm rounded-xl font-semibold transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleCreate}
+              disabled={!canSubmit}
+              className="px-4 py-2 bg-accent hover:bg-accent-hover disabled:opacity-40 text-accent-fg text-sm rounded-xl font-semibold transition-colors"
+            >
+              {submitting ? 'Adding…' : 'Add task'}
+            </button>
+          </div>
+        }
+        onClose={handleClose}
+      />
+
+      {confirmingDiscard && (
+        <ConfirmDialog
+          title="Discard this task?"
+          message="Your changes haven't been saved and will be lost."
+          confirmLabel="Discard"
+          cancelLabel="Keep editing"
+          onConfirm={onClose}
+          onCancel={() => setConfirmingDiscard(false)}
+        />
+      )}
+    </>
   )
 }

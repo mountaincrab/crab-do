@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useBoards } from '../hooks/useBoards'
 import { Board } from '../types'
 import AppShell from '../components/AppShell'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 export default function BoardListPage() {
   const { user } = useAuth()
@@ -131,28 +132,13 @@ export default function BoardListPage() {
       )}
 
       {confirmDelete && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-surface-raised border border-DEFAULT rounded-2xl p-6 w-full max-w-sm shadow-dialog">
-            <h2 className="text-lg font-bold mb-2 text-fg">Delete board?</h2>
-            <p className="text-sm text-fg-muted mb-6">
-              "{confirmDelete.title}" and all its tasks will be permanently removed.
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setConfirmDelete(null)}
-                className="px-4 py-2 rounded-xl text-fg-muted hover:text-fg transition-colors text-sm font-semibold"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDelete}
-                className="px-4 py-2 bg-danger hover:opacity-80 text-white rounded-xl text-sm font-semibold transition-colors"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          title="Delete board?"
+          message={`"${confirmDelete.title}" and all its tasks will be permanently removed.`}
+          confirmLabel="Delete"
+          onConfirm={handleDelete}
+          onCancel={() => setConfirmDelete(null)}
+        />
       )}
     </AppShell>
   )
