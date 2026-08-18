@@ -86,6 +86,7 @@ export default function NewTaskModal({ onCreate, onClose }: NewTaskModalProps) {
         description={description}
         onTitleChange={setTitle}
         onDescriptionChange={setDescription}
+        onSubmitTitle={() => { void handleCreate() }}
         autoFocusTitle
         reminderTimeMillis={reminderTimeMillis}
         reminderStyle={reminderStyle}
