@@ -32,6 +32,12 @@ interface TaskEditorProps {
   description: string
   onTitleChange: (value: string) => void
   onDescriptionChange: (value: string) => void
+  /**
+   * Called when Enter is pressed in the title field (Shift+Enter still inserts
+   * a newline). Supplied by the create flow so the return key submits the task
+   * the way the "Add task" button does; omit it to keep Enter as a newline.
+   */
+  onSubmitTitle?: () => void
   onFieldBlur?: () => void
   autoFocusTitle?: boolean
   reminderTimeMillis: number | null
@@ -57,7 +63,7 @@ interface TaskEditorProps {
  * (`NewTaskModal`) render this and supply the handlers.
  */
 export default function TaskEditor({
-  title, description, onTitleChange, onDescriptionChange, onFieldBlur, autoFocusTitle,
+  title, description, onTitleChange, onDescriptionChange, onSubmitTitle, onFieldBlur, autoFocusTitle,
   reminderTimeMillis, reminderStyle, onSaveReminder, onClearReminder,
   subtasks, onAddSubtask, onToggleSubtask, onDeleteSubtask, onRenameSubtask, onReorderSubtask,
   headerStatus, footer, onClose,
@@ -177,7 +183,14 @@ export default function TaskEditor({
             value={title}
             onChange={(e) => onTitleChange(e.target.value)}
             onPaste={makeLinkPasteHandler(title, onTitleChange)}
-            onKeyDown={makeLinkKeyHandler(title, onTitleChange)}
+            onKeyDown={(e) => {
+              makeLinkKeyHandler(title, onTitleChange)(e)
+              if (e.defaultPrevented || !onSubmitTitle) return
+              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault()
+                onSubmitTitle()
+              }
+            }}
             onBlur={onFieldBlur}
             rows={1}
             placeholder="Task title"
@@ -338,7 +351,11 @@ export default function TaskEditor({
                 onPaste={makeLinkPasteHandler(newSubtaskTitle, setNewSubtaskTitle)}
                 onKeyDown={(e) => {
                   makeLinkKeyHandler(newSubtaskTitle, setNewSubtaskTitle)(e)
-                  if (!e.defaultPrevented && e.key === 'Enter') handleAddSubtask()
+                  if (e.defaultPrevented || e.nativeEvent.isComposing) return
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    handleAddSubtask()
+                  }
                 }}
                 placeholder="Add checklist item…"
                 className="flex-1 bg-surface border border-DEFAULT rounded-lg px-3 py-2 text-fg placeholder:text-fg-faint outline-none focus:border-accent text-sm transition-colors"
