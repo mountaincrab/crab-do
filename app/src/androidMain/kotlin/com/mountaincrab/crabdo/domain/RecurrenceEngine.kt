@@ -14,6 +14,13 @@ object RecurrenceEngine {
         }
     }
 
+    /**
+     * Next occurrence after [afterMillis] that is on or after [startDate] (local midnight of
+     * the reminder's first day). A start date in the future pushes the first fire to that day.
+     */
+    fun nextTriggerFrom(rule: RecurrenceRule, startDate: Long, afterMillis: Long, hour: Int, minute: Int): Long? =
+        nextTriggerAfter(rule, maxOf(afterMillis, startDate - 1), hour, minute)
+
     private fun nextDaily(intervalDays: Int, afterMillis: Long, hour: Int, minute: Int): Long {
         val cal = Calendar.getInstance().apply { timeInMillis = afterMillis }
         cal.set(Calendar.HOUR_OF_DAY, hour)
