@@ -62,19 +62,6 @@ fun AddEditOneOffReminderScreen(
         if (!isEditing) titleFocusRequester.requestFocus()
     }
 
-    val initialCal = remember(viewModel.selectedDateTime) {
-        Calendar.getInstance().apply { timeInMillis = viewModel.selectedDateTime }
-    }
-
-    val datePickerState = rememberDatePickerState(
-        initialSelectedDateMillis = localDateToUtcMidnight(viewModel.selectedDateTime)
-    )
-    val timePickerState = rememberTimePickerState(
-        initialHour = initialCal.get(Calendar.HOUR_OF_DAY),
-        initialMinute = initialCal.get(Calendar.MINUTE),
-        is24Hour = true
-    )
-
     Scaffold(
         topBar = {
             TopAppBar(
@@ -212,7 +199,13 @@ fun AddEditOneOffReminderScreen(
         )
     }
 
+    // Picker states are created when the dialog opens (not once for the whole screen) so they
+    // start from the current selection — when editing, the ViewModel loads the saved value
+    // after the first composition, and a screen-level state would keep the placeholder.
     if (showDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = localDateToUtcMidnight(viewModel.selectedDateTime)
+        )
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
@@ -238,6 +231,12 @@ fun AddEditOneOffReminderScreen(
     }
 
     if (showTimePicker) {
+        val initialCal = Calendar.getInstance().apply { timeInMillis = viewModel.selectedDateTime }
+        val timePickerState = rememberTimePickerState(
+            initialHour = initialCal.get(Calendar.HOUR_OF_DAY),
+            initialMinute = initialCal.get(Calendar.MINUTE),
+            is24Hour = true
+        )
         ReminderTimePickerDialog(
             state = timePickerState,
             isKeyboardMode = viewModel.isTimeInputKeyboard,
