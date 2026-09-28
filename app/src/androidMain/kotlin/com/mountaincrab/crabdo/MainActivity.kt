@@ -9,9 +9,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.navigation.compose.rememberNavController
@@ -19,7 +23,9 @@ import com.mountaincrab.crabdo.auth.AuthRepository
 import com.mountaincrab.crabdo.ui.navigation.AppNavigation
 import com.mountaincrab.crabdo.ui.navigation.ReminderTarget
 import com.mountaincrab.crabdo.ui.navigation.Screen
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.mountaincrab.crabdo.notification.AppPermissions
 import com.mountaincrab.crabdo.ui.theme.CrabbanTheme
 import com.mountaincrab.crabdo.ui.theme.ThemeViewModel
 import org.koin.android.ext.android.inject
@@ -84,6 +90,8 @@ class MainActivity : ComponentActivity() {
                         openReminderType = shouldOpenReminderType,
                         openTaskId = shouldOpenTaskId,
                     )
+
+                    if (isSignedIn) FullScreenIntentPrompt()
                 }
             }
         }
@@ -109,5 +117,40 @@ class MainActivity : ComponentActivity() {
         intent.getStringExtra("open_task_id")?.let {
             openTaskId = it
         }
+    }
+
+    /**
+     * Full-screen notifications (Android 14+) can't be requested with a runtime
+     * dialog and are sometimes revoked at install, so explain and deep-link to the
+     * toggle. Re-checked on every resume; "Not now" hides it until next launch.
+     */
+    @Composable
+    private fun FullScreenIntentPrompt() {
+        var canUseFullScreen by remember { mutableStateOf(AppPermissions.canUseFullScreenIntent(this)) }
+        var dismissed by rememberSaveable { mutableStateOf(false) }
+        LifecycleResumeEffect(Unit) {
+            canUseFullScreen = AppPermissions.canUseFullScreenIntent(this@MainActivity)
+            onPauseOrDispose { }
+        }
+        if (canUseFullScreen || dismissed) return
+        AlertDialog(
+            onDismissRequest = { dismissed = true },
+            title = { Text("Allow full-screen alarms") },
+            text = {
+                Text(
+                    "Crab Do needs the \"Full screen notifications\" permission to show alarm " +
+                        "reminders over the lock screen. Without it, alarms only appear as a " +
+                        "regular notification."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { AppPermissions.openFullScreenIntentSettings(this@MainActivity) }) {
+                    Text("Open settings")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { dismissed = true }) { Text("Not now") }
+            }
+        )
     }
 }

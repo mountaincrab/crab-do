@@ -12,6 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
@@ -24,9 +25,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.mountaincrab.crabdo.BuildConfig
+import com.mountaincrab.crabdo.notification.AppPermissions
 import com.mountaincrab.crabdo.ui.navigation.Screen
 import com.mountaincrab.crabdo.ui.theme.AppTheme
 import com.mountaincrab.crabdo.ui.theme.GradientIconBlock
@@ -45,6 +48,15 @@ fun SettingsScreen(
     val autoDismissMinutes by viewModel.autoDismissMinutes.collectAsStateWithLifecycle()
     val currentTheme by themeViewModel.appTheme.collectAsStateWithLifecycle()
     val context = LocalContext.current
+
+    // Special permissions are granted in system settings, so re-check on return.
+    var canScheduleExactAlarms by remember { mutableStateOf(viewModel.canScheduleExactAlarms) }
+    var canUseFullScreenIntent by remember { mutableStateOf(AppPermissions.canUseFullScreenIntent(context)) }
+    LifecycleResumeEffect(Unit) {
+        canScheduleExactAlarms = viewModel.canScheduleExactAlarms
+        canUseFullScreenIntent = AppPermissions.canUseFullScreenIntent(context)
+        onPauseOrDispose { }
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -190,42 +202,39 @@ fun SettingsScreen(
             }
 
             // Exact alarm permission
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !viewModel.canScheduleExactAlarms) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer
-                    ),
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !canScheduleExactAlarms) {
+                PermissionWarningCard(
+                    title = "Exact alarms not permitted",
+                    message = "Tap to grant permission for precise reminder timing",
                     onClick = {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                             context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM))
                         }
                     }
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Default.Warning, contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onErrorContainer
-                        )
-                        Spacer(Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                "Exact alarms not permitted",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                "Tap to grant permission for precise reminder timing",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onErrorContainer
-                            )
-                        }
-                    }
-                }
+                )
+            }
+
+            // Full-screen notification permission (Android 14+)
+            if (!canUseFullScreenIntent) {
+                PermissionWarningCard(
+                    title = "Full-screen alarms not permitted",
+                    message = "Tap to allow alarms to show over the lock screen",
+                    onClick = { AppPermissions.openFullScreenIntentSettings(context) }
+                )
+            }
+
+            // System app settings
+            SectionLabel("SYSTEM")
+            SectionCard {
+                ListItem(
+                    modifier = Modifier.clickable { AppPermissions.openAppSettings(context) },
+                    headlineContent = { Text("App settings", fontWeight = FontWeight.Bold) },
+                    supportingContent = { Text("Notifications, permissions and battery in Android settings") },
+                    trailingContent = {
+                        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                )
             }
 
             // About
@@ -246,6 +255,42 @@ fun SettingsScreen(
             }
 
             Spacer(Modifier.height(8.dp))
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PermissionWarningCard(title: String, message: String, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer
+        ),
+        onClick = onClick
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Default.Warning, contentDescription = null,
+                tint = MaterialTheme.colorScheme.onErrorContainer
+            )
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+            }
         }
     }
 }
