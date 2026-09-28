@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useRef, useState } from 'react'
-import { AlarmClock, Bell, Check, Pencil, X } from 'lucide-react'
-import { Subtask } from '../types'
+import { AlarmClock, ArrowRight, Bell, Check, Pencil, X } from 'lucide-react'
+import { Column, Subtask } from '../types'
 import { Linkified, makeLinkPasteHandler, makeLinkKeyHandler } from '../lib/linkify'
 
 export function millisToDatetimeLocal(ms: number): string {
@@ -42,7 +42,16 @@ interface TaskEditorProps {
   autoFocusTitle?: boolean
   reminderTimeMillis: number | null
   reminderStyle: 'ALARM' | 'NOTIFICATION'
-  onSaveReminder: (millis: number, style: 'ALARM' | 'NOTIFICATION') => void
+  /** Column the task moves into when the reminder fires; null = no move. */
+  reminderTransitionColumnId: string | null
+  /** The board's columns, offered as transition targets (minus the task's current one). */
+  columns: Column[]
+  currentColumnId: string
+  onSaveReminder: (
+    millis: number,
+    style: 'ALARM' | 'NOTIFICATION',
+    transitionColumnId: string | null,
+  ) => void
   onClearReminder: () => void
   subtasks: Subtask[]
   onAddSubtask: (title: string) => void
@@ -64,7 +73,8 @@ interface TaskEditorProps {
  */
 export default function TaskEditor({
   title, description, onTitleChange, onDescriptionChange, onSubmitTitle, onFieldBlur, autoFocusTitle,
-  reminderTimeMillis, reminderStyle, onSaveReminder, onClearReminder,
+  reminderTimeMillis, reminderStyle, reminderTransitionColumnId, columns, currentColumnId,
+  onSaveReminder, onClearReminder,
   subtasks, onAddSubtask, onToggleSubtask, onDeleteSubtask, onRenameSubtask, onReorderSubtask,
   headerStatus, footer, onClose,
 }: TaskEditorProps) {
@@ -72,6 +82,7 @@ export default function TaskEditor({
   const [editingReminder, setEditingReminder] = useState(false)
   const [reminderDraft, setReminderDraft] = useState(defaultReminderDatetimeLocal())
   const [reminderStyleDraft, setReminderStyleDraft] = useState<'ALARM' | 'NOTIFICATION'>('ALARM')
+  const [transitionDraft, setTransitionDraft] = useState<string | null>(null)
   const [draggingSubtaskId, setDraggingSubtaskId] = useState<string | null>(null)
   const [hoverGap, setHoverGap] = useState<number | null>(null)
   const subtaskListRef = useRef<HTMLDivElement>(null)
@@ -94,14 +105,20 @@ export default function TaskEditor({
         : defaultReminderDatetimeLocal(),
     )
     setReminderStyleDraft(reminderStyle)
+    setTransitionDraft(reminderTransitionColumnId)
     setEditingReminder(true)
   }
 
   const saveReminder = () => {
     if (!reminderDraft) return
-    onSaveReminder(new Date(reminderDraft).getTime(), reminderStyleDraft)
+    const transition = transitionDraft && transitionDraft !== currentColumnId
+      && transitionTargets.some((c) => c.id === transitionDraft) ? transitionDraft : null
+    onSaveReminder(new Date(reminderDraft).getTime(), reminderStyleDraft, transition)
     setEditingReminder(false)
   }
+
+  const transitionTargets = columns.filter((c) => c.id !== currentColumnId)
+  const transitionColumn = columns.find((c) => c.id === reminderTransitionColumnId && c.id !== currentColumnId)
 
   const clearReminder = () => {
     onClearReminder()
@@ -237,6 +254,30 @@ export default function TaskEditor({
                       </button>
                     ))}
                   </div>
+                  {transitionTargets.length > 0 && (
+                    <div className="flex flex-col gap-2">
+                      <label className="flex items-center gap-2 text-sm text-fg cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={transitionDraft != null}
+                          onChange={(e) => setTransitionDraft(e.target.checked ? transitionTargets[0].id : null)}
+                          className="accent-[var(--accent)] w-4 h-4"
+                        />
+                        Also move task to column
+                      </label>
+                      {transitionDraft != null && (
+                        <select
+                          value={transitionDraft}
+                          onChange={(e) => setTransitionDraft(e.target.value)}
+                          className="w-full bg-surface-raised border border-DEFAULT rounded-lg px-3 py-2 text-fg outline-none focus:border-accent transition-colors text-sm"
+                        >
+                          {transitionTargets.map((c) => (
+                            <option key={c.id} value={c.id}>{c.title}</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  )}
                   <div className="flex justify-end gap-2">
                     {reminderTimeMillis != null && (
                       <button
@@ -268,7 +309,16 @@ export default function TaskEditor({
                   </span>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-fg font-medium font-mono">{formatReminderTime(reminderTimeMillis)}</p>
-                    <p className="text-xs text-fg-muted mt-0.5">{reminderStyle === 'ALARM' ? 'Alarm' : 'Notification'}</p>
+                    <p className="text-xs text-fg-muted mt-0.5 flex items-center gap-1">
+                      {reminderStyle === 'ALARM' ? 'Alarm' : 'Notification'}
+                      {transitionColumn && (
+                        <>
+                          <span>·</span>
+                          <ArrowRight size={12} />
+                          <span className="truncate">Moves to {transitionColumn.title}</span>
+                        </>
+                      )}
+                    </p>
                   </div>
                   <button
                     onClick={openReminderEditor}

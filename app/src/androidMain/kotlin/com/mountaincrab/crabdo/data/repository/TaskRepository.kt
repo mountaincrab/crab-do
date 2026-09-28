@@ -2,6 +2,7 @@ package com.mountaincrab.crabdo.data.repository
 
 import androidx.work.*
 import com.mountaincrab.crabdo.alarm.AlarmScheduler
+import com.mountaincrab.crabdo.data.local.dao.ColumnDao
 import com.mountaincrab.crabdo.data.local.dao.TaskDao
 import com.mountaincrab.crabdo.data.local.entity.TaskEntity
 import com.mountaincrab.crabdo.data.model.SyncStatus
@@ -11,6 +12,7 @@ import java.util.concurrent.TimeUnit
 
 class TaskRepository(
     private val taskDao: TaskDao,
+    private val columnDao: ColumnDao,
     private val alarmScheduler: AlarmScheduler,
     private val workManager: WorkManager
 ) {
@@ -25,7 +27,8 @@ class TaskRepository(
         title: String,
         description: String = "",
         reminderTimeMillis: Long? = null,
-        reminderStyle: TaskEntity.ReminderStyle = TaskEntity.ReminderStyle.ALARM
+        reminderStyle: TaskEntity.ReminderStyle = TaskEntity.ReminderStyle.ALARM,
+        reminderTransitionColumnId: String? = null
     ): TaskEntity {
         val tasks = taskDao.observeTasksByColumn(columnId).first()
         val maxOrder = tasks.maxOfOrNull { it.order } ?: 0.0
@@ -33,7 +36,8 @@ class TaskRepository(
             boardId = boardId, columnId = columnId,
             title = title, description = description, order = maxOrder + 1.0,
             reminderTimeMillis = reminderTimeMillis,
-            reminderStyle = reminderStyle
+            reminderStyle = reminderStyle,
+            reminderTransitionColumnId = reminderTransitionColumnId.takeIf { reminderTimeMillis != null }
         )
         taskDao.upsert(task)
         if (reminderTimeMillis != null && reminderTimeMillis > System.currentTimeMillis()) {
@@ -63,18 +67,53 @@ class TaskRepository(
     /**
      * A task reminder is one-shot. Once it has fired, clear the scheduled time so
      * nothing can re-arm it — otherwise the task stays permanently "armed" and later
-     * edits (or a reboot) would fire it again.
+     * edits (or a reboot) would fire it again. If the reminder carries a transition
+     * target, the task is also moved to the bottom of that column.
      */
     suspend fun onTaskReminderFired(taskId: String) {
-        val task = taskDao.getTaskById(taskId) ?: return
-        if (task.isDeleted || task.reminderTimeMillis == null) return
+        if (fireTaskReminder(taskId)) enqueueSyncWork()
+    }
+
+    /**
+     * Catch-up for reminders whose alarm never ran on this device (phone off, process
+     * dead, or the reminder was set on another device): apply any due column
+     * transition. Called by [SyncWorker] after a pull, so it acts on fresh data; it
+     * doesn't enqueue a sync — the caller pushes the resulting PENDING rows.
+     *
+     * @return true if any task was changed.
+     */
+    suspend fun applyDueReminderTransitions(): Boolean {
+        val now = System.currentTimeMillis()
+        var changed = false
+        taskDao.getTasksWithReminders().forEach { task ->
+            val time = task.reminderTimeMillis ?: return@forEach
+            if (task.reminderTransitionColumnId != null && time <= now) {
+                changed = fireTaskReminder(task.id) || changed
+            }
+        }
+        return changed
+    }
+
+    private suspend fun fireTaskReminder(taskId: String): Boolean {
+        val task = taskDao.getTaskById(taskId) ?: return false
+        if (task.isDeleted || task.reminderTimeMillis == null) return false
+        // Only move into a live column on the same board; a deleted target is ignored.
+        val target = task.reminderTransitionColumnId
+            ?.let { columnDao.getColumnById(it) }
+            ?.takeIf { !it.isDeleted && it.boardId == task.boardId && it.id != task.columnId }
+        val order = if (target != null) {
+            (taskDao.observeTasksByColumn(target.id).first().maxOfOrNull { it.order } ?: 0.0) + 1.0
+        } else task.order
         taskDao.upsert(task.copy(
+            columnId = target?.id ?: task.columnId,
+            order = order,
             reminderTimeMillis = null,
+            reminderTransitionColumnId = null,
             updatedAt = System.currentTimeMillis(),
             syncStatus = SyncStatus.PENDING
         ))
         alarmScheduler.cancelTaskReminder(taskId)
-        enqueueSyncWork()
+        return true
     }
 
     suspend fun moveTask(taskId: String, newColumnId: String,

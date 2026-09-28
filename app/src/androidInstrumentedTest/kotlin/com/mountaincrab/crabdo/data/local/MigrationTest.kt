@@ -58,4 +58,39 @@ class MigrationTest {
         }
         db.close()
     }
+
+    @Test
+    fun migrate7To8_addsReminderTransitionColumnIdAndPreservesTasks() {
+        val dbName = "migration-test-7-8"
+
+        // v7: no reminderTransitionColumnId column yet. Seed a task with a reminder.
+        helper.createDatabase(dbName, 7).apply {
+            execSQL(
+                "INSERT INTO tasks " +
+                    "(id, boardId, columnId, title, description, `order`, reminderTimeMillis, " +
+                    "reminderStyle, updatedAt, syncStatus, isDeleted) " +
+                    "VALUES ('t1', 'b1', 'c1', 'My Task', '', 1.0, 5000, 'ALARM', 200, 'SYNCED', 0)"
+            )
+            close()
+        }
+
+        // Run 7 -> 8 and validate the migrated schema against 8.json.
+        val db = helper.runMigrationsAndValidate(dbName, 8, true, *ALL_MIGRATIONS)
+
+        // Pre-existing row survives; the new nullable column defaults to NULL.
+        db.query("SELECT title, reminderTimeMillis, reminderTransitionColumnId FROM tasks WHERE id = 't1'").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals("My Task", c.getString(0))
+            assertEquals(5000L, c.getLong(1))
+            assertTrue("reminderTransitionColumnId should default to NULL", c.isNull(2))
+        }
+
+        // The new column is writable and reads back.
+        db.execSQL("UPDATE tasks SET reminderTransitionColumnId = 'c2' WHERE id = 't1'")
+        db.query("SELECT reminderTransitionColumnId FROM tasks WHERE id = 't1'").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals("c2", c.getString(0))
+        }
+        db.close()
+    }
 }

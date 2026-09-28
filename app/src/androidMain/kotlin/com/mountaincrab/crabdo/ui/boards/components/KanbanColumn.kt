@@ -50,7 +50,7 @@ fun KanbanColumn(
     onCardReordered: (taskId: String, orderBefore: Double, orderAfter: Double) -> Unit,
     onCardMovedToColumn: (taskId: String, toColumnId: String) -> Unit,
     onTaskTapped: (taskId: String) -> Unit,
-    onAddCard: (title: String, description: String, reminderTimeMillis: Long?, reminderStyle: TaskEntity.ReminderStyle, columnId: String) -> Unit,
+    onAddCard: (title: String, description: String, reminderTimeMillis: Long?, reminderStyle: TaskEntity.ReminderStyle, columnId: String, transitionColumnId: String?) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showAddCardSheet by remember { mutableStateOf(false) }
@@ -397,8 +397,8 @@ fun KanbanColumn(
         AddCardDialog(
             columns = columns,
             currentColumnId = column.id,
-            onAdd = { title, description, reminderAt, style, columnId ->
-                onAddCard(title, description, reminderAt, style, columnId)
+            onAdd = { title, description, reminderAt, style, columnId, transitionColumnId ->
+                onAddCard(title, description, reminderAt, style, columnId, transitionColumnId)
                 showAddCardSheet = false
             },
             onDismiss = { showAddCardSheet = false }
