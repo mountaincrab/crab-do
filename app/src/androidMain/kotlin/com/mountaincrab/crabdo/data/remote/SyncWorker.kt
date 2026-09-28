@@ -11,6 +11,7 @@ import com.mountaincrab.crabdo.alarm.AlarmScheduler
 import com.mountaincrab.crabdo.data.local.dao.*
 import com.mountaincrab.crabdo.data.local.entity.BoardAccessEntity
 import com.mountaincrab.crabdo.data.model.SyncStatus
+import com.mountaincrab.crabdo.data.repository.TaskRepository
 import com.mountaincrab.crabdo.preferences.UserPreferencesRepository
 import kotlinx.coroutines.tasks.await
 import org.koin.core.component.KoinComponent
@@ -32,12 +33,16 @@ class SyncWorker(
     private val firestore: FirebaseFirestore by inject()
     private val auth: FirebaseAuth by inject()
     private val prefs: UserPreferencesRepository by inject()
+    private val taskRepository: TaskRepository by inject()
 
     override suspend fun doWork(): Result {
         val userId = auth.currentUser?.uid ?: return Result.failure()
         return try {
             pushPendingChanges(userId)
             pullRemoteChanges(userId)
+            // Apply column transitions for task reminders that came due without
+            // their alarm running here, then push the moves straight away.
+            if (taskRepository.applyDueReminderTransitions()) pushPendingChanges(userId)
             Result.success()
         } catch (e: Exception) {
             if (runAttemptCount < 3) Result.retry() else Result.failure()

@@ -122,8 +122,8 @@ fun KanbanBoardScreen(
                         viewModel.moveTask(taskId, toColumnId, minOrder - 2.0, minOrder)
                     },
                     onTaskTapped = { taskId -> editingTaskId = taskId },
-                    onAddCard = { title, description, reminderAt, style, columnId ->
-                        viewModel.createTask(columnId, title, description, reminderAt, style)
+                    onAddCard = { title, description, reminderAt, style, columnId, transitionColumnId ->
+                        viewModel.createTask(columnId, title, description, reminderAt, style, transitionColumnId)
                         if (columnId != activeColumnId) activeColumnId = columnId
                     },
                     modifier = Modifier.fillMaxSize()

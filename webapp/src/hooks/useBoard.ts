@@ -142,6 +142,7 @@ export function useBoard(userId: string, boardId: string) {
       order: maxOrder + 1,
       reminderTimeMillis: draft.reminderTimeMillis,
       reminderStyle: draft.reminderStyle,
+      reminderTransitionColumnId: draft.reminderTimeMillis != null ? draft.reminderTransitionColumnId : null,
       updatedAt: serverTimestamp(),
       isDeleted: false,
     })

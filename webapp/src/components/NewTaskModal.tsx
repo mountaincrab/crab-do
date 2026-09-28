@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Subtask } from '../types'
+import { Column, Subtask } from '../types'
 import ConfirmDialog from './ConfirmDialog'
 import TaskEditor, { orderBetween } from './TaskEditor'
 
@@ -8,10 +8,13 @@ export interface NewTaskDraft {
   description: string
   reminderTimeMillis: number | null
   reminderStyle: 'ALARM' | 'NOTIFICATION'
+  reminderTransitionColumnId: string | null
   subtasks: { title: string; isCompleted: boolean }[]
 }
 
 interface NewTaskModalProps {
+  columns: Column[]
+  columnId: string
   onCreate: (draft: NewTaskDraft) => Promise<unknown>
   onClose: () => void
 }
@@ -22,11 +25,12 @@ interface NewTaskModalProps {
  * empty task behind. Checklist items and the reminder are held in local state
  * and persisted alongside the task on submit.
  */
-export default function NewTaskModal({ onCreate, onClose }: NewTaskModalProps) {
+export default function NewTaskModal({ columns, columnId, onCreate, onClose }: NewTaskModalProps) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [reminderTimeMillis, setReminderTimeMillis] = useState<number | null>(null)
   const [reminderStyle, setReminderStyle] = useState<'ALARM' | 'NOTIFICATION'>('ALARM')
+  const [reminderTransitionColumnId, setReminderTransitionColumnId] = useState<string | null>(null)
   const [subtasks, setSubtasks] = useState<Subtask[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [confirmingDiscard, setConfirmingDiscard] = useState(false)
@@ -69,6 +73,7 @@ export default function NewTaskModal({ onCreate, onClose }: NewTaskModalProps) {
         description: description.trim(),
         reminderTimeMillis,
         reminderStyle,
+        reminderTransitionColumnId,
         subtasks: [...subtasks]
           .sort((a, b) => a.order - b.order)
           .map((s) => ({ title: s.title, isCompleted: s.isCompleted })),
@@ -90,8 +95,15 @@ export default function NewTaskModal({ onCreate, onClose }: NewTaskModalProps) {
         autoFocusTitle
         reminderTimeMillis={reminderTimeMillis}
         reminderStyle={reminderStyle}
-        onSaveReminder={(millis, style) => { setReminderTimeMillis(millis); setReminderStyle(style) }}
-        onClearReminder={() => setReminderTimeMillis(null)}
+        reminderTransitionColumnId={reminderTransitionColumnId}
+        columns={columns}
+        currentColumnId={columnId}
+        onSaveReminder={(millis, style, transitionColumnId) => {
+          setReminderTimeMillis(millis)
+          setReminderStyle(style)
+          setReminderTransitionColumnId(transitionColumnId)
+        }}
+        onClearReminder={() => { setReminderTimeMillis(null); setReminderTransitionColumnId(null) }}
         subtasks={subtasks}
         onAddSubtask={addSubtask}
         onToggleSubtask={(id, isCompleted) => patchSubtask(id, { isCompleted })}

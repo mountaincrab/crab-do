@@ -58,11 +58,13 @@ class KanbanBoardViewModel(
         title: String,
         description: String = "",
         reminderTimeMillis: Long? = null,
-        reminderStyle: TaskEntity.ReminderStyle = TaskEntity.ReminderStyle.ALARM
+        reminderStyle: TaskEntity.ReminderStyle = TaskEntity.ReminderStyle.ALARM,
+        reminderTransitionColumnId: String? = null
     ) {
         viewModelScope.launch {
             taskRepository.createTask(
-                boardId, columnId, title, description, reminderTimeMillis, reminderStyle
+                boardId, columnId, title, description, reminderTimeMillis, reminderStyle,
+                reminderTransitionColumnId
             )
         }
     }
@@ -90,6 +92,8 @@ class KanbanBoardViewModel(
                 reminderTimeMillis = if (edits.reminder != null) edits.reminder.timeMillis
                                      else existing.reminderTimeMillis,
                 reminderStyle = edits.reminder?.style ?: existing.reminderStyle,
+                reminderTransitionColumnId = if (edits.reminder != null) edits.reminder.transitionColumnId
+                                             else existing.reminderTransitionColumnId,
             )
             if (updated != existing) taskRepository.updateTask(updated)
             val toColumnId = edits.columnId
