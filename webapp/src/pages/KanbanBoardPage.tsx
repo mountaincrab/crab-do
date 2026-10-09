@@ -433,6 +433,7 @@ function TaskCardView({ task, subtaskCount, subtasks, onToggleSubtask, expanded,
   const [showMenu, setShowMenu] = useState(false)
   const [showMoveMenu, setShowMoveMenu] = useState(false)
   const otherColumns = allColumns.filter((c) => c.id !== task.columnId)
+  const reminderTime = task.snoozedUntilMillis ?? task.reminderTimeMillis
   const hasSubtasks = subtaskCount && subtaskCount.total > 0
   const allDone = hasSubtasks && subtaskCount!.completed === subtaskCount!.total
   const incompleteSubtasks = subtasks.filter((s) => !s.isCompleted)
@@ -459,7 +460,7 @@ function TaskCardView({ task, subtaskCount, subtasks, onToggleSubtask, expanded,
         <p className="text-xs text-fg-faint mt-1 line-clamp-2"><Linkified text={task.description} /></p>
       )}
 
-      {(hasSubtasks || task.reminderTimeMillis != null) && (
+      {(hasSubtasks || reminderTime != null) && (
         <div className="flex items-center gap-2 mt-2 flex-wrap">
           {hasSubtasks && (
             <button
@@ -473,13 +474,13 @@ function TaskCardView({ task, subtaskCount, subtasks, onToggleSubtask, expanded,
               {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
             </button>
           )}
-          {task.reminderTimeMillis != null && (
+          {reminderTime != null && (
             <span
               className="inline-flex items-center gap-1 text-xs font-medium text-accent"
-              title={`Reminder · ${new Date(task.reminderTimeMillis).toLocaleString()}`}
+              title={`${task.snoozedUntilMillis != null ? 'Snoozed until' : 'Reminder'} · ${new Date(reminderTime!).toLocaleString()}`}
             >
               {task.reminderStyle === 'ALARM' ? <BellRing size={12} /> : <Bell size={12} />}
-              {new Date(task.reminderTimeMillis).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
+              {task.snoozedUntilMillis != null ? `Snoozed until ${new Date(reminderTime!).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : new Date(reminderTime!).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
             </span>
           )}
         </div>

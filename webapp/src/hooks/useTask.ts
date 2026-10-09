@@ -34,9 +34,10 @@ export function useTask(userId: string, boardId: string, taskId: string) {
   const updateTask = async (
     fields: Partial<Pick<Task, 'title' | 'description' | 'reminderTimeMillis' | 'reminderStyle' | 'reminderTransitionColumnId'>>,
   ) => {
+    const reminderChanged = 'reminderTimeMillis' in fields || 'reminderStyle' in fields
     await updateDoc(
       doc(db, 'users', userId, 'boards', boardId, 'tasks', taskId),
-      { ...fields, updatedAt: serverTimestamp() },
+      { ...fields, ...(reminderChanged ? { snoozedUntilMillis: null } : {}), updatedAt: serverTimestamp() },
     )
   }
 

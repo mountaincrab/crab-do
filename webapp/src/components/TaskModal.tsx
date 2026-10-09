@@ -67,6 +67,7 @@ export default function TaskModal({ userId, boardId, taskId, columns, onClose }:
       onDescriptionChange={(v) => { setDescDraft(v); scheduleSave(titleDraft, v) }}
       onFieldBlur={flushSave}
       reminderTimeMillis={task?.reminderTimeMillis ?? null}
+      snoozedUntilMillis={task?.snoozedUntilMillis}
       reminderStyle={task?.reminderStyle ?? 'ALARM'}
       reminderTransitionColumnId={task?.reminderTransitionColumnId ?? null}
       columns={columns}

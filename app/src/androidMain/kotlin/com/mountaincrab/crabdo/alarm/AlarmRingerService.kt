@@ -37,7 +37,7 @@ import java.util.LinkedList
  */
 class AlarmRingerService : Service(), KoinComponent {
 
-    private data class AlarmItem(val reminderId: String, val title: String, val notificationId: Int)
+    private data class AlarmItem(val reminderId: String, val title: String, val notificationId: Int, val type: String)
 
     private val prefs: UserPreferencesRepository by inject()
 
@@ -69,19 +69,20 @@ class AlarmRingerService : Service(), KoinComponent {
                     return START_NOT_STICKY
                 }
                 val title = intent.getStringExtra(ReminderReceiver.EXTRA_TITLE) ?: "Reminder"
+                val type = intent.getStringExtra(ReminderReceiver.EXTRA_TYPE) ?: ReminderReceiver.TYPE_REMINDER
                 val notificationId = reminderId.hashCode() and 0x7FFFFFFF
 
                 if (queue.isEmpty()) {
                     Log.d(TAG, "Starting alarm ringer for '$title' (id=$reminderId)")
-                    val item = AlarmItem(reminderId, title, notificationId)
+                    val item = AlarmItem(reminderId, title, notificationId, type)
                     queue.add(item)
-                    startForeground(FOREGROUND_NOTIFICATION_ID, buildNotification(reminderId, title, notificationId))
+                    startForeground(FOREGROUND_NOTIFICATION_ID, buildNotification(reminderId, title, notificationId, type))
                     startAlarmSound()
                     acquireWakeLock()
                     scheduleAutoDismiss(item)
                 } else {
                     Log.d(TAG, "Queuing alarm '$title' (id=$reminderId), queue size will be ${queue.size + 1}")
-                    queue.add(AlarmItem(reminderId, title, notificationId))
+                    queue.add(AlarmItem(reminderId, title, notificationId, type))
                 }
             }
         }
@@ -94,7 +95,7 @@ class AlarmRingerService : Service(), KoinComponent {
         val next = queue.peek()
         if (next != null) {
             Log.d(TAG, "Advancing to next alarm: '${next.title}' (id=${next.reminderId})")
-            val notification = buildNotification(next.reminderId, next.title, next.notificationId)
+            val notification = buildNotification(next.reminderId, next.title, next.notificationId, next.type)
             startForeground(FOREGROUND_NOTIFICATION_ID, notification)
             scheduleAutoDismiss(next)
         } else {
@@ -126,7 +127,7 @@ class AlarmRingerService : Service(), KoinComponent {
         }
     }
 
-    private fun buildNotification(reminderId: String, title: String, notificationId: Int): Notification {
+    private fun buildNotification(reminderId: String, title: String, notificationId: Int, type: String): Notification {
         val dismissIntent = PendingIntent.getBroadcast(
             this, notificationId + 1000,
             Intent(this, ReminderReceiver::class.java).apply {
@@ -144,6 +145,7 @@ class AlarmRingerService : Service(), KoinComponent {
                 putExtra(ReminderReceiver.EXTRA_REMINDER_ID, reminderId)
                 putExtra(ReminderReceiver.EXTRA_NOTIFICATION_ID, notificationId)
                 putExtra(ReminderReceiver.EXTRA_TITLE, title)
+                putExtra(ReminderReceiver.EXTRA_TYPE, type)
                 putExtra(ReminderReceiver.EXTRA_STYLE, "ALARM")
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -167,6 +169,7 @@ class AlarmRingerService : Service(), KoinComponent {
                 putExtra(ReminderReceiver.EXTRA_REMINDER_ID, reminderId)
                 putExtra(ReminderReceiver.EXTRA_NOTIFICATION_ID, notificationId)
                 putExtra(ReminderReceiver.EXTRA_TITLE, title)
+                putExtra(ReminderReceiver.EXTRA_TYPE, type)
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )

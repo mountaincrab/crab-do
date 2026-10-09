@@ -21,8 +21,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.mountaincrab.crabdo.data.local.entity.ReminderStyle
 import com.mountaincrab.crabdo.data.repository.ReminderRepository
+import com.mountaincrab.crabdo.data.repository.TaskRepository
 import com.mountaincrab.crabdo.ui.theme.CrabbanTheme
 import com.mountaincrab.crabdo.ui.theme.ThemeViewModel
 import kotlinx.coroutines.CoroutineScope
@@ -36,6 +36,7 @@ class SnoozePickerActivity : ComponentActivity() {
 
     private val alarmScheduler: AlarmScheduler by inject()
     private val reminderRepository: ReminderRepository by inject()
+    private val taskRepository: TaskRepository by inject()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -56,8 +57,7 @@ class SnoozePickerActivity : ComponentActivity() {
         val notificationId = intent.getIntExtra(ReminderReceiver.EXTRA_NOTIFICATION_ID, -1)
         val title = intent.getStringExtra(ReminderReceiver.EXTRA_TITLE) ?: "Reminder"
         val styleStr = intent.getStringExtra(ReminderReceiver.EXTRA_STYLE) ?: "ALARM"
-        val style = try { ReminderStyle.valueOf(styleStr) }
-                    catch (e: Exception) { ReminderStyle.ALARM }
+        val type = intent.getStringExtra(ReminderReceiver.EXTRA_TYPE)
 
         if (notificationId != -1) {
             getSystemService(NotificationManager::class.java)?.cancel(notificationId)
@@ -74,9 +74,13 @@ class SnoozePickerActivity : ComponentActivity() {
                 SnoozePickerDialog(
                     onSnooze = { minutes ->
                         val snoozeMillis = System.currentTimeMillis() + minutes * 60_000L
-                        alarmScheduler.scheduleReminder(reminderId, title, snoozeMillis, styleStr)
                         activityScope.launch {
-                            reminderRepository.setSnoozeUntil(reminderId, snoozeMillis)
+                            if (type == ReminderReceiver.TYPE_TASK || taskRepository.getTask(reminderId) != null) {
+                                taskRepository.snoozeTaskReminder(reminderId, snoozeMillis)
+                            } else {
+                                reminderRepository.setSnoozeUntil(reminderId, snoozeMillis)
+                                alarmScheduler.scheduleReminder(reminderId, title, snoozeMillis, styleStr)
+                            }
                         }
                         finish()
                     },

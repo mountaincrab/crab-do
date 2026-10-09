@@ -46,6 +46,7 @@ class AlarmAlertActivity : ComponentActivity() {
         val title = intent.getStringExtra(ReminderReceiver.EXTRA_TITLE) ?: "Reminder"
         val notificationId = intent.getIntExtra(ReminderReceiver.EXTRA_NOTIFICATION_ID, -1)
         val reminderId = intent.getStringExtra(ReminderReceiver.EXTRA_REMINDER_ID) ?: ""
+        val type = intent.getStringExtra(ReminderReceiver.EXTRA_TYPE) ?: ReminderReceiver.TYPE_REMINDER
 
         setContent {
             val themeViewModel: ThemeViewModel = koinViewModel()
@@ -68,6 +69,7 @@ class AlarmAlertActivity : ComponentActivity() {
                             putExtra(ReminderReceiver.EXTRA_REMINDER_ID, reminderId)
                             putExtra(ReminderReceiver.EXTRA_NOTIFICATION_ID, notificationId)
                             putExtra(ReminderReceiver.EXTRA_TITLE, title)
+                            putExtra(ReminderReceiver.EXTRA_TYPE, type)
                             putExtra(ReminderReceiver.EXTRA_STYLE, "ALARM")
                         })
                         finish()

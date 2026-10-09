@@ -173,7 +173,7 @@ fun TaskDetailScreen(
                 Eyebrow("Reminder")
             }
             item {
-                task?.reminderTimeMillis?.let { millis ->
+                task?.nextReminderTimeMillis()?.let { millis ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
@@ -182,10 +182,11 @@ fun TaskDetailScreen(
                             tint = MaterialTheme.colorScheme.primary)
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            text = SimpleDateFormat("d MMM yyyy, HH:mm", Locale.getDefault())
+                            text = (if (task?.snoozedUntilMillis != null) "Snoozed until " else "") + SimpleDateFormat("d MMM yyyy, HH:mm", Locale.getDefault())
                                 .format(Date(millis)),
                             modifier = Modifier.weight(1f)
                         )
+                        TextButton(onClick = { showReminderDialog = true }) { Text("Change") }
                         TextButton(onClick = { viewModel.clearReminder() }) {
                             Icon(Icons.Default.NotificationsOff, contentDescription = null)
                             Spacer(Modifier.width(4.dp))

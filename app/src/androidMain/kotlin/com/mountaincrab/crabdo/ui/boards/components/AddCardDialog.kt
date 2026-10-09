@@ -56,6 +56,7 @@ import androidx.compose.ui.zIndex
 import com.mountaincrab.crabdo.data.local.entity.ColumnEntity
 import com.mountaincrab.crabdo.data.local.entity.SubtaskEntity
 import com.mountaincrab.crabdo.data.local.entity.TaskEntity
+import com.mountaincrab.crabdo.ui.theme.LocalAppPalette
 import com.mountaincrab.crabdo.ui.theme.Eyebrow
 import com.mountaincrab.crabdo.ui.theme.PillButton
 import com.mountaincrab.crabdo.ui.theme.PillGroup
@@ -203,9 +204,9 @@ fun EditCardDialog(
     var title by remember { mutableStateOf(TextFieldValue(task.title)) }
     var description by remember { mutableStateOf(TextFieldValue(task.description)) }
     var selectedColumnId by remember { mutableStateOf(task.columnId) }
-    var reminderEnabled by remember { mutableStateOf(task.reminderTimeMillis != null) }
+    var reminderEnabled by remember { mutableStateOf(task.nextReminderTimeMillis() != null) }
     var reminderStyle by remember { mutableStateOf(task.reminderStyle) }
-    var reminderMillis by remember { mutableStateOf(task.reminderTimeMillis ?: defaultReminderTime()) }
+    var reminderMillis by remember { mutableStateOf(task.nextReminderTimeMillis() ?: defaultReminderTime()) }
     var transitionColumnId by remember { mutableStateOf(task.reminderTransitionColumnId) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var newSubtask by remember { mutableStateOf(TextFieldValue("")) }
@@ -305,7 +306,7 @@ fun EditCardDialog(
     val submit = {
         val newReminderMillis = if (reminderEnabled) reminderMillis else null
         val newTransition = if (reminderEnabled) transitionColumnId?.takeIf { it != selectedColumnId } else null
-        val reminderChanged = newReminderMillis != opened.reminderTimeMillis ||
+        val reminderChanged = newReminderMillis != opened.nextReminderTimeMillis() ||
             (newReminderMillis != null && reminderStyle != opened.reminderStyle) ||
             newTransition != opened.reminderTransitionColumnId
         val edits = TaskEdits(
@@ -388,6 +389,15 @@ fun EditCardDialog(
                     onTransitionColumnChange = { transitionColumnId = it },
                     titleFocusRequester = null,
                 )
+                if (opened.snoozedUntilMillis != null && reminderEnabled &&
+                    reminderMillis == opened.nextReminderTimeMillis() && reminderStyle == opened.reminderStyle) {
+                    Text(
+                        "Snoozed until " + SimpleDateFormat("d MMM, HH:mm", Locale.getDefault())
+                            .format(Date(opened.snoozedUntilMillis)),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = LocalAppPalette.current.successText
+                    )
+                }
                 Eyebrow("Checklist")
 
                 // The checklist gets its own column so its rows sit tight

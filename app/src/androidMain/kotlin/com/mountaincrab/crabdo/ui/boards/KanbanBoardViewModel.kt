@@ -92,6 +92,7 @@ class KanbanBoardViewModel(
                 reminderTimeMillis = if (edits.reminder != null) edits.reminder.timeMillis
                                      else existing.reminderTimeMillis,
                 reminderStyle = edits.reminder?.style ?: existing.reminderStyle,
+                snoozedUntilMillis = if (edits.reminder != null) null else existing.snoozedUntilMillis,
                 reminderTransitionColumnId = if (edits.reminder != null) edits.reminder.transitionColumnId
                                              else existing.reminderTransitionColumnId,
             )

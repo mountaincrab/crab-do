@@ -34,7 +34,9 @@ fun TaskCard(
     modifier: Modifier = Modifier,
     onTap: () -> Unit
 ) {
-    val cardBorder = LocalAppPalette.current.cardBorder
+    val palette = LocalAppPalette.current
+    val cardBorder = palette.cardBorder
+    val reminderColor = if (task.snoozedUntilMillis != null) palette.successText else palette.accentText
     // NOTE: deliberately not using Card(onClick = …). Material3 Surface (which
     // Card uses internally for the onClick variant) applies
     // Modifier.minimumInteractiveComponentSize(), forcing every card to a
@@ -79,7 +81,7 @@ fun TaskCard(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            if (subtaskCount > 0 || task.reminderTimeMillis != null) {
+            if (subtaskCount > 0 || task.nextReminderTimeMillis() != null) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -106,19 +108,21 @@ fun TaskCard(
                             )
                         }
                     }
-                    task.reminderTimeMillis?.let { millis ->
+                    task.nextReminderTimeMillis()?.let { millis ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
                                 imageVector = Icons.Default.Notifications,
                                 contentDescription = "Reminder",
                                 modifier = Modifier.size(12.dp),
-                                tint = MaterialTheme.colorScheme.primary
+                                tint = reminderColor
                             )
                             Spacer(Modifier.width(3.dp))
                             Text(
-                                text = SimpleDateFormat("d MMM", Locale.getDefault()).format(Date(millis)),
+                                text = if (task.snoozedUntilMillis != null) {
+                                    "Snoozed until " + SimpleDateFormat("d MMM, HH:mm", Locale.getDefault()).format(Date(millis))
+                                } else SimpleDateFormat("d MMM, HH:mm", Locale.getDefault()).format(Date(millis)),
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary
+                                color = reminderColor
                             )
                         }
                     }

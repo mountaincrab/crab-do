@@ -114,7 +114,7 @@ val appModule = module {
             subtaskRepository = get(), userPrefsRepository = get()
         )
     }
-    viewModel { RemindersViewModel(reminderRepository = get(), authRepository = get(), workManager = get()) }
+    viewModel { RemindersViewModel(reminderRepository = get(), taskRepository = get(), authRepository = get(), workManager = get()) }
     viewModel { (reminderId: String?) ->
         AddEditOneOffReminderViewModel(
             existingReminderId = reminderId, reminderRepository = get(),

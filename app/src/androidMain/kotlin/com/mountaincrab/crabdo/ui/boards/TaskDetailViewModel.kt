@@ -61,7 +61,7 @@ class TaskDetailViewModel(
     fun setReminder(timeMillis: Long, style: TaskEntity.ReminderStyle) {
         viewModelScope.launch {
             task.value?.let {
-                taskRepository.updateTask(it.copy(reminderTimeMillis = timeMillis, reminderStyle = style))
+                taskRepository.updateTask(it.copy(reminderTimeMillis = timeMillis, snoozedUntilMillis = null, reminderStyle = style))
             }
         }
     }
@@ -69,7 +69,7 @@ class TaskDetailViewModel(
     fun clearReminder() {
         viewModelScope.launch {
             task.value?.let {
-                taskRepository.updateTask(it.copy(reminderTimeMillis = null, reminderTransitionColumnId = null))
+                taskRepository.updateTask(it.copy(reminderTimeMillis = null, snoozedUntilMillis = null, reminderTransitionColumnId = null))
             }
         }
     }
