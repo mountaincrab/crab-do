@@ -90,6 +90,7 @@ class KanbanBoardViewModel(
                 reminderTimeMillis = if (edits.reminder != null) edits.reminder.timeMillis
                                      else existing.reminderTimeMillis,
                 reminderStyle = edits.reminder?.style ?: existing.reminderStyle,
+                snoozedUntilMillis = if (edits.reminder != null) null else existing.snoozedUntilMillis,
             )
             if (updated != existing) taskRepository.updateTask(updated)
             val toColumnId = edits.columnId

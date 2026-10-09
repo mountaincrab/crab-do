@@ -26,6 +26,7 @@ export interface Task {
   description: string
   order: number
   reminderTimeMillis: number | null
+  snoozedUntilMillis?: number | null
   reminderStyle: 'ALARM' | 'NOTIFICATION'
   updatedAt: number
   isDeleted: boolean

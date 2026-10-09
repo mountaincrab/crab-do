@@ -97,6 +97,7 @@ object NotificationHelper {
                 putExtra(ReminderReceiver.EXTRA_NOTIFICATION_ID, notificationId)
                 putExtra(ReminderReceiver.EXTRA_TITLE, title)
                 putExtra(ReminderReceiver.EXTRA_STYLE, style.name)
+                putExtra(ReminderReceiver.EXTRA_TYPE, if (tapTarget == TapTarget.TASK) ReminderReceiver.TYPE_TASK else ReminderReceiver.TYPE_REMINDER)
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )

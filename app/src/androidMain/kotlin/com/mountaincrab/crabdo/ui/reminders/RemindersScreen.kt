@@ -22,6 +22,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.mountaincrab.crabdo.data.local.entity.OneOffReminderEntity
+import com.mountaincrab.crabdo.data.local.entity.TaskReminderSummary
+import com.mountaincrab.crabdo.ui.reminders.components.TaskReminderItem
 import com.mountaincrab.crabdo.data.local.entity.RecurringReminderEntity
 import com.mountaincrab.crabdo.ui.navigation.Screen
 import com.mountaincrab.crabdo.ui.reminders.components.OneOffReminderItem
@@ -39,6 +41,7 @@ fun RemindersScreen(
     innerPadding: PaddingValues = PaddingValues(),
     viewModel: RemindersViewModel = koinViewModel()
 ) {
+    val taskReminders by viewModel.taskReminders.collectAsStateWithLifecycle()
     val oneOffReminders by viewModel.oneOffReminders.collectAsStateWithLifecycle()
     val completedOneOffs by viewModel.completedOneOffs.collectAsStateWithLifecycle()
     val deletedOneOffs by viewModel.deletedOneOffs.collectAsStateWithLifecycle()
@@ -103,7 +106,7 @@ fun RemindersScreen(
                 modifier = Modifier.fillMaxSize()
             ) { page ->
                 when (page) {
-                    0 -> OneOffTab(oneOffReminders, completedOneOffs, deletedOneOffs, navController, viewModel)
+                    0 -> OneOffTab(oneOffReminders, completedOneOffs, deletedOneOffs, taskReminders, navController, viewModel)
                     1 -> RecurringTab(recurringReminders, deletedRecurring, navController, viewModel)
                 }
             }
@@ -117,13 +120,14 @@ private fun OneOffTab(
     reminders: List<OneOffReminderEntity>,
     completedReminders: List<OneOffReminderEntity>,
     deletedReminders: List<OneOffReminderEntity>,
+    taskReminders: List<TaskReminderSummary>,
     navController: NavController,
     viewModel: RemindersViewModel
 ) {
     var showCompleted by rememberSaveable { mutableStateOf(false) }
     var showDeleted by rememberSaveable { mutableStateOf(false) }
 
-    if (reminders.isEmpty() && completedReminders.isEmpty() && deletedReminders.isEmpty()) {
+    if (reminders.isEmpty() && completedReminders.isEmpty() && deletedReminders.isEmpty() && taskReminders.isEmpty()) {
         EmptyState("No one-off reminders", "Tap + to add one")
         return
     }
@@ -175,6 +179,14 @@ private fun OneOffTab(
             item { SectionHeader("Past") }
             items(pastItems, key = { it.id }) { reminder ->
                 OneOffRow(reminder, navController, viewModel)
+            }
+        }
+        if (taskReminders.isNotEmpty()) {
+            item { SectionHeader("Task reminders (${taskReminders.size})") }
+            items(taskReminders, key = { "task:${it.task.id}" }) { summary ->
+                TaskReminderItem(summary, Modifier.clickable {
+                    navController.navigate(Screen.TaskDetail.createRoute(summary.task.id))
+                })
             }
         }
         if (completedReminders.isNotEmpty()) {

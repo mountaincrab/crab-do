@@ -7,6 +7,11 @@ import com.mountaincrab.crabdo.data.local.entity.TaskEntity
 import com.mountaincrab.crabdo.data.model.SyncStatus
 import com.mountaincrab.crabdo.data.remote.SyncWorker
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 
 class TaskRepository(
@@ -14,8 +19,36 @@ class TaskRepository(
     private val alarmScheduler: AlarmScheduler,
     private val workManager: WorkManager
 ) {
+    private val repositoryScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    init {
+        // Observe Room once for the lifetime of the repository. This also reconciles
+        // remote edits/deletions and deleted parent boards/columns, even off-screen.
+        repositoryScope.launch {
+            var previous = emptyMap<String, TaskEntity>()
+            taskDao.observeTasksWithReminders().collect { tasks ->
+                val current = tasks.associateBy { it.id }
+                (previous.keys - current.keys).forEach { id ->
+                    // Re-read because a snooze may have been saved after this emission.
+                    val latest = taskDao.getActiveTaskById(id)
+                    if (latest == null) alarmScheduler.cancelTaskReminder(id)
+                    else scheduleTaskReminder(latest)
+                }
+                tasks.forEach { task ->
+                    val old = previous[task.id]
+                    if (old == null || old.title != task.title || old.reminderStyle != task.reminderStyle ||
+                        old.nextReminderTimeMillis() != task.nextReminderTimeMillis()) {
+                        taskDao.getActiveTaskById(task.id)?.let { scheduleTaskReminder(it) }
+                    }
+                }
+                previous = current
+            }
+        }
+    }
+
     fun observeTasksByColumn(columnId: String) = taskDao.observeTasksByColumn(columnId)
     fun observeTask(taskId: String) = taskDao.observeTask(taskId)
+    fun observeReminderSummary(userId: String) = taskDao.observeReminderSummary(userId)
 
     suspend fun getTask(taskId: String) = taskDao.getTaskById(taskId)
 
@@ -51,12 +84,7 @@ class TaskRepository(
         // Only re-arm a reminder that is still in the future. AlarmManager delivers a
         // past trigger time immediately, so rescheduling an already-fired reminder here
         // would re-ping the user on every subsequent edit of the task.
-        val time = task.reminderTimeMillis
-        if (time != null && time > System.currentTimeMillis()) {
-            alarmScheduler.scheduleTaskReminder(task.id, task.title, time, task.reminderStyle)
-        } else {
-            alarmScheduler.cancelTaskReminder(task.id)
-        }
+        scheduleTaskReminder(task)
         enqueueSyncWork()
     }
 
@@ -65,16 +93,27 @@ class TaskRepository(
      * nothing can re-arm it — otherwise the task stays permanently "armed" and later
      * edits (or a reboot) would fire it again.
      */
-    suspend fun onTaskReminderFired(taskId: String) {
-        val task = taskDao.getTaskById(taskId) ?: return
-        if (task.isDeleted || task.reminderTimeMillis == null) return
-        taskDao.upsert(task.copy(
-            reminderTimeMillis = null,
-            updatedAt = System.currentTimeMillis(),
-            syncStatus = SyncStatus.PENDING
-        ))
-        alarmScheduler.cancelTaskReminder(taskId)
+    suspend fun onTaskReminderFired(taskId: String, triggerMillis: Long?): TaskEntity? {
+        val task = taskDao.getTaskById(taskId) ?: return null
+        val trigger = triggerMillis ?: task.nextReminderTimeMillis() ?: return null
+        if (taskDao.consumeReminder(taskId, trigger) == 0) return null
         enqueueSyncWork()
+        return task
+    }
+
+    suspend fun snoozeTaskReminder(taskId: String, millis: Long) {
+        if (taskDao.snoozeReminder(taskId, millis) == 0) return
+        taskDao.getTaskById(taskId)?.let { scheduleTaskReminder(it) }
+        enqueueSyncWork()
+    }
+
+    private fun scheduleTaskReminder(task: TaskEntity) {
+        val time = task.nextReminderTimeMillis()
+        if (!task.isDeleted && time != null && time > System.currentTimeMillis()) {
+            alarmScheduler.scheduleTaskReminder(task.id, task.title, time, task.reminderStyle)
+        } else {
+            alarmScheduler.cancelTaskReminder(task.id)
+        }
     }
 
     suspend fun moveTask(taskId: String, newColumnId: String,
@@ -92,19 +131,13 @@ class TaskRepository(
     }
 
     suspend fun deleteTask(taskId: String) {
-        alarmScheduler.cancelTaskReminder(taskId)
         taskDao.softDelete(taskId)
+        alarmScheduler.cancelTaskReminder(taskId)
         enqueueSyncWork()
     }
 
     suspend fun rescheduleAllTaskReminders() {
-        taskDao.getTasksWithReminders().forEach { task ->
-            task.reminderTimeMillis?.let { time ->
-                if (time > System.currentTimeMillis()) {
-                    alarmScheduler.scheduleTaskReminder(task.id, task.title, time, task.reminderStyle)
-                }
-            }
-        }
+        taskDao.getTasksWithReminders().forEach { scheduleTaskReminder(it) }
     }
 
     private fun enqueueSyncWork() {

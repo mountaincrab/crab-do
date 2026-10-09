@@ -19,6 +19,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.mountaincrab.crabdo.data.local.entity.OneOffReminderEntity
+import com.mountaincrab.crabdo.data.local.entity.TaskReminderSummary
+import com.mountaincrab.crabdo.data.local.entity.TaskEntity
 import com.mountaincrab.crabdo.data.local.entity.RecurringReminderEntity
 import com.mountaincrab.crabdo.data.local.entity.ReminderStyle
 import com.mountaincrab.crabdo.data.model.RecurrenceRule
@@ -137,6 +139,28 @@ fun RecurringReminderItem(
                 }
             }
         }
+    )
+}
+
+@Composable
+fun TaskReminderItem(summary: TaskReminderSummary, modifier: Modifier = Modifier) {
+    val task = summary.task
+    val millis = task.nextReminderTimeMillis() ?: return
+    val palette = LocalAppPalette.current
+    val snoozed = task.snoozedUntilMillis != null
+    val timeText = SimpleDateFormat("d MMM, HH:mm", Locale.getDefault()).format(Date(millis))
+    ReminderRow(
+        modifier = modifier,
+        leadingIcon = if (snoozed) Icons.Default.Snooze else Icons.Default.Notifications,
+        leadingTileBg = palette.accentSoft,
+        leadingTileFg = if (snoozed) palette.successText else palette.accentText,
+        title = task.title,
+        titleColor = MaterialTheme.colorScheme.onSurface,
+        meta = "${summary.boardTitle} › ${summary.columnTitle} · " +
+            if (task.reminderStyle == TaskEntity.ReminderStyle.ALARM) "Alarm" else "Notification",
+        nextText = if (snoozed) null else timeText,
+        snoozeText = if (snoozed) "Snoozed until $timeText" else null,
+        trailing = {}
     )
 }
 

@@ -41,6 +41,7 @@ interface TaskEditorProps {
   onFieldBlur?: () => void
   autoFocusTitle?: boolean
   reminderTimeMillis: number | null
+  snoozedUntilMillis?: number | null
   reminderStyle: 'ALARM' | 'NOTIFICATION'
   onSaveReminder: (millis: number, style: 'ALARM' | 'NOTIFICATION') => void
   onClearReminder: () => void
@@ -64,10 +65,11 @@ interface TaskEditorProps {
  */
 export default function TaskEditor({
   title, description, onTitleChange, onDescriptionChange, onSubmitTitle, onFieldBlur, autoFocusTitle,
-  reminderTimeMillis, reminderStyle, onSaveReminder, onClearReminder,
+  reminderTimeMillis, snoozedUntilMillis, reminderStyle, onSaveReminder, onClearReminder,
   subtasks, onAddSubtask, onToggleSubtask, onDeleteSubtask, onRenameSubtask, onReorderSubtask,
   headerStatus, footer, onClose,
 }: TaskEditorProps) {
+  const effectiveReminderTime = snoozedUntilMillis ?? reminderTimeMillis
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('')
   const [editingReminder, setEditingReminder] = useState(false)
   const [reminderDraft, setReminderDraft] = useState(defaultReminderDatetimeLocal())
@@ -89,8 +91,8 @@ export default function TaskEditor({
 
   const openReminderEditor = () => {
     setReminderDraft(
-      reminderTimeMillis != null
-        ? millisToDatetimeLocal(reminderTimeMillis)
+      effectiveReminderTime != null
+        ? millisToDatetimeLocal(effectiveReminderTime)
         : defaultReminderDatetimeLocal(),
     )
     setReminderStyleDraft(reminderStyle)
@@ -238,7 +240,7 @@ export default function TaskEditor({
                     ))}
                   </div>
                   <div className="flex justify-end gap-2">
-                    {reminderTimeMillis != null && (
+                    {effectiveReminderTime != null && (
                       <button
                         onClick={clearReminder}
                         className="mr-auto px-3 py-1.5 rounded-lg text-danger-text hover:bg-surface-high text-sm font-semibold transition-colors"
@@ -261,13 +263,15 @@ export default function TaskEditor({
                     </button>
                   </div>
                 </div>
-              ) : reminderTimeMillis != null ? (
+              ) : effectiveReminderTime != null ? (
                 <div className="flex items-center gap-3 bg-surface border border-DEFAULT rounded-xl px-3 py-2.5">
                   <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-accent-soft text-accent-text">
                     {reminderStyle === 'ALARM' ? <AlarmClock size={16} /> : <Bell size={16} />}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-fg font-medium font-mono">{formatReminderTime(reminderTimeMillis)}</p>
+                    <p className={`text-sm font-medium font-mono ${snoozedUntilMillis != null ? 'text-success-text' : 'text-fg'}`}>
+                      {snoozedUntilMillis != null ? 'Snoozed until ' : ''}{formatReminderTime(effectiveReminderTime)}
+                    </p>
                     <p className="text-xs text-fg-muted mt-0.5">{reminderStyle === 'ALARM' ? 'Alarm' : 'Notification'}</p>
                   </div>
                   <button

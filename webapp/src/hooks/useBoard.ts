@@ -119,7 +119,7 @@ export function useBoard(userId: string, boardId: string) {
       .forEach((t) => {
         batch.update(
           doc(db, 'users', userId, 'boards', boardId, 'tasks', t.id),
-          { isDeleted: true, updatedAt: serverTimestamp() },
+          { isDeleted: true, reminderTimeMillis: null, snoozedUntilMillis: null, updatedAt: serverTimestamp() },
         )
       })
     await batch.commit()
@@ -141,6 +141,7 @@ export function useBoard(userId: string, boardId: string) {
       description: draft.description,
       order: maxOrder + 1,
       reminderTimeMillis: draft.reminderTimeMillis,
+      snoozedUntilMillis: null,
       reminderStyle: draft.reminderStyle,
       updatedAt: serverTimestamp(),
       isDeleted: false,
@@ -189,7 +190,7 @@ export function useBoard(userId: string, boardId: string) {
     const batch = writeBatch(db)
     batch.update(
       doc(db, 'users', userId, 'boards', boardId, 'tasks', taskId),
-      { isDeleted: true, updatedAt: serverTimestamp() },
+      { isDeleted: true, reminderTimeMillis: null, snoozedUntilMillis: null, updatedAt: serverTimestamp() },
     )
     const subtasksSnap = await getDocs(
       collection(db, 'users', userId, 'boards', boardId, 'tasks', taskId, 'subtasks'),

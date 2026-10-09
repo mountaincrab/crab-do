@@ -1,8 +1,6 @@
 package com.mountaincrab.crabdo.alarm
 
-import android.app.AlarmManager
 import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -41,32 +39,42 @@ class ReminderReceiver : BroadcastReceiver(), KoinComponent {
         Log.d(TAG, "handleFire: reminderId=$reminderId, style=$style, type=$type, title=$title")
 
         val isAlarm = style == ReminderStyle.ALARM
-        if (isAlarm) {
-            val serviceIntent = Intent(context, AlarmRingerService::class.java).apply {
-                action = AlarmRingerService.ACTION_START
-                putExtra(EXTRA_REMINDER_ID, reminderId)
-                putExtra(EXTRA_TITLE, title)
-                putExtra(EXTRA_NOTIFICATION_ID, notificationId)
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(serviceIntent)
-            } else {
-                context.startService(serviceIntent)
-            }
-        }
-
         val pendingResult = goAsync()
         val repo: ReminderRepository = get()
         val taskRepo: TaskRepository = get()
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         scope.launch {
             try {
+                // The lookup also recognises snoozes created by older app versions,
+                // which omitted EXTRA_TYPE and used the standalone alarm slot.
+                val isTask = type == TYPE_TASK || taskRepo.getTask(reminderId) != null
+                // Validate and consume the task's matching scheduled time before ringing.
+                // A deleted task or an old alarm replaced by a newer time must stay silent.
+                if (isTask) {
+                    val trigger = if (intent.hasExtra(EXTRA_TRIGGER_MILLIS))
+                        intent.getLongExtra(EXTRA_TRIGGER_MILLIS, 0L) else null
+                    if (taskRepo.onTaskReminderFired(reminderId, trigger) == null) return@launch
+                }
+                if (isAlarm) {
+                    val serviceIntent = Intent(context, AlarmRingerService::class.java).apply {
+                        action = AlarmRingerService.ACTION_START
+                        putExtra(EXTRA_REMINDER_ID, reminderId)
+                        putExtra(EXTRA_TITLE, title)
+                        putExtra(EXTRA_TYPE, if (isTask) TYPE_TASK else TYPE_REMINDER)
+                        putExtra(EXTRA_NOTIFICATION_ID, notificationId)
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        context.startForegroundService(serviceIntent)
+                    } else {
+                        context.startService(serviceIntent)
+                    }
+                }
                 // For notification-style reminders, resolve where a tap should navigate
                 // before firing (which may mark a one-off completed / advance a recurring),
                 // then post the notification with a matching content intent.
                 if (!isAlarm) {
                     val tapTarget = when {
-                        type == TYPE_TASK -> NotificationHelper.TapTarget.TASK
+                        isTask -> NotificationHelper.TapTarget.TASK
                         repo.getOneOffById(reminderId) != null -> NotificationHelper.TapTarget.ONE_OFF
                         repo.getRecurringById(reminderId) != null -> NotificationHelper.TapTarget.RECURRING
                         else -> NotificationHelper.TapTarget.ONE_OFF
@@ -77,9 +85,7 @@ class ReminderReceiver : BroadcastReceiver(), KoinComponent {
                 }
                 // A task reminder lives on the task, not in the reminders tables —
                 // onReminderFired would find nothing and leave it armed forever.
-                if (type == TYPE_TASK) {
-                    taskRepo.onTaskReminderFired(reminderId)
-                } else {
+                if (!isTask) {
                     repo.clearSnooze(reminderId)
                     repo.onReminderFired(reminderId)
                 }
@@ -106,16 +112,26 @@ class ReminderReceiver : BroadcastReceiver(), KoinComponent {
             context.getSystemService<NotificationManager>()?.cancel(notificationId)
         }
         val snoozeTime = System.currentTimeMillis() + 10 * 60 * 1000L
-        val alarmManager = context.getSystemService<AlarmManager>() ?: return
-        val pendingIntent = PendingIntent.getBroadcast(
-            context, reminderId.hashCode() and 0x7FFFFFFF,
-            Intent(context, ReminderReceiver::class.java).apply {
-                action = ACTION_FIRE_REMINDER
-                putExtra(EXTRA_REMINDER_ID, reminderId)
-            },
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, snoozeTime, pendingIntent)
+        val pendingResult = goAsync()
+        val taskRepo: TaskRepository = get()
+        val repo: ReminderRepository = get()
+        val scheduler: AlarmScheduler = get()
+        CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
+            try {
+                val task = taskRepo.getTask(reminderId)
+                if (intent.getStringExtra(EXTRA_TYPE) == TYPE_TASK || task != null) {
+                    taskRepo.snoozeTaskReminder(reminderId, snoozeTime)
+                } else {
+                    repo.setSnoozeUntil(reminderId, snoozeTime)
+                    scheduler.scheduleReminder(
+                        reminderId, intent.getStringExtra(EXTRA_TITLE) ?: "Reminder", snoozeTime,
+                        intent.getStringExtra(EXTRA_STYLE) ?: "ALARM"
+                    )
+                }
+            } finally {
+                pendingResult.finish()
+            }
+        }
         context.startService(Intent(context, AlarmRingerService::class.java).apply {
             action = AlarmRingerService.ACTION_ADVANCE
         })
@@ -129,6 +145,7 @@ class ReminderReceiver : BroadcastReceiver(), KoinComponent {
         const val EXTRA_REMINDER_ID = "reminder_id"
         const val EXTRA_NOTIFICATION_ID = "notification_id"
         const val EXTRA_TITLE = "title"
+        const val EXTRA_TRIGGER_MILLIS = "trigger_millis"
         const val EXTRA_TYPE = "type"
         const val EXTRA_STYLE = "style"
         // EXTRA_TYPE values: distinguishes a task reminder from a standalone reminder.

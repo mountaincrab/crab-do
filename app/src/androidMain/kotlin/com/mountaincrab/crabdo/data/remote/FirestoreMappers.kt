@@ -71,6 +71,7 @@ fun TaskEntity.toFirestoreMap(): Map<String, Any?> = mapOf(
     "description" to description,
     "order" to order,
     "reminderTimeMillis" to reminderTimeMillis,
+    "snoozedUntilMillis" to snoozedUntilMillis,
     "reminderStyle" to reminderStyle.name,
     "updatedAt" to FieldValue.serverTimestamp(),
     "isDeleted" to isDeleted
@@ -84,6 +85,7 @@ fun DocumentSnapshot.toTaskEntity(): TaskEntity = TaskEntity(
     description = getString("description") ?: "",
     order = getDouble("order") ?: 0.0,
     reminderTimeMillis = getLong("reminderTimeMillis"),
+    snoozedUntilMillis = getLong("snoozedUntilMillis"),
     reminderStyle = try {
         TaskEntity.ReminderStyle.valueOf(getString("reminderStyle") ?: "ALARM")
     } catch (e: Exception) { TaskEntity.ReminderStyle.ALARM },

@@ -49,7 +49,7 @@ export function useBoards(userId: string) {
     const tasksSnap = await getDocs(
       query(collection(db, 'users', userId, 'boards', boardId, 'tasks'), where('isDeleted', '==', false)),
     )
-    tasksSnap.docs.forEach((d) => batch.update(d.ref, { isDeleted: true, updatedAt: serverTimestamp() }))
+    tasksSnap.docs.forEach((d) => batch.update(d.ref, { isDeleted: true, reminderTimeMillis: null, snoozedUntilMillis: null, updatedAt: serverTimestamp() }))
     await batch.commit()
   }
 

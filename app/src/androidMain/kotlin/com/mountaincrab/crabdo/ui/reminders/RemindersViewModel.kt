@@ -8,6 +8,8 @@ import com.mountaincrab.crabdo.auth.AuthRepository
 import com.mountaincrab.crabdo.data.local.entity.OneOffReminderEntity
 import com.mountaincrab.crabdo.data.local.entity.RecurringReminderEntity
 import com.mountaincrab.crabdo.data.repository.ReminderRepository
+import com.mountaincrab.crabdo.data.repository.TaskRepository
+import com.mountaincrab.crabdo.data.local.entity.TaskReminderSummary
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -16,11 +18,16 @@ import kotlinx.coroutines.launch
 
 class RemindersViewModel(
     private val reminderRepository: ReminderRepository,
+    private val taskRepository: TaskRepository,
     private val authRepository: AuthRepository,
     private val workManager: WorkManager,
 ) : ViewModel() {
 
     private val userId = authRepository.currentUserId ?: ""
+
+    val taskReminders: StateFlow<List<TaskReminderSummary>> =
+        taskRepository.observeReminderSummary(userId)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val oneOffReminders: StateFlow<List<OneOffReminderEntity>> =
         reminderRepository.observeOneOffs(userId)

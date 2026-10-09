@@ -5,6 +5,7 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.mountaincrab.crabdo.data.remote.ForegroundSyncObserver
+import com.mountaincrab.crabdo.data.repository.TaskRepository
 import com.mountaincrab.crabdo.di.appModule
 import com.mountaincrab.crabdo.notification.NotificationHelper
 import org.koin.android.ext.koin.androidContext
@@ -28,6 +29,7 @@ class KanbanApplication : Application(), KoinComponent {
         }
 
         NotificationHelper.createChannels(this)
+        get<TaskRepository>() // Keep task alarms reconciled with local/synced changes.
 
         // Pull remote changes every time the app returns to the foreground.
         ProcessLifecycleOwner.get().lifecycle.addObserver(get<ForegroundSyncObserver>())

@@ -58,4 +58,29 @@ class MigrationTest {
         }
         db.close()
     }
+    @Test
+    fun migrate7To8_preservesTaskRemindersAndAddsSnooze() {
+        val name = "migration-test-7-8"
+        helper.createDatabase(name, 7).apply {
+            execSQL("INSERT INTO tasks (id, boardId, columnId, title, description, `order`, " +
+                "reminderTimeMillis, reminderStyle, updatedAt, syncStatus, isDeleted) " +
+                "VALUES ('t1', 'b1', 'c1', 'Pending task', '', 1, 123456, 'ALARM', 200, 'PENDING', 0)")
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(name, 8, true, *ALL_MIGRATIONS)
+        db.query("SELECT title, reminderTimeMillis, snoozedUntilMillis, syncStatus FROM tasks WHERE id = 't1'").use {
+            assertTrue(it.moveToFirst())
+            assertEquals("Pending task", it.getString(0))
+            assertEquals(123456L, it.getLong(1))
+            assertTrue(it.isNull(2))
+            assertEquals("PENDING", it.getString(3))
+        }
+        db.execSQL("UPDATE tasks SET snoozedUntilMillis = 234567 WHERE id = 't1'")
+        db.query("SELECT snoozedUntilMillis FROM tasks WHERE id = 't1'").use {
+            assertTrue(it.moveToFirst())
+            assertEquals(234567L, it.getLong(0))
+        }
+        db.close()
+    }
+
 }

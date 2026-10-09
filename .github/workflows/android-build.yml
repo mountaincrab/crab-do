@@ -98,6 +98,16 @@ jobs:
       - name: Build debug APK
         run: ./gradlew :app:assembleDebug
 
+      - name: Compile database regression tests
+        run: ./gradlew :app:assembleDebugAndroidTest
+
+      - name: Upload database schemas
+        uses: actions/upload-artifact@v4
+        with:
+          name: room-schemas
+          path: app/schemas/
+          retention-days: 14
+
       # Read the versionName Gradle baked into the APK so the filename matches it
       # exactly (single source of truth), e.g. crabdo-1.2.3-my-branch.abc1234.apk.
       - name: Rename APK

@@ -23,7 +23,9 @@ class AlarmScheduler(private val context: Context) {
         schedule(
             requestCode = taskRequestCode(taskId),
             triggerMillis = triggerMillis,
-            intent = buildTaskReminderIntent(taskId, title, style)
+            intent = buildTaskReminderIntent(taskId, title, style).apply {
+                putExtra(ReminderReceiver.EXTRA_TRIGGER_MILLIS, triggerMillis)
+            }
         )
     }
 
@@ -33,6 +35,8 @@ class AlarmScheduler(private val context: Context) {
 
     fun cancelTaskReminder(taskId: String) {
         cancel(taskRequestCode(taskId))
+        // Older versions put task snoozes in the standalone-reminder slot.
+        cancel(reminderRequestCode(taskId))
     }
 
     private fun schedule(requestCode: Int, triggerMillis: Long, intent: Intent) {
