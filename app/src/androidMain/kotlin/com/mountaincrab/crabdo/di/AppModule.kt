@@ -74,7 +74,7 @@ val appModule = module {
             subtaskDao = get(), firestore = get(), workManager = get()
         )
     }
-    single { TaskRepository(taskDao = get(), alarmScheduler = get(), workManager = get()) }
+    single { TaskRepository(taskDao = get(), columnDao = get(), alarmScheduler = get(), workManager = get()) }
     single { SubtaskRepository(subtaskDao = get(), workManager = get()) }
     single {
         ReminderRepository(

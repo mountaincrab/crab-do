@@ -119,7 +119,7 @@ export function useBoard(userId: string, boardId: string) {
       .forEach((t) => {
         batch.update(
           doc(db, 'users', userId, 'boards', boardId, 'tasks', t.id),
-          { isDeleted: true, reminderTimeMillis: null, snoozedUntilMillis: null, updatedAt: serverTimestamp() },
+          { isDeleted: true, reminderTimeMillis: null, snoozedUntilMillis: null, reminderTransitionColumnId: null, updatedAt: serverTimestamp() },
         )
       })
     await batch.commit()
@@ -143,6 +143,7 @@ export function useBoard(userId: string, boardId: string) {
       reminderTimeMillis: draft.reminderTimeMillis,
       snoozedUntilMillis: null,
       reminderStyle: draft.reminderStyle,
+      reminderTransitionColumnId: draft.reminderTimeMillis != null ? draft.reminderTransitionColumnId : null,
       updatedAt: serverTimestamp(),
       isDeleted: false,
     })
@@ -190,7 +191,7 @@ export function useBoard(userId: string, boardId: string) {
     const batch = writeBatch(db)
     batch.update(
       doc(db, 'users', userId, 'boards', boardId, 'tasks', taskId),
-      { isDeleted: true, reminderTimeMillis: null, snoozedUntilMillis: null, updatedAt: serverTimestamp() },
+      { isDeleted: true, reminderTimeMillis: null, snoozedUntilMillis: null, reminderTransitionColumnId: null, updatedAt: serverTimestamp() },
     )
     const subtasksSnap = await getDocs(
       collection(db, 'users', userId, 'boards', boardId, 'tasks', taskId, 'subtasks'),

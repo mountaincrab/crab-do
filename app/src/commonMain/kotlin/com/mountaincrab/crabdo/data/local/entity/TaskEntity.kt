@@ -18,6 +18,8 @@ data class TaskEntity(
     val reminderTimeMillis: Long? = null,
     val snoozedUntilMillis: Long? = null,
     val reminderStyle: ReminderStyle = ReminderStyle.ALARM,
+    // Column to move the task into when its reminder fires. Null = don't move.
+    val reminderTransitionColumnId: String? = null,
     val updatedAt: Long = currentTimeMillis(),
     val syncStatus: SyncStatus = SyncStatus.PENDING,
     val isDeleted: Boolean = false

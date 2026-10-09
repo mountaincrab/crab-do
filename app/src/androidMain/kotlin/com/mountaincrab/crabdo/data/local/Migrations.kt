@@ -23,11 +23,20 @@ private val MIGRATION_6_7 = object : Migration(6, 7) {
     }
 }
 
+// v7 → v8: a task reminder can optionally move the task into another column
+// when it fires. Nullable — null means the reminder doesn't move the task.
 private val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("ALTER TABLE tasks ADD COLUMN reminderTransitionColumnId TEXT")
+    }
+}
+
+// v8 → v9: persist task snoozes and index the cross-board reminder lookup.
+private val MIGRATION_8_9 = object : Migration(8, 9) {
     override fun migrate(connection: SQLiteConnection) {
         connection.execSQL("ALTER TABLE tasks ADD COLUMN snoozedUntilMillis INTEGER")
         connection.execSQL("CREATE INDEX IF NOT EXISTS index_tasks_boardId_isDeleted ON tasks (boardId, isDeleted)")
     }
 }
 
-val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)

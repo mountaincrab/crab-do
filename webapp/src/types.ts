@@ -28,6 +28,8 @@ export interface Task {
   reminderTimeMillis: number | null
   snoozedUntilMillis?: number | null
   reminderStyle: 'ALARM' | 'NOTIFICATION'
+  /** Column the task moves into when its reminder fires (Android applies it). Absent/null = no move. */
+  reminderTransitionColumnId?: string | null
   updatedAt: number
   isDeleted: boolean
 }

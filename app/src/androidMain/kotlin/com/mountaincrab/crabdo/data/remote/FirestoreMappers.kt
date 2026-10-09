@@ -73,6 +73,7 @@ fun TaskEntity.toFirestoreMap(): Map<String, Any?> = mapOf(
     "reminderTimeMillis" to reminderTimeMillis,
     "snoozedUntilMillis" to snoozedUntilMillis,
     "reminderStyle" to reminderStyle.name,
+    "reminderTransitionColumnId" to reminderTransitionColumnId,
     "updatedAt" to FieldValue.serverTimestamp(),
     "isDeleted" to isDeleted
 )
@@ -89,6 +90,7 @@ fun DocumentSnapshot.toTaskEntity(): TaskEntity = TaskEntity(
     reminderStyle = try {
         TaskEntity.ReminderStyle.valueOf(getString("reminderStyle") ?: "ALARM")
     } catch (e: Exception) { TaskEntity.ReminderStyle.ALARM },
+    reminderTransitionColumnId = getString("reminderTransitionColumnId"),
     updatedAt = getTimestamp("updatedAt")?.toDate()?.time ?: currentTimeMillis(),
     syncStatus = SyncStatus.SYNCED,
     isDeleted = getBoolean("isDeleted") ?: false

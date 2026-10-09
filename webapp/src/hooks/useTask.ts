@@ -32,7 +32,7 @@ export function useTask(userId: string, boardId: string, taskId: string) {
   }, [userId, boardId, taskId])
 
   const updateTask = async (
-    fields: Partial<Pick<Task, 'title' | 'description' | 'reminderTimeMillis' | 'reminderStyle'>>,
+    fields: Partial<Pick<Task, 'title' | 'description' | 'reminderTimeMillis' | 'reminderStyle' | 'reminderTransitionColumnId'>>,
   ) => {
     const reminderChanged = 'reminderTimeMillis' in fields || 'reminderStyle' in fields
     await updateDoc(

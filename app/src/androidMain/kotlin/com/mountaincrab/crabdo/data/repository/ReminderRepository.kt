@@ -101,7 +101,7 @@ class ReminderRepository(
         style: ReminderStyle
     ): RecurringReminderEntity {
         val (hour, minute) = parseReminderTime(reminderTime)
-        val nextFire = RecurrenceEngine.nextTriggerAfter(rule, System.currentTimeMillis(), hour, minute)
+        val nextFire = RecurrenceEngine.nextTriggerFrom(rule, startDate, System.currentTimeMillis(), hour, minute)
             ?: (System.currentTimeMillis() + 86_400_000L)
         val entity = RecurringReminderEntity(
             userId = userId,
@@ -121,9 +121,9 @@ class ReminderRepository(
 
     suspend fun updateRecurring(entity: RecurringReminderEntity) {
         val (hour, minute) = parseReminderTime(entity.reminderTime)
-        val nextFire = RecurrenceEngine.nextTriggerAfter(
+        val nextFire = RecurrenceEngine.nextTriggerFrom(
             RecurrenceRule.fromJson(entity.recurrenceRuleJson),
-            System.currentTimeMillis(), hour, minute
+            entity.startDate, System.currentTimeMillis(), hour, minute
         ) ?: entity.nextFireAt
         val updated = entity.copy(
             nextFireAt = nextFire,
@@ -161,7 +161,7 @@ class ReminderRepository(
             // No active snooze — advance past the current occurrence.
             // If nextFireAt is stale (past), catch up first so we don't skip an extra occurrence.
             val currentNext = if (reminder.nextFireAt > now) reminder.nextFireAt
-                else RecurrenceEngine.nextTriggerAfter(rule, now, hour, minute) ?: return
+                else RecurrenceEngine.nextTriggerFrom(rule, reminder.startDate, now, hour, minute) ?: return
             RecurrenceEngine.nextTriggerAfter(rule, currentNext, hour, minute) ?: return
         }
         recurringDao.advanceToNext(id, newNext)
@@ -189,7 +189,7 @@ class ReminderRepository(
         val existing = recurringDao.getById(id) ?: return
         val (hour, minute) = parseReminderTime(existing.reminderTime)
         val rule = RecurrenceRule.fromJson(existing.recurrenceRuleJson)
-        val nextFire = RecurrenceEngine.nextTriggerAfter(rule, System.currentTimeMillis(), hour, minute)
+        val nextFire = RecurrenceEngine.nextTriggerFrom(rule, existing.startDate, System.currentTimeMillis(), hour, minute)
             ?: (System.currentTimeMillis() + 86_400_000L)
         val restored = existing.copy(
             isDeleted = false,
@@ -235,7 +235,7 @@ class ReminderRepository(
         if (recurring != null && !recurring.isDeleted) {
             val (hour, minute) = parseReminderTime(recurring.reminderTime)
             val rule = RecurrenceRule.fromJson(recurring.recurrenceRuleJson)
-            val nextFire = RecurrenceEngine.nextTriggerAfter(rule, System.currentTimeMillis(), hour, minute)
+            val nextFire = RecurrenceEngine.nextTriggerFrom(rule, recurring.startDate, System.currentTimeMillis(), hour, minute)
             if (nextFire != null) {
                 recurringDao.advanceToNext(reminderId, nextFire)
                 if (recurring.isEnabled) {
@@ -274,7 +274,7 @@ class ReminderRepository(
                 reminder.nextFireAt
             } else {
                 val rule = RecurrenceRule.fromJson(reminder.recurrenceRuleJson)
-                val next = RecurrenceEngine.nextTriggerAfter(rule, now, hour, minute) ?: return@forEach
+                val next = RecurrenceEngine.nextTriggerFrom(rule, reminder.startDate, now, hour, minute) ?: return@forEach
                 recurringDao.advanceToNext(reminder.id, next)
                 next
             }
@@ -341,7 +341,7 @@ class ReminderRepository(
                                     entity.isEnabled -> {
                                         val rule = RecurrenceRule.fromJson(entity.recurrenceRuleJson)
                                         val (hour, minute) = parseReminderTime(entity.reminderTime)
-                                        RecurrenceEngine.nextTriggerAfter(rule, now, hour, minute)?.also { next ->
+                                        RecurrenceEngine.nextTriggerFrom(rule, entity.startDate, now, hour, minute)?.also { next ->
                                             recurringDao.advanceToNext(entity.id, next)
                                             enqueueSyncWork()
                                         }

@@ -18,7 +18,7 @@ import com.mountaincrab.crabdo.data.model.SyncStatus
         RecurringReminderEntity::class,
         BoardAccessEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = true
 )
 @TypeConverters(Converters::class)

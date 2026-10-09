@@ -31,6 +31,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.mountaincrab.crabdo.data.local.entity.ReminderStyle
+import com.mountaincrab.crabdo.data.repository.midnightOf
 import com.mountaincrab.crabdo.domain.RecurrenceEngine
 import com.mountaincrab.crabdo.ui.reminders.components.RecurrencePicker
 import com.mountaincrab.crabdo.ui.theme.Eyebrow
@@ -63,19 +64,6 @@ fun AddEditRecurringReminderScreen(
     LaunchedEffect(Unit) {
         if (!isEditing) titleFocusRequester.requestFocus()
     }
-
-    val initialCal = remember(viewModel.selectedDateTime) {
-        Calendar.getInstance().apply { timeInMillis = viewModel.selectedDateTime }
-    }
-
-    val datePickerState = rememberDatePickerState(
-        initialSelectedDateMillis = localDateToUtcMidnight(viewModel.selectedDateTime)
-    )
-    val timePickerState = rememberTimePickerState(
-        initialHour = initialCal.get(Calendar.HOUR_OF_DAY),
-        initialMinute = initialCal.get(Calendar.MINUTE),
-        is24Hour = true
-    )
 
     Scaffold(
         topBar = {
@@ -180,7 +168,10 @@ fun AddEditRecurringReminderScreen(
                         val rule = viewModel.recurrenceRule
                         val cal = Calendar.getInstance().apply { timeInMillis = viewModel.selectedDateTime }
                         val nextFire = if (rule != null) {
-                            RecurrenceEngine.nextTriggerAfter(rule, System.currentTimeMillis(), cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE))
+                            RecurrenceEngine.nextTriggerFrom(
+                                rule, midnightOf(viewModel.selectedDateTime), System.currentTimeMillis(),
+                                cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE)
+                            )
                         } else null
                         val nextStr = if (nextFire != null) {
                             " · Next: ${SimpleDateFormat("EEE d MMM, HH:mm", Locale.getDefault()).format(Date(nextFire))}"
@@ -221,7 +212,13 @@ fun AddEditRecurringReminderScreen(
         )
     }
 
+    // Picker states are created when the dialog opens (not once for the whole screen) so they
+    // start from the current selection — when editing, the ViewModel loads the saved value
+    // after the first composition, and a screen-level state would keep the placeholder.
     if (showDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = localDateToUtcMidnight(viewModel.selectedDateTime)
+        )
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
@@ -247,6 +244,12 @@ fun AddEditRecurringReminderScreen(
     }
 
     if (showTimePicker) {
+        val initialCal = Calendar.getInstance().apply { timeInMillis = viewModel.selectedDateTime }
+        val timePickerState = rememberTimePickerState(
+            initialHour = initialCal.get(Calendar.HOUR_OF_DAY),
+            initialMinute = initialCal.get(Calendar.MINUTE),
+            is24Hour = true
+        )
         ReminderTimePickerDialog(
             state = timePickerState,
             isKeyboardMode = viewModel.isTimeInputKeyboard,

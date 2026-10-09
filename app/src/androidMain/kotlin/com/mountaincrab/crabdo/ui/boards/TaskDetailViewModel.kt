@@ -69,7 +69,7 @@ class TaskDetailViewModel(
     fun clearReminder() {
         viewModelScope.launch {
             task.value?.let {
-                taskRepository.updateTask(it.copy(reminderTimeMillis = null, snoozedUntilMillis = null))
+                taskRepository.updateTask(it.copy(reminderTimeMillis = null, snoozedUntilMillis = null, reminderTransitionColumnId = null))
             }
         }
     }

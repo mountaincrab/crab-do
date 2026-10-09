@@ -1,16 +1,18 @@
 import { useRef, useState, useEffect } from 'react'
 import { useTask } from '../hooks/useTask'
+import { Column } from '../types'
 import TaskEditor from './TaskEditor'
 
 interface TaskModalProps {
   userId: string
   boardId: string
   taskId: string
+  columns: Column[]
   onClose: () => void
 }
 
 /** Editor for an existing task: every change autosaves, there is no Save button. */
-export default function TaskModal({ userId, boardId, taskId, onClose }: TaskModalProps) {
+export default function TaskModal({ userId, boardId, taskId, columns, onClose }: TaskModalProps) {
   const { task, subtasks, updateTask, addSubtask, toggleSubtask, deleteSubtask, renameSubtask, reorderSubtask } = useTask(
     userId, boardId, taskId,
   )
@@ -67,8 +69,13 @@ export default function TaskModal({ userId, boardId, taskId, onClose }: TaskModa
       reminderTimeMillis={task?.reminderTimeMillis ?? null}
       snoozedUntilMillis={task?.snoozedUntilMillis}
       reminderStyle={task?.reminderStyle ?? 'ALARM'}
-      onSaveReminder={(millis, style) => updateTask({ reminderTimeMillis: millis, reminderStyle: style })}
-      onClearReminder={() => updateTask({ reminderTimeMillis: null })}
+      reminderTransitionColumnId={task?.reminderTransitionColumnId ?? null}
+      columns={columns}
+      currentColumnId={task?.columnId ?? ''}
+      onSaveReminder={(millis, style, transitionColumnId) => updateTask({
+        reminderTimeMillis: millis, reminderStyle: style, reminderTransitionColumnId: transitionColumnId,
+      })}
+      onClearReminder={() => updateTask({ reminderTimeMillis: null, reminderTransitionColumnId: null })}
       subtasks={subtasks}
       onAddSubtask={addSubtask}
       onToggleSubtask={toggleSubtask}

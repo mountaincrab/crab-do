@@ -73,14 +73,15 @@ interface TaskDao {
     // Conditional updates keep a delivered old alarm from consuming a newer reminder,
     // and keep a stale snooze dialog from resurrecting a deleted task.
     @Query("""
-        UPDATE tasks SET reminderTimeMillis = NULL, snoozedUntilMillis = NULL,
+        UPDATE tasks SET reminderTimeMillis = NULL, snoozedUntilMillis = NULL, reminderTransitionColumnId = NULL,
+            columnId = COALESCE(:newColumnId, columnId), `order` = COALESCE(:newOrder, `order`),
             updatedAt = :updatedAt, syncStatus = 'PENDING'
         WHERE id = :taskId AND isDeleted = 0
           AND COALESCE(snoozedUntilMillis, reminderTimeMillis) = :triggerMillis
           AND boardId IN (SELECT id FROM boards WHERE isDeleted = 0)
           AND columnId IN (SELECT id FROM columns WHERE isDeleted = 0)
     """)
-    suspend fun consumeReminder(taskId: String, triggerMillis: Long, updatedAt: Long = currentTimeMillis()): Int
+    suspend fun consumeReminder(taskId: String, triggerMillis: Long, updatedAt: Long = currentTimeMillis(), newColumnId: String? = null, newOrder: Double? = null): Int
 
     @Query("""
         UPDATE tasks SET snoozedUntilMillis = :millis, updatedAt = :updatedAt, syncStatus = 'PENDING'
@@ -90,6 +91,6 @@ interface TaskDao {
     """)
     suspend fun snoozeReminder(taskId: String, millis: Long, updatedAt: Long = currentTimeMillis()): Int
 
-    @Query("UPDATE tasks SET isDeleted = 1, reminderTimeMillis = NULL, snoozedUntilMillis = NULL, updatedAt = :updatedAt, syncStatus = 'PENDING' WHERE id = :taskId")
+    @Query("UPDATE tasks SET isDeleted = 1, reminderTimeMillis = NULL, snoozedUntilMillis = NULL, reminderTransitionColumnId = NULL, updatedAt = :updatedAt, syncStatus = 'PENDING' WHERE id = :taskId")
     suspend fun softDelete(taskId: String, updatedAt: Long = currentTimeMillis())
 }

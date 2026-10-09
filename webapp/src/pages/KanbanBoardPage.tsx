@@ -230,12 +230,15 @@ export default function KanbanBoardPage() {
           userId={user!.uid}
           boardId={boardId!}
           taskId={editingTaskId}
+          columns={columns}
           onClose={closeTask}
         />
       )}
 
       {newTaskColumnId && (
         <NewTaskModal
+          columns={columns}
+          columnId={newTaskColumnId}
           onCreate={(draft) => createTask(newTaskColumnId, draft)}
           onClose={() => setNewTaskColumnId(null)}
         />

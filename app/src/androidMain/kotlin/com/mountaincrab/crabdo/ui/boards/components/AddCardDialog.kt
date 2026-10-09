@@ -74,7 +74,7 @@ import kotlinx.coroutines.launch
 fun AddCardDialog(
     columns: List<ColumnEntity>,
     currentColumnId: String,
-    onAdd: (title: String, description: String, reminderTimeMillis: Long?, reminderStyle: TaskEntity.ReminderStyle, columnId: String) -> Unit,
+    onAdd: (title: String, description: String, reminderTimeMillis: Long?, reminderStyle: TaskEntity.ReminderStyle, columnId: String, transitionColumnId: String?) -> Unit,
     onDismiss: () -> Unit
 ) {
     var title by remember { mutableStateOf(TextFieldValue("")) }
@@ -83,6 +83,7 @@ fun AddCardDialog(
     var reminderEnabled by remember { mutableStateOf(false) }
     var reminderStyle by remember { mutableStateOf(TaskEntity.ReminderStyle.NOTIFICATION) }
     var reminderMillis by remember { mutableStateOf(defaultReminderTime()) }
+    var transitionColumnId by remember { mutableStateOf<String?>(null) }
 
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
@@ -94,7 +95,8 @@ fun AddCardDialog(
                 description.text.trim(),
                 if (reminderEnabled) reminderMillis else null,
                 reminderStyle,
-                selectedColumnId
+                selectedColumnId,
+                if (reminderEnabled) transitionColumnId?.takeIf { it != selectedColumnId } else null
             )
         }
     }
@@ -134,6 +136,8 @@ fun AddCardDialog(
                         onReminderStyleChange = { reminderStyle = it },
                         reminderMillis = reminderMillis,
                         onReminderMillisChange = { reminderMillis = it },
+                        transitionColumnId = transitionColumnId,
+                        onTransitionColumnChange = { transitionColumnId = it },
                         titleFocusRequester = focusRequester,
                         // On the New Task dialog, the title field's return key
                         // submits (adds the task + closes) instead of advancing
@@ -154,7 +158,8 @@ fun AddCardDialog(
  */
 data class ReminderEdit(
     val timeMillis: Long?,
-    val style: TaskEntity.ReminderStyle
+    val style: TaskEntity.ReminderStyle,
+    val transitionColumnId: String? = null
 )
 
 /**
@@ -202,6 +207,7 @@ fun EditCardDialog(
     var reminderEnabled by remember { mutableStateOf(task.nextReminderTimeMillis() != null) }
     var reminderStyle by remember { mutableStateOf(task.reminderStyle) }
     var reminderMillis by remember { mutableStateOf(task.nextReminderTimeMillis() ?: defaultReminderTime()) }
+    var transitionColumnId by remember { mutableStateOf(task.reminderTransitionColumnId) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var newSubtask by remember { mutableStateOf(TextFieldValue("")) }
     var showSubtaskLinkDialog by remember { mutableStateOf(false) }
@@ -299,12 +305,14 @@ fun EditCardDialog(
     // typed in the web app) that had not yet reached this device.
     val submit = {
         val newReminderMillis = if (reminderEnabled) reminderMillis else null
+        val newTransition = if (reminderEnabled) transitionColumnId?.takeIf { it != selectedColumnId } else null
         val reminderChanged = newReminderMillis != opened.nextReminderTimeMillis() ||
-            (newReminderMillis != null && reminderStyle != opened.reminderStyle)
+            (newReminderMillis != null && reminderStyle != opened.reminderStyle) ||
+            newTransition != opened.reminderTransitionColumnId
         val edits = TaskEdits(
             title = title.text.trim().takeIf { it != opened.title },
             description = description.text.trim().takeIf { it != opened.description },
-            reminder = if (reminderChanged) ReminderEdit(newReminderMillis, reminderStyle) else null,
+            reminder = if (reminderChanged) ReminderEdit(newReminderMillis, reminderStyle, newTransition) else null,
             columnId = selectedColumnId.takeIf { it != opened.columnId }
         )
         if (title.text.isNotBlank() && !edits.isEmpty) onSave(edits)
@@ -377,6 +385,8 @@ fun EditCardDialog(
                     onReminderStyleChange = { reminderStyle = it },
                     reminderMillis = reminderMillis,
                     onReminderMillisChange = { reminderMillis = it },
+                    transitionColumnId = transitionColumnId,
+                    onTransitionColumnChange = { transitionColumnId = it },
                     titleFocusRequester = null,
                 )
                 if (opened.snoozedUntilMillis != null && reminderEnabled &&
@@ -683,6 +693,8 @@ private fun TaskFormFields(
     onReminderStyleChange: (TaskEntity.ReminderStyle) -> Unit,
     reminderMillis: Long,
     onReminderMillisChange: (Long) -> Unit,
+    transitionColumnId: String?,
+    onTransitionColumnChange: (String?) -> Unit,
     titleFocusRequester: FocusRequester?,
     titleImeAction: ImeAction = ImeAction.Next,
     onTitleImeAction: () -> Unit = {},
@@ -903,6 +915,12 @@ private fun TaskFormFields(
                         }
                     }
                 }
+
+                ReminderTransitionPicker(
+                    columns = columns.filter { it.id != selectedColumnId },
+                    transitionColumnId = transitionColumnId?.takeIf { it != selectedColumnId },
+                    onTransitionColumnChange = onTransitionColumnChange,
+                )
             }
         }
     }
@@ -1060,4 +1078,70 @@ private fun localDateToUtcMidnight(localMillis: Long): Long {
         )
         set(Calendar.MILLISECOND, 0)
     }.timeInMillis
+}
+
+/**
+ * "Also move task" checkbox + column dropdown shown under an enabled reminder.
+ * [columns] excludes the task's current column; a null [transitionColumnId]
+ * means the reminder won't move the task.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ReminderTransitionPicker(
+    columns: List<ColumnEntity>,
+    transitionColumnId: String?,
+    onTransitionColumnChange: (String?) -> Unit,
+) {
+    if (columns.isEmpty()) return
+    var expanded by remember { mutableStateOf(false) }
+    val selected = columns.firstOrNull { it.id == transitionColumnId }
+
+    Spacer(Modifier.height(4.dp))
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .clickable {
+                onTransitionColumnChange(if (selected == null) columns.first().id else null)
+            }
+    ) {
+        Checkbox(
+            checked = selected != null,
+            onCheckedChange = { checked ->
+                onTransitionColumnChange(if (checked) columns.first().id else null)
+            }
+        )
+        Text("Also move task to column", style = MaterialTheme.typography.bodyMedium)
+    }
+
+    if (selected != null) {
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = it },
+        ) {
+            OutlinedTextField(
+                value = selected.title,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Move to") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+            )
+            ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                columns.forEach { col ->
+                    DropdownMenuItem(
+                        text = { Text(col.title) },
+                        onClick = {
+                            onTransitionColumnChange(col.id)
+                            expanded = false
+                        }
+                    )
+                }
+            }
+        }
+    }
 }
