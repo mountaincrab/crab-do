@@ -137,6 +137,12 @@ class TaskRepository(
         enqueueSyncWork()
     }
 
+    suspend fun clearTaskReminder(taskId: String) {
+        if (taskDao.clearReminder(taskId) == 0) return
+        alarmScheduler.cancelTaskReminder(taskId)
+        enqueueSyncWork()
+    }
+
     private fun scheduleTaskReminder(task: TaskEntity) {
         val time = task.nextReminderTimeMillis()
         if (!task.isDeleted && time != null && time > System.currentTimeMillis()) {
