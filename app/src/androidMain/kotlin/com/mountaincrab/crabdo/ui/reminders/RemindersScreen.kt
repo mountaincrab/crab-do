@@ -184,9 +184,13 @@ private fun OneOffTab(
         if (taskReminders.isNotEmpty()) {
             item { SectionHeader("Task reminders (${taskReminders.size})") }
             items(taskReminders, key = { "task:${it.task.id}" }) { summary ->
-                TaskReminderItem(summary, Modifier.clickable {
-                    navController.navigate(Screen.TaskDetail.createRoute(summary.task.id))
-                })
+                TaskReminderItem(
+                    summary = summary,
+                    onDelete = { viewModel.deleteTaskReminder(summary.task.id) },
+                    modifier = Modifier.clickable {
+                        navController.navigate(Screen.TaskDetail.createRoute(summary.task.id))
+                    }
+                )
             }
         }
         if (completedReminders.isNotEmpty()) {

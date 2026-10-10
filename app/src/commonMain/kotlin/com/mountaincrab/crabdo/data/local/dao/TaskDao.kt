@@ -91,6 +91,13 @@ interface TaskDao {
     """)
     suspend fun snoozeReminder(taskId: String, millis: Long, updatedAt: Long = currentTimeMillis()): Int
 
+    @Query("""
+        UPDATE tasks SET reminderTimeMillis = NULL, snoozedUntilMillis = NULL, reminderTransitionColumnId = NULL,
+            updatedAt = :updatedAt, syncStatus = 'PENDING'
+        WHERE id = :taskId AND isDeleted = 0
+    """)
+    suspend fun clearReminder(taskId: String, updatedAt: Long = currentTimeMillis()): Int
+
     @Query("UPDATE tasks SET isDeleted = 1, reminderTimeMillis = NULL, snoozedUntilMillis = NULL, reminderTransitionColumnId = NULL, updatedAt = :updatedAt, syncStatus = 'PENDING' WHERE id = :taskId")
     suspend fun softDelete(taskId: String, updatedAt: Long = currentTimeMillis())
 }

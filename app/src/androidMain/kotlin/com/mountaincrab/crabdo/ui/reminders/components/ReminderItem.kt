@@ -143,7 +143,11 @@ fun RecurringReminderItem(
 }
 
 @Composable
-fun TaskReminderItem(summary: TaskReminderSummary, modifier: Modifier = Modifier) {
+fun TaskReminderItem(
+    summary: TaskReminderSummary,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     val task = summary.task
     val millis = task.nextReminderTimeMillis() ?: return
     val palette = LocalAppPalette.current
@@ -160,7 +164,16 @@ fun TaskReminderItem(summary: TaskReminderSummary, modifier: Modifier = Modifier
             if (task.reminderStyle == TaskEntity.ReminderStyle.ALARM) "Alarm" else "Notification",
         nextText = if (snoozed) null else timeText,
         snoozeText = if (snoozed) "Snoozed until $timeText" else null,
-        trailing = {}
+        trailing = {
+            IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
+                Icon(
+                    Icons.Default.Delete,
+                    contentDescription = "Delete reminder for ${task.title}",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
     )
 }
 

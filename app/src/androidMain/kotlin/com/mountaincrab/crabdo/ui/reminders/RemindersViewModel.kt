@@ -60,6 +60,10 @@ class RemindersViewModel(
         viewModelScope.launch { reminderRepository.deleteOneOff(id) }
     }
 
+    fun deleteTaskReminder(taskId: String) {
+        viewModelScope.launch { taskRepository.clearTaskReminder(taskId) }
+    }
+
     fun deleteRecurring(id: String) {
         viewModelScope.launch { reminderRepository.deleteRecurring(id) }
     }
