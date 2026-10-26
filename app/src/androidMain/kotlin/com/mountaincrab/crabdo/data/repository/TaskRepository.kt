@@ -64,10 +64,10 @@ class TaskRepository(
         reminderTransitionColumnId: String? = null
     ): TaskEntity {
         val tasks = taskDao.observeTasksByColumn(columnId).first()
-        val maxOrder = tasks.maxOfOrNull { it.order } ?: 0.0
+        val newOrder = tasks.minOfOrNull { it.order }?.minus(1.0) ?: 1.0
         val task = TaskEntity(
             boardId = boardId, columnId = columnId,
-            title = title, description = description, order = maxOrder + 1.0,
+            title = title, description = description, order = newOrder,
             reminderTimeMillis = reminderTimeMillis,
             reminderStyle = reminderStyle,
             reminderTransitionColumnId = reminderTransitionColumnId.takeIf { reminderTimeMillis != null }

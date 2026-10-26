@@ -131,7 +131,7 @@ export function useBoard(userId: string, boardId: string) {
    */
   const createTask = async (columnId: string, draft: NewTaskDraft) => {
     const colTasks = tasks.filter((t) => t.columnId === columnId)
-    const maxOrder = colTasks.length > 0 ? Math.max(...colTasks.map((t) => t.order)) : 0
+    const newOrder = colTasks.length > 0 ? Math.min(...colTasks.map((t) => t.order)) - 1 : 1
     const taskRef = doc(collection(db, 'users', userId, 'boards', boardId, 'tasks'))
     const batch = writeBatch(db)
     batch.set(taskRef, {
@@ -139,7 +139,7 @@ export function useBoard(userId: string, boardId: string) {
       columnId,
       title: draft.title,
       description: draft.description,
-      order: maxOrder + 1,
+      order: newOrder,
       reminderTimeMillis: draft.reminderTimeMillis,
       snoozedUntilMillis: null,
       reminderStyle: draft.reminderStyle,
