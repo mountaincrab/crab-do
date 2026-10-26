@@ -25,3 +25,6 @@ functions/node_modules/
 
 # Firebase deploy/emulator caches
 .firebase/
+
+# Python test caches
+__pycache__/

@@ -15,6 +15,8 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import android.util.Log
 
+data class TaskPage(val items: List<TaskEntity> = emptyList(), val next: TaskEntity? = null)
+
 class KanbanBoardViewModel(
     private val boardId: String,
     private val boardRepository: BoardRepository,
@@ -39,19 +41,57 @@ class KanbanBoardViewModel(
         boardRepository.observeColumns(boardId)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val tasksByColumn: StateFlow<Map<String, List<TaskEntity>>> =
-        columns.flatMapLatest { cols ->
-            if (cols.isEmpty()) flowOf(emptyMap())
-            else combine(cols.map { col ->
-                taskRepository.observeTasksByColumn(col.id)
-                    .map { tasks -> col.id to tasks }
-            }) { pairs -> pairs.toMap() }
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+    val taskPageStates = boardRepository.taskPageStates
+
+    private val editingTaskId = MutableStateFlow<String?>(null)
+    private val columnLimits = MutableStateFlow<Map<String, Int>>(emptyMap())
+
+    val taskCounts = taskRepository.observeColumnCounts(boardId)
+        .map { counts -> counts.associate { it.columnId to it.count } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    val taskPages: StateFlow<Map<String, TaskPage>> =
+        combine(columns, columnLimits) { cols, limits -> cols.associate { it.id to (limits[it.id] ?: 50) } }
+            .flatMapLatest { limits ->
+                boardRepository.setTaskWindows(boardId, limits)
+                if (limits.isEmpty()) flowOf(emptyMap())
+                else combine(limits.map { (columnId, limit) ->
+                    taskRepository.observeTaskWindow(columnId, limit + 1)
+                        .map { rows -> columnId to TaskPage(rows.take(limit), rows.getOrNull(limit)) }
+                }) { pairs -> pairs.toMap() }
+            }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     val subtaskCounts: StateFlow<Map<String, SubtaskCountAggregate>> =
-        subtaskRepository.observeSubtaskCountsForBoard(boardId)
+        combine(taskPages, editingTaskId) { pages, editing ->
+            (pages.values.flatMap { it.items }.map { it.id } + listOfNotNull(editing)).distinct().sorted()
+        }.distinctUntilChanged()
+            .flatMapLatest { ids ->
+                boardRepository.setVisibleTasks(boardId, ids)
+                if (ids.isEmpty()) flowOf(emptyList()) else subtaskRepository.observeCountsForTasks(ids)
+            }
             .map { list -> list.associateBy { it.taskId } }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    fun loadMore(columnId: String) {
+        columnLimits.update { it + (columnId to ((it[columnId] ?: 50) + 50)) }
+    }
+
+    fun retryColumn(columnId: String) {
+        viewModelScope.launch {
+            boardRepository.setTaskWindows(boardId, columns.value.associate { it.id to (columnLimits.value[it.id] ?: 50) }, columnId)
+        }
+    }
+
+    fun setEditingTask(taskId: String?) {
+        editingTaskId.value = taskId
+        viewModelScope.launch { boardRepository.setEditingTask(boardId, taskId) }
+    }
+
+    fun observeTask(taskId: String) = taskRepository.observeTask(taskId)
+
+    fun moveTaskToTop(taskId: String, columnId: String) {
+        viewModelScope.launch { taskRepository.moveTaskToTop(taskId, columnId) }
+    }
 
     fun createTask(
         columnId: String,
@@ -99,9 +139,7 @@ class KanbanBoardViewModel(
             if (updated != existing) taskRepository.updateTask(updated)
             val toColumnId = edits.columnId
             if (toColumnId != null && toColumnId != existing.columnId) {
-                val targetTasks = tasksByColumn.value[toColumnId] ?: emptyList()
-                val minOrder = targetTasks.minOfOrNull { it.order } ?: 1.0
-                taskRepository.moveTask(taskId, toColumnId, minOrder - 2.0, minOrder)
+                taskRepository.moveTaskToTop(taskId, toColumnId)
             }
         }
     }

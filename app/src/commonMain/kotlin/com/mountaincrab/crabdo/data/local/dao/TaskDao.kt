@@ -6,10 +6,24 @@ import com.mountaincrab.crabdo.data.local.entity.TaskReminderSummary
 import com.mountaincrab.crabdo.util.currentTimeMillis
 import kotlinx.coroutines.flow.Flow
 
+data class ColumnTaskCount(val columnId: String, val count: Int)
+
 @Dao
 interface TaskDao {
     @Query("SELECT * FROM tasks WHERE columnId = :columnId AND isDeleted = 0 ORDER BY `order`")
     fun observeTasksByColumn(columnId: String): Flow<List<TaskEntity>>
+
+    @Query("SELECT * FROM tasks WHERE columnId = :columnId AND isDeleted = 0 ORDER BY `order`, id LIMIT :limit")
+    fun observeTaskWindow(columnId: String, limit: Int): Flow<List<TaskEntity>>
+
+    @Query("SELECT columnId, COUNT(*) AS count FROM tasks WHERE boardId = :boardId AND isDeleted = 0 GROUP BY columnId")
+    fun observeColumnCounts(boardId: String): Flow<List<ColumnTaskCount>>
+
+    @Query("SELECT MAX(`order`) FROM tasks WHERE columnId = :columnId AND isDeleted = 0")
+    suspend fun maxOrder(columnId: String): Double?
+
+    @Query("SELECT MIN(`order`) FROM tasks WHERE columnId = :columnId AND isDeleted = 0")
+    suspend fun minOrder(columnId: String): Double?
 
     @Query("SELECT * FROM tasks WHERE boardId = :boardId AND isDeleted = 0")
     fun observeTasksByBoard(boardId: String): Flow<List<TaskEntity>>

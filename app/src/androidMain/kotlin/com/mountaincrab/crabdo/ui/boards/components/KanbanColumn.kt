@@ -45,6 +45,11 @@ import kotlin.math.abs
 fun KanbanColumn(
     column: ColumnEntity,
     tasks: List<TaskEntity>,
+    nextTaskOrder: Double? = null,
+    totalCount: Int = tasks.size,
+    onLoadMore: () -> Unit = {},
+    pageState: com.mountaincrab.crabdo.data.repository.PageLoadState = com.mountaincrab.crabdo.data.repository.PageLoadState(),
+    onRetry: () -> Unit = {},
     columns: List<ColumnEntity>,
     subtaskCounts: Map<String, SubtaskCountAggregate> = emptyMap(),
     onCardReordered: (taskId: String, orderBefore: Double, orderAfter: Double) -> Unit,
@@ -57,6 +62,7 @@ fun KanbanColumn(
 
     val displayTasksState = remember { mutableStateOf(tasks) }
     val currentTasksRef = rememberUpdatedState(tasks)
+    val nextTaskOrderRef = rememberUpdatedState(nextTaskOrder)
     val onCardReorderedRef = rememberUpdatedState(onCardReordered)
     val onCardMovedToColumnRef = rememberUpdatedState(onCardMovedToColumn)
     val columnsRef = rememberUpdatedState(columns)
@@ -127,7 +133,7 @@ fun KanbanColumn(
                         .padding(horizontal = 8.dp, vertical = 2.dp)
                 ) {
                     Text(
-                        text = tasks.size.toString(),
+                        text = totalCount.toString(),
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -347,7 +353,7 @@ fun KanbanColumn(
                                         val idx = current.indexOfFirst { it.id == capturedTaskId }
                                         if (idx >= 0) {
                                             val prevOrder = current.getOrNull(idx - 1)?.order
-                                            val nextOrder = current.getOrNull(idx + 1)?.order
+                                            val nextOrder = current.getOrNull(idx + 1)?.order ?: nextTaskOrderRef.value
                                             onCardReorderedRef.value(
                                                 capturedTaskId,
                                                 prevOrder ?: ((nextOrder ?: 1.0) - 2.0),
@@ -370,6 +376,13 @@ fun KanbanColumn(
                 }
             }
 
+            item("load-more") {
+                when {
+                    pageState.failed -> TextButton(onClick = onRetry, modifier = Modifier.fillMaxWidth()) { Text("Couldn't load tasks. Retry") }
+                    pageState.loading -> Text("Loading…", modifier = Modifier.padding(12.dp))
+                    nextTaskOrder != null -> TextButton(onClick = onLoadMore, modifier = Modifier.fillMaxWidth()) { Text("Load more") }
+                }
+            }
             item {
                 Row(
                     modifier = Modifier

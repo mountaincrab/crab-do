@@ -2,6 +2,8 @@ package com.mountaincrab.crabdo.data.repository
 
 import androidx.work.*
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.DocumentChange
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
@@ -17,6 +19,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.tasks.await
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -30,10 +35,16 @@ class BoardRepository(
     private val firestore: FirebaseFirestore,
     private val workManager: WorkManager
 ) {
-    private val repositoryScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val repositoryScope = CoroutineScope(Dispatchers.Main.immediate + SupervisorJob())
     private var boardListener: ListenerRegistration? = null
     private var columnListener: ListenerRegistration? = null
-    private var taskListener: ListenerRegistration? = null
+    private var editingTaskListener: ListenerRegistration? = null
+    private var editingTaskGeneration = 0
+    private val taskListeners = mutableMapOf<String, Pair<Int, ListenerRegistration>>()
+    private val _taskPageStates = MutableStateFlow<Map<String, PageLoadState>>(emptyMap())
+    val taskPageStates = _taskPageStates.asStateFlow()
+    private var activeBoardId: String? = null
+    private var listenerGeneration = 0
     private val subtaskListeners = mutableMapOf<String, ListenerRegistration>()
 
     fun observeBoards(userId: String) = boardDao.observeBoards(userId)
@@ -136,14 +147,14 @@ class BoardRepository(
             )
         }
 
-        boardRef.collection("columns").get().await().documents.forEach { doc ->
+        boardRef.collection("columns").forEachDocumentPage { doc ->
             columnDao.upsert(doc.toColumnEntity().copy(syncStatus = SyncStatus.SYNCED))
         }
 
-        boardRef.collection("tasks").get().await().documents.forEach { taskDoc ->
-            taskDao.upsert(taskDoc.toTaskEntity().copy(syncStatus = SyncStatus.SYNCED))
+        boardRef.collection("tasks").forEachDocumentPage { taskDoc ->
+            applyTaskDocument(taskDoc)
             boardRef.collection("tasks").document(taskDoc.id)
-                .collection("subtasks").get().await().documents.forEach { subDoc ->
+                .collection("subtasks").forEachDocumentPage { subDoc ->
                     subtaskDao.upsert(subDoc.toSubtaskEntity().copy(syncStatus = SyncStatus.SYNCED))
                 }
         }
@@ -163,9 +174,12 @@ class BoardRepository(
      */
     fun startBoardListener(boardId: String) {
         stopBoardListener()
+        activeBoardId = boardId
+        val generation = listenerGeneration
         repositoryScope.launch {
             // Shared boards live under the owner's subtree, not the local user's.
             val ownerUid = boardDao.getBoardById(boardId)?.userId ?: return@launch
+            if (generation != listenerGeneration) return@launch
             val boardRef = firestore.collection("users").document(ownerUid)
                 .collection("boards").document(boardId)
 
@@ -202,38 +216,87 @@ class BoardRepository(
                     }
                 }
 
-            taskListener = boardRef.collection("tasks")
-                .addSnapshotListener { snap, error ->
-                    if (error != null || snap == null) return@addSnapshotListener
-                    // Subtasks are a per-task subcollection, so each task carries its
-                    // own listener; attach/detach them as tasks come and go.
-                    for (change in snap.documentChanges) {
-                        val taskId = change.document.id
-                        when (change.type) {
-                            DocumentChange.Type.ADDED ->
-                                if (!subtaskListeners.containsKey(taskId)) {
-                                    subtaskListeners[taskId] = listenToSubtasks(boardRef, taskId)
-                                }
-                            DocumentChange.Type.REMOVED ->
-                                subtaskListeners.remove(taskId)?.remove()
-                            DocumentChange.Type.MODIFIED -> Unit
-                        }
+        }
+    }
+
+    // Only the requested prefix of each column has a live task listener. Room
+    // keeps the offline replica; background sync pulls changes in bounded batches.
+    suspend fun setTaskWindows(boardId: String, limits: Map<String, Int>, retryColumn: String? = null) {
+        val generation = listenerGeneration
+        val owner = boardDao.getBoardById(boardId)?.userId ?: return
+        if (activeBoardId != boardId || generation != listenerGeneration) return
+        val tasksRef = firestore.collection("users").document(owner)
+            .collection("boards").document(boardId).collection("tasks")
+        (taskListeners.keys - limits.keys).forEach { taskListeners.remove(it)?.second?.remove() }
+        limits.forEach { (columnId, limit) ->
+            if (taskListeners[columnId]?.first == limit && retryColumn != columnId) return@forEach
+            taskListeners.remove(columnId)?.second?.remove()
+            var active = true
+            _taskPageStates.update { it + (columnId to PageLoadState(loading = true)) }
+            val registration = tasksRef.whereEqualTo("columnId", columnId)
+                .whereEqualTo("isDeleted", false)
+                .orderBy("order").orderBy(FieldPath.documentId())
+                .limit((limit + 1).toLong())
+                .addSnapshotListener { snapshot, error ->
+                    if (!active || generation != listenerGeneration) return@addSnapshotListener
+                    if (error != null) {
+                        _taskPageStates.update { it + (columnId to PageLoadState(failed = true)) }
+                        return@addSnapshotListener
                     }
+                    if (snapshot == null) return@addSnapshotListener
                     repositoryScope.launch {
-                        for (change in snap.documentChanges) {
-                            val id = change.document.id
-                            when (change.type) {
-                                DocumentChange.Type.ADDED, DocumentChange.Type.MODIFIED -> {
-                                    if (taskDao.getTaskById(id)?.syncStatus == SyncStatus.PENDING) continue
-                                    taskDao.upsert(
-                                        change.document.toTaskEntity().copy(syncStatus = SyncStatus.SYNCED)
-                                    )
-                                }
-                                DocumentChange.Type.REMOVED -> taskDao.softDelete(id)
-                            }
+                        for (change in snapshot.documentChanges) {
+                            if (!active || generation != listenerGeneration) break
+                            // REMOVED can mean moved out of this limited window, not deleted.
+                            val document = if (change.type == DocumentChange.Type.REMOVED) {
+                                try { change.document.reference.get().await() }
+                                catch (_: Exception) { continue }
+                            } else change.document
+                            if (active && generation == listenerGeneration) applyTaskDocument(document)
                         }
+                        if (active && generation == listenerGeneration) _taskPageStates.update { it + (columnId to PageLoadState()) }
                     }
                 }
+            taskListeners[columnId] = limit to ListenerRegistration { active = false; registration.remove() }
+        }
+    }
+
+    private suspend fun applyTaskDocument(document: DocumentSnapshot) {
+        val existing = taskDao.getTaskById(document.id)
+        if (existing?.syncStatus == SyncStatus.PENDING) return
+        if (document.exists()) {
+            val remote = document.toTaskEntity().copy(syncStatus = SyncStatus.SYNCED)
+            if (existing == null || remote.updatedAt >= existing.updatedAt) taskDao.upsert(remote)
+        } else if (existing != null) taskDao.upsert(existing.copy(isDeleted = true, syncStatus = SyncStatus.SYNCED))
+    }
+
+    suspend fun setEditingTask(boardId: String, taskId: String?) {
+        val editingGeneration = ++editingTaskGeneration
+        editingTaskListener?.remove()
+        editingTaskListener = null
+        if (taskId == null) return
+        val generation = listenerGeneration
+        val owner = boardDao.getBoardById(boardId)?.userId ?: return
+        if (activeBoardId != boardId || generation != listenerGeneration || editingGeneration != editingTaskGeneration) return
+        var active = true
+        val registration = firestore.collection("users").document(owner).collection("boards").document(boardId)
+            .collection("tasks").document(taskId).addSnapshotListener { doc, error ->
+                if (!active || generation != listenerGeneration || error != null || doc == null) return@addSnapshotListener
+                repositoryScope.launch {
+                    if (active && generation == listenerGeneration) applyTaskDocument(doc)
+                }
+            }
+        editingTaskListener = ListenerRegistration { active = false; registration.remove() }
+    }
+
+    suspend fun setVisibleTasks(boardId: String, ids: List<String>) {
+        val generation = listenerGeneration
+        val owner = boardDao.getBoardById(boardId)?.userId ?: return
+        if (activeBoardId != boardId || generation != listenerGeneration) return
+        val boardRef = firestore.collection("users").document(owner).collection("boards").document(boardId)
+        (subtaskListeners.keys - ids.toSet()).forEach { subtaskListeners.remove(it)?.remove() }
+        ids.forEach { id ->
+            if (id !in subtaskListeners) subtaskListeners[id] = listenToSubtasks(boardRef, id)
         }
     }
 
@@ -261,9 +324,14 @@ class BoardRepository(
             }
 
     fun stopBoardListener() {
+        listenerGeneration++
+        activeBoardId = null
         boardListener?.remove(); boardListener = null
         columnListener?.remove(); columnListener = null
-        taskListener?.remove(); taskListener = null
+        editingTaskListener?.remove(); editingTaskListener = null
+        taskListeners.values.forEach { it.second.remove() }
+        taskListeners.clear()
+        _taskPageStates.value = emptyMap()
         subtaskListeners.values.forEach { it.remove() }
         subtaskListeners.clear()
     }

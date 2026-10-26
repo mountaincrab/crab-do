@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import {
   collection, doc, query, where, onSnapshot,
-  addDoc, serverTimestamp, getDocs, writeBatch,
+  addDoc, serverTimestamp, updateDoc,
 } from 'firebase/firestore'
 import { db } from '../firebase'
+import { clearedTaskReminder, softDeletePages } from '../lib/softDeletePages'
 import { Board } from '../types'
 
 export function useBoards(userId: string) {
@@ -37,20 +38,13 @@ export function useBoards(userId: string) {
   }
 
   const deleteBoard = async (boardId: string) => {
-    const batch = writeBatch(db)
-    batch.update(doc(db, 'users', userId, 'boards', boardId), {
-      isDeleted: true,
-      updatedAt: serverTimestamp(),
+    await softDeletePages(query(collection(db, 'users', userId, 'boards', boardId, 'tasks'),
+      where('isDeleted', '==', false)), clearedTaskReminder)
+    await softDeletePages(query(collection(db, 'users', userId, 'boards', boardId, 'columns'),
+      where('isDeleted', '==', false)))
+    await updateDoc(doc(db, 'users', userId, 'boards', boardId), {
+      isDeleted: true, updatedAt: serverTimestamp(),
     })
-    const colsSnap = await getDocs(
-      query(collection(db, 'users', userId, 'boards', boardId, 'columns'), where('isDeleted', '==', false)),
-    )
-    colsSnap.docs.forEach((d) => batch.update(d.ref, { isDeleted: true, updatedAt: serverTimestamp() }))
-    const tasksSnap = await getDocs(
-      query(collection(db, 'users', userId, 'boards', boardId, 'tasks'), where('isDeleted', '==', false)),
-    )
-    tasksSnap.docs.forEach((d) => batch.update(d.ref, { isDeleted: true, reminderTimeMillis: null, snoozedUntilMillis: null, reminderTransitionColumnId: null, updatedAt: serverTimestamp() }))
-    await batch.commit()
   }
 
   return { boards, loading, createBoard, deleteBoard }

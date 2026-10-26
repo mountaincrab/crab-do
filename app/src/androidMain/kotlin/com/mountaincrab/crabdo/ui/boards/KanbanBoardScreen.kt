@@ -36,7 +36,9 @@ fun KanbanBoardScreen(
 ) {
     val board by viewModel.board.collectAsStateWithLifecycle()
     val columns by viewModel.columns.collectAsStateWithLifecycle()
-    val tasksByColumn by viewModel.tasksByColumn.collectAsStateWithLifecycle()
+    val taskPageStates by viewModel.taskPageStates.collectAsStateWithLifecycle()
+    val taskPages by viewModel.taskPages.collectAsStateWithLifecycle()
+    val taskCounts by viewModel.taskCounts.collectAsStateWithLifecycle()
     val subtaskCounts by viewModel.subtaskCounts.collectAsStateWithLifecycle()
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     var showColumnConfig by remember { mutableStateOf(false) }
@@ -45,7 +47,10 @@ fun KanbanBoardScreen(
     var activeColumnId by remember { mutableStateOf("") }
     var hasAppliedDefault by remember { mutableStateOf(false) }
 
-    val editingTask = tasksByColumn.values.flatten().find { it.id == editingTaskId }
+    LaunchedEffect(editingTaskId) { viewModel.setEditingTask(editingTaskId) }
+    val editingTask by remember(editingTaskId) {
+        editingTaskId?.let { viewModel.observeTask(it) } ?: flowOf(null)
+    }.collectAsStateWithLifecycle(null)
     val editingSubtasks by remember(editingTaskId) {
         editingTaskId?.let { viewModel.observeSubtasks(it) } ?: flowOf(emptyList())
     }.collectAsStateWithLifecycle(emptyList())
@@ -67,8 +72,7 @@ fun KanbanBoardScreen(
     }
 
     val activeColumn = columns.find { it.id == activeColumnId }
-    val activeTasks = tasksByColumn[activeColumnId] ?: emptyList()
-    val taskCounts = columns.associate { it.id to (tasksByColumn[it.id]?.size ?: 0) }
+    val activePage = taskPages[activeColumnId] ?: TaskPage()
 
     Scaffold(
         topBar = {
@@ -109,7 +113,12 @@ fun KanbanBoardScreen(
             if (activeColumn != null) {
                 KanbanColumn(
                     column = activeColumn,
-                    tasks = activeTasks,
+                    tasks = activePage.items,
+                    nextTaskOrder = activePage.next?.order,
+                    totalCount = taskCounts[activeColumnId] ?: activePage.items.size,
+                    onLoadMore = { viewModel.loadMore(activeColumnId) },
+                    pageState = taskPageStates[activeColumnId] ?: com.mountaincrab.crabdo.data.repository.PageLoadState(),
+                    onRetry = { viewModel.retryColumn(activeColumnId) },
                     columns = columns,
                     subtaskCounts = subtaskCounts,
                     onCardReordered = { taskId, orderBefore, orderAfter ->
@@ -117,9 +126,7 @@ fun KanbanBoardScreen(
                     },
                     onCardMovedToColumn = { taskId, toColumnId ->
                         // Stay on the current column — just move the task in the background
-                        val targetTasks = tasksByColumn[toColumnId] ?: emptyList()
-                        val minOrder = targetTasks.minOfOrNull { it.order } ?: 1.0
-                        viewModel.moveTask(taskId, toColumnId, minOrder - 2.0, minOrder)
+                        viewModel.moveTaskToTop(taskId, toColumnId)
                     },
                     onTaskTapped = { taskId -> editingTaskId = taskId },
                     onAddCard = { title, description, reminderAt, style, columnId, transitionColumnId ->
@@ -132,7 +139,7 @@ fun KanbanBoardScreen(
         }
     }
 
-    editingTask?.let { task ->
+    editingTask?.takeUnless { it.isDeleted }?.let { task ->
         EditCardDialog(
             task = task,
             columns = columns,

@@ -5,6 +5,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import com.mountaincrab.crabdo.alarm.AlarmScheduler
@@ -61,7 +62,7 @@ class SyncWorker(
         boardDao.getDeletedUnsyncedBoards().forEach { board ->
             val ownerRef = firestore.collection("users").document(board.userId)
             ownerRef.collection("boards").document(board.id)
-                .set(mapOf("isDeleted" to true), SetOptions.merge()).await()
+                .set(mapOf("isDeleted" to true, "updatedAt" to FieldValue.serverTimestamp()), SetOptions.merge()).await()
             boardDao.markSynced(board.id)
         }
 
@@ -87,7 +88,7 @@ class SyncWorker(
             val ownerRef = firestore.collection("users").document(board.userId)
             ownerRef.collection("boards").document(task.boardId)
                 .collection("tasks").document(task.id)
-                .set(mapOf("isDeleted" to true), SetOptions.merge()).await()
+                .set(mapOf("isDeleted" to true, "updatedAt" to FieldValue.serverTimestamp()), SetOptions.merge()).await()
             taskDao.markSynced(task.id)
         }
 
@@ -109,7 +110,7 @@ class SyncWorker(
         }
         oneOffReminderDao.getDeletedUnsynced().forEach { reminder ->
             userRef.collection("reminders").document(reminder.id)
-                .set(mapOf("isDeleted" to true), SetOptions.merge()).await()
+                .set(mapOf("isDeleted" to true, "updatedAt" to FieldValue.serverTimestamp()), SetOptions.merge()).await()
             oneOffReminderDao.markSynced(reminder.id, reminder.updatedAt)
         }
 
@@ -120,18 +121,19 @@ class SyncWorker(
         }
         recurringReminderDao.getDeletedUnsynced().forEach { reminder ->
             userRef.collection("recurringReminders").document(reminder.id)
-                .set(mapOf("isDeleted" to true), SetOptions.merge()).await()
+                .set(mapOf("isDeleted" to true, "updatedAt" to FieldValue.serverTimestamp()), SetOptions.merge()).await()
             recurringReminderDao.markSynced(reminder.id, reminder.updatedAt)
         }
     }
 
     private suspend fun pullRemoteChanges(userId: String) {
+        val syncStartedAt = System.currentTimeMillis()
         val sinceTimestamp = Timestamp(prefs.getLastSyncTimestamp() / 1000, 0)
         val userRef = firestore.collection("users").document(userId)
 
         userRef.collection("boards")
             .whereGreaterThan("updatedAt", sinceTimestamp)
-            .get().await().documents.forEach { doc ->
+            .forEachDocumentPage { doc ->
                 boardDao.upsert(doc.toBoardEntity(userId).copy(syncStatus = SyncStatus.SYNCED))
             }
 
@@ -139,17 +141,20 @@ class SyncWorker(
             val boardRef = userRef.collection("boards").document(boardId)
             boardRef.collection("columns")
                 .whereGreaterThan("updatedAt", sinceTimestamp)
-                .get().await().documents.forEach { doc ->
+                .forEachDocumentPage { doc ->
                     columnDao.upsert(doc.toColumnEntity().copy(syncStatus = SyncStatus.SYNCED))
                 }
             boardRef.collection("tasks")
                 .whereGreaterThan("updatedAt", sinceTimestamp)
-                .get().await().documents.forEach { taskDoc ->
-                    taskDao.upsert(taskDoc.toTaskEntity().copy(syncStatus = SyncStatus.SYNCED))
+                .forEachDocumentPage { taskDoc ->
+                    val existingTask = taskDao.getTaskById(taskDoc.id)
+                    val remoteTask = taskDoc.toTaskEntity().copy(syncStatus = SyncStatus.SYNCED)
+                    if (existingTask?.syncStatus != SyncStatus.PENDING &&
+                        (existingTask == null || remoteTask.updatedAt >= existingTask.updatedAt)) taskDao.upsert(remoteTask)
                     boardRef.collection("tasks").document(taskDoc.id)
                         .collection("subtasks")
                         .whereGreaterThan("updatedAt", sinceTimestamp)
-                        .get().await().documents.forEach { subDoc ->
+                        .forEachDocumentPage { subDoc ->
                             subtaskDao.upsert(subDoc.toSubtaskEntity().copy(syncStatus = SyncStatus.SYNCED))
                         }
                 }
@@ -166,15 +171,18 @@ class SyncWorker(
                     )
                 )
                 ownerRef.collection("boards").document(access.boardId)
-                    .collection("columns").get().await().documents.forEach { doc ->
+                    .collection("columns").forEachDocumentPage { doc ->
                         columnDao.upsert(doc.toColumnEntity().copy(syncStatus = SyncStatus.SYNCED))
                     }
                 ownerRef.collection("boards").document(access.boardId)
-                    .collection("tasks").get().await().documents.forEach { taskDoc ->
-                        taskDao.upsert(taskDoc.toTaskEntity().copy(syncStatus = SyncStatus.SYNCED))
+                    .collection("tasks").forEachDocumentPage { taskDoc ->
+                        val existingTask = taskDao.getTaskById(taskDoc.id)
+                        val remoteTask = taskDoc.toTaskEntity().copy(syncStatus = SyncStatus.SYNCED)
+                        if (existingTask?.syncStatus != SyncStatus.PENDING &&
+                            (existingTask == null || remoteTask.updatedAt >= existingTask.updatedAt)) taskDao.upsert(remoteTask)
                         ownerRef.collection("boards").document(access.boardId)
                             .collection("tasks").document(taskDoc.id)
-                            .collection("subtasks").get().await().documents.forEach { subDoc ->
+                            .collection("subtasks").forEachDocumentPage { subDoc ->
                                 subtaskDao.upsert(subDoc.toSubtaskEntity().copy(syncStatus = SyncStatus.SYNCED))
                             }
                     }
@@ -185,8 +193,10 @@ class SyncWorker(
 
         userRef.collection("reminders")
             .whereGreaterThan("updatedAt", sinceTimestamp)
-            .get().await().documents.forEach { doc ->
+            .forEachDocumentPage { doc ->
                 val reminder = doc.toOneOffReminderEntity(userId).copy(syncStatus = SyncStatus.SYNCED)
+                val existing = oneOffReminderDao.getById(reminder.id)
+                if (existing?.syncStatus == SyncStatus.PENDING || (existing != null && existing.updatedAt > reminder.updatedAt)) return@forEachDocumentPage
                 oneOffReminderDao.upsert(reminder)
                 val fireAt = reminder.snoozedUntilMillis?.takeIf { it > now } ?: reminder.scheduledAt
                 if (!reminder.isCompleted && !reminder.isDeleted && fireAt > now) {
@@ -198,8 +208,10 @@ class SyncWorker(
 
         userRef.collection("recurringReminders")
             .whereGreaterThan("updatedAt", sinceTimestamp)
-            .get().await().documents.forEach { doc ->
+            .forEachDocumentPage { doc ->
                 val reminder = doc.toRecurringReminderEntity(userId).copy(syncStatus = SyncStatus.SYNCED)
+                val existing = recurringReminderDao.getById(reminder.id)
+                if (existing?.syncStatus == SyncStatus.PENDING || (existing != null && existing.updatedAt > reminder.updatedAt)) return@forEachDocumentPage
                 recurringReminderDao.upsert(reminder)
                 val fireAt = reminder.snoozedUntilMillis?.takeIf { it > now } ?: reminder.nextFireAt
                 if (reminder.isEnabled && !reminder.isDeleted && fireAt > now) {
@@ -209,6 +221,6 @@ class SyncWorker(
                 }
             }
 
-        prefs.setLastSyncTimestamp(System.currentTimeMillis())
+        prefs.setLastSyncTimestamp(syncStartedAt)
     }
 }

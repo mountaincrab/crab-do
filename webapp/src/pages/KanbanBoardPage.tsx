@@ -3,6 +3,9 @@ import { useParams } from 'react-router-dom'
 import { Bell, BellRing, Check, ChevronDown, ChevronRight, ChevronUp, ListChecks, MoreHorizontal, Plus, Settings2 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useBoard, SubtaskCount } from '../hooks/useBoard'
+import { useBoardColumn } from '../hooks/useBoardColumn'
+import LoadMore from '../components/LoadMore'
+import { orderForGap } from '../lib/taskOrder'
 import { Column, Subtask, Task } from '../types'
 import AppShell from '../components/AppShell'
 import TaskModal from '../components/TaskModal'
@@ -13,7 +16,7 @@ export default function KanbanBoardPage() {
   const { boardId } = useParams<{ boardId: string }>()
   const { user } = useAuth()
   const {
-    board, columns, tasksByColumn, subtaskCounts, subtasksByTask, loading,
+    board, columns, loading, error,
     addColumn, renameColumn, deleteColumn, reorderColumns,
     createTask, moveTask, deleteTask, toggleSubtask,
   } = useBoard(user!.uid, boardId!)
@@ -95,6 +98,7 @@ export default function KanbanBoardPage() {
         </button>
       </header>
 
+      {error && <p role="alert" className="text-danger-text p-4">Couldn’t load board. Reload to retry.</p>}
       <div className="flex-1 overflow-x-auto">
         <div className="flex gap-4 p-6 h-full items-stretch">
           {columns.length === 0 ? (
@@ -103,12 +107,11 @@ export default function KanbanBoardPage() {
             </div>
           ) : (
             columns.map((col) => (
-              <KanbanColumnView
-                key={col.id}
+              <PagedKanbanColumn
+                key={`${user!.uid}/${boardId}/${col.id}`}
                 column={col}
-                tasks={tasksByColumn[col.id] ?? []}
-                subtaskCounts={subtaskCounts}
-                subtasksByTask={subtasksByTask}
+                userId={user!.uid}
+                boardId={boardId!}
                 onToggleSubtask={toggleSubtask}
                 expandedTasks={expandedTasks}
                 onToggleExpand={toggleExpand}
@@ -247,13 +250,11 @@ export default function KanbanBoardPage() {
   )
 }
 
-function orderForGap(gap: number, tasks: Task[]): number {
-  const prev = tasks[gap - 1]
-  const next = tasks[gap]
-  if (!prev && !next) return 1
-  if (!prev) return next.order - 1
-  if (!next) return prev.order + 1
-  return (prev.order + next.order) / 2
+function PagedKanbanColumn({ userId, boardId, ...props }: Omit<ColumnViewProps,
+  'tasks' | 'subtaskCounts' | 'subtasksByTask' | 'page'> & { userId: string; boardId: string }) {
+  const { page, subtaskCounts, subtasksByTask } = useBoardColumn(userId, boardId, props.column.id)
+  return <KanbanColumnView {...props} tasks={page.items} page={page}
+    subtaskCounts={subtaskCounts} subtasksByTask={subtasksByTask} />
 }
 
 function DropPlaceholder({ height }: { height: number }) {
@@ -268,6 +269,7 @@ function DropPlaceholder({ height }: { height: number }) {
 interface ColumnViewProps {
   column: Column
   tasks: Task[]
+  page: ReturnType<typeof useBoardColumn>['page']
   subtaskCounts: Record<string, SubtaskCount>
   subtasksByTask: Record<string, Subtask[]>
   onToggleSubtask: (taskId: string, subtaskId: string, isCompleted: boolean) => void
@@ -279,7 +281,7 @@ interface ColumnViewProps {
   onDragStart: (taskId: string, height: number) => void
   onDragEnd: () => void
   onAddTask: () => void
-  onMoveTask: (taskId: string, targetColumnId: string, newOrder: number) => void
+  onMoveTask: (taskId: string, targetColumnId: string, newOrder?: number) => void
   onDeleteTask: (taskId: string) => void
   onRename: () => void
   onDelete: () => void
@@ -287,7 +289,7 @@ interface ColumnViewProps {
 }
 
 function KanbanColumnView({
-  column, tasks, subtaskCounts, subtasksByTask, onToggleSubtask, expandedTasks, onToggleExpand, allColumns,
+  column, tasks, page, subtaskCounts, subtasksByTask, onToggleSubtask, expandedTasks, onToggleExpand, allColumns,
   draggingTaskId, draggingHeight,
   onDragStart, onDragEnd,
   onAddTask, onMoveTask, onDeleteTask,
@@ -331,7 +333,7 @@ function KanbanColumnView({
     const gap = getGapFromEvent(e)
     setHoverGap(null)
     if (taskId) {
-      onMoveTask(taskId, column.id, orderForGap(gap, visibleTasks))
+      onMoveTask(taskId, column.id, orderForGap(gap, visibleTasks, page.next))
     }
     onDragEnd()
   }
@@ -346,7 +348,7 @@ function KanbanColumnView({
       <div className="flex items-center justify-between px-1 shrink-0">
         <div className="flex items-center gap-2">
           <span className="font-bold text-sm text-fg">{column.title}</span>
-          <span className="text-xs text-fg-muted bg-surface-high px-2 py-0.5 rounded-full font-semibold">{tasks.length}</span>
+          <span className="text-xs text-fg-muted bg-surface-high px-2 py-0.5 rounded-full font-semibold">{tasks.length}{page.hasMore ? '+' : ''}</span>
         </div>
         <div className="relative">
           <button
@@ -389,12 +391,13 @@ function KanbanColumnView({
               isDragging={isDragging}
               onDragStart={onDragStart}
               onDragEnd={onDragEnd}
-              onMove={(taskId, colId) => onMoveTask(taskId, colId, orderForGap(visibleTasks.length, tasks.filter((t) => t.columnId === colId && t.id !== taskId)))}
+              onMove={(taskId, colId) => onMoveTask(taskId, colId)}
               onDelete={onDeleteTask}
               onClick={() => onTaskClick(task.id)}
             />
           </Fragment>
         ))}
+        <LoadMore {...page} />
         {isDragging && hoverGap === visibleTasks.length && <DropPlaceholder height={draggingHeight ?? 56} />}
         {isDragging && visibleTasks.length === 0 && hoverGap === null && (
           <div className="h-16 rounded-lg border-2 border-dashed border-accent/25 flex items-center justify-center text-xs text-accent/50">

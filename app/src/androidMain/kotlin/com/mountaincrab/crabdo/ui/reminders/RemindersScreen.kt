@@ -124,15 +124,15 @@ private fun OneOffTab(
     navController: NavController,
     viewModel: RemindersViewModel
 ) {
+    val pageStates by viewModel.historyPageStates.collectAsStateWithLifecycle()
+    val completedCount by viewModel.completedCount.collectAsStateWithLifecycle()
+    val deletedCount by viewModel.deletedCount.collectAsStateWithLifecycle()
     var showCompleted by rememberSaveable { mutableStateOf(false) }
     var showDeleted by rememberSaveable { mutableStateOf(false) }
 
-    if (reminders.isEmpty() && completedReminders.isEmpty() && deletedReminders.isEmpty() && taskReminders.isEmpty()) {
-        EmptyState("No one-off reminders", "Tap + to add one")
-        return
-    }
+    LaunchedEffect(showCompleted) { viewModel.showCompleted(showCompleted) }
+    LaunchedEffect(showDeleted) { viewModel.showDeleted(showDeleted) }
 
-    val now = System.currentTimeMillis()
     val todayStart = Calendar.getInstance().apply {
         set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
         set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
@@ -151,6 +151,9 @@ private fun OneOffTab(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 88.dp)
     ) {
+        if (reminders.isEmpty() && taskReminders.isEmpty()) {
+            item { Text("No active one-off reminders", modifier = Modifier.padding(20.dp)) }
+        }
         if (todayItems.isNotEmpty()) {
             item { SectionHeader("Today") }
             items(todayItems, key = { it.id }) { reminder ->
@@ -193,45 +196,45 @@ private fun OneOffTab(
                 )
             }
         }
-        if (completedReminders.isNotEmpty()) {
-            item {
-                TextButton(
-                    onClick = { showCompleted = !showCompleted },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)
-                ) {
-                    Icon(if (showCompleted) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null)
-                    Spacer(Modifier.width(6.dp))
-                    Text(if (showCompleted) "Hide completed" else "Show completed (${completedReminders.size})")
-                }
-            }
-            if (showCompleted) {
-                item { SectionHeader("Completed") }
-                items(completedReminders, key = { it.id }) { reminder ->
-                    OneOffReminderItem(
-                        reminder = reminder,
-                        onDelete = { viewModel.deleteOneOff(reminder.id) },
-                        completed = true
-                    )
-                }
+        item {
+            TextButton(
+                onClick = { showCompleted = !showCompleted },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Icon(if (showCompleted) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null)
+                Spacer(Modifier.width(6.dp))
+                Text(if (showCompleted) "Hide completed" else "Show completed")
             }
         }
-        if (deletedReminders.isNotEmpty()) {
-            item {
-                TextButton(
-                    onClick = { showDeleted = !showDeleted },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)
-                ) {
-                    Icon(if (showDeleted) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null)
-                    Spacer(Modifier.width(6.dp))
-                    Text(if (showDeleted) "Hide deleted" else "Show deleted (${deletedReminders.size})")
-                }
+        if (showCompleted) {
+            item { SectionHeader("Completed (${completedReminders.size}${if (completedReminders.size < completedCount) "+" else ""})") }
+            items(completedReminders, key = { "completed:${it.id}" }) { reminder ->
+                OneOffReminderItem(
+                    reminder = reminder,
+                    onDelete = { viewModel.deleteOneOff(reminder.id) },
+                    completed = true
+                )
             }
-            if (showDeleted) {
-                item { SectionHeader("Deleted") }
-                items(deletedReminders, key = { it.id }) { reminder ->
-                    DeletedOneOffRow(reminder, viewModel)
-                }
+            item { HistoryPageFooter(pageStates["completed"], completedReminders.size, completedCount,
+                viewModel::moreCompleted, { viewModel.retryHistory("completed") }) }
+        }
+        item {
+            TextButton(
+                onClick = { showDeleted = !showDeleted },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Icon(if (showDeleted) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null)
+                Spacer(Modifier.width(6.dp))
+                Text(if (showDeleted) "Hide deleted" else "Show deleted")
             }
+        }
+        if (showDeleted) {
+            item { SectionHeader("Deleted (${deletedReminders.size}${if (deletedReminders.size < deletedCount) "+" else ""})") }
+            items(deletedReminders, key = { "deleted:${it.id}" }) { reminder ->
+                DeletedOneOffRow(reminder, viewModel)
+            }
+            item { HistoryPageFooter(pageStates["deleted"], deletedReminders.size, deletedCount,
+                viewModel::moreDeleted, { viewModel.retryHistory("deleted") }) }
         }
     }
 }
@@ -244,12 +247,12 @@ private fun RecurringTab(
     navController: NavController,
     viewModel: RemindersViewModel
 ) {
+    val pageStates by viewModel.historyPageStates.collectAsStateWithLifecycle()
+    val deletedCount by viewModel.deletedRecurringCount.collectAsStateWithLifecycle()
     var showDeleted by rememberSaveable { mutableStateOf(false) }
 
-    if (reminders.isEmpty() && deletedReminders.isEmpty()) {
-        EmptyState("No recurring reminders", "Tap + to add one")
-        return
-    }
+    LaunchedEffect(showDeleted) { viewModel.showDeletedRecurring(showDeleted) }
+
 
     val todayStart = Calendar.getInstance().apply {
         set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
@@ -276,6 +279,9 @@ private fun RecurringTab(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 88.dp)
     ) {
+        if (reminders.isEmpty()) {
+            item { Text("No recurring reminders", modifier = Modifier.padding(20.dp)) }
+        }
         if (todayItems.isNotEmpty()) {
             item { SectionHeader("Today") }
             items(todayItems, key = { it.id }) { reminder ->
@@ -300,23 +306,23 @@ private fun RecurringTab(
                 RecurringRow(reminder, navController, viewModel)
             }
         }
-        if (deletedReminders.isNotEmpty()) {
-            item {
-                TextButton(
-                    onClick = { showDeleted = !showDeleted },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)
-                ) {
-                    Icon(if (showDeleted) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null)
-                    Spacer(Modifier.width(6.dp))
-                    Text(if (showDeleted) "Hide deleted" else "Show deleted (${deletedReminders.size})")
-                }
+        item {
+            TextButton(
+                onClick = { showDeleted = !showDeleted },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Icon(if (showDeleted) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null)
+                Spacer(Modifier.width(6.dp))
+                Text(if (showDeleted) "Hide deleted" else "Show deleted")
             }
-            if (showDeleted) {
-                item { SectionHeader("Deleted") }
-                items(deletedReminders, key = { it.id }) { reminder ->
-                    DeletedRecurringRow(reminder, viewModel)
-                }
+        }
+        if (showDeleted) {
+            item { SectionHeader("Deleted (${deletedReminders.size}${if (deletedReminders.size < deletedCount) "+" else ""})") }
+            items(deletedReminders, key = { "deleted:${it.id}" }) { reminder ->
+                DeletedRecurringRow(reminder, viewModel)
             }
+            item { HistoryPageFooter(pageStates["deletedRecurring"], deletedReminders.size, deletedCount,
+                viewModel::moreDeletedRecurring, { viewModel.retryHistory("deletedRecurring") }) }
         }
     }
 }
@@ -421,12 +427,14 @@ private fun SectionHeader(title: String) {
 }
 
 @Composable
-private fun EmptyState(title: String, subtitle: String) {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
-            Spacer(Modifier.height(8.dp))
-            Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+private fun HistoryPageFooter(
+    state: com.mountaincrab.crabdo.data.repository.PageLoadState?,
+    shown: Int, total: Int, onMore: () -> Unit, onRetry: () -> Unit
+) {
+    when {
+        state?.failed == true -> TextButton(onClick = onRetry, modifier = Modifier.fillMaxWidth()) { Text("Couldn't load reminders. Retry") }
+        state?.loading == true -> Text("Loading…", modifier = Modifier.padding(16.dp))
+        shown < total -> TextButton(onClick = onMore, modifier = Modifier.fillMaxWidth()) { Text("Load more") }
+        shown == 0 -> Text("No reminders", modifier = Modifier.padding(16.dp))
     }
 }
