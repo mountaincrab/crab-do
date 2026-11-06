@@ -1,9 +1,14 @@
 package com.mountaincrab.crabdo.ui.boards.components
 
+import android.media.AudioManager
+import android.media.ToneGenerator
+import android.os.Handler
+import android.os.Looper
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -66,11 +71,14 @@ fun SubtaskItem(
         Box(
             modifier = Modifier
                 .size(ControlSize)
-                .clip(CircleShape)
+                .clip(RoundedCornerShape(4.dp))
                 .toggleable(
                     value = subtask.isCompleted,
                     role = Role.Checkbox,
-                    onValueChange = onToggle
+                    onValueChange = { completed ->
+                        onToggle(completed)
+                        if (completed) playSubtaskCompleteSound()
+                    }
                 ),
             contentAlignment = Alignment.Center
         ) {
@@ -81,7 +89,7 @@ fun SubtaskItem(
                                     else "Mark subtask complete",
                 tint = if (subtask.isCompleted) MaterialTheme.colorScheme.primary
                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp)
+                modifier = Modifier.size(27.dp)
             )
         }
         LinkedText(
@@ -169,4 +177,17 @@ fun SubtaskItem(
             )
         }
     }
+}
+
+private fun playSubtaskCompleteSound() {
+    // Keep playback independent of the row: completing it may remove it from composition.
+    val tone = runCatching { ToneGenerator(AudioManager.STREAM_MUSIC, 50) }.getOrNull()
+        ?: return
+    val started = runCatching { tone.startTone(ToneGenerator.TONE_PROP_ACK, 150) }
+        .getOrDefault(false)
+    if (!started) {
+        tone.release()
+        return
+    }
+    Handler(Looper.getMainLooper()).postDelayed({ tone.release() }, 250L)
 }
