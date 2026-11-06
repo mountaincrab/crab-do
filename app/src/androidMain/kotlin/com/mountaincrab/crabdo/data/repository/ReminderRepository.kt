@@ -3,6 +3,8 @@ package com.mountaincrab.crabdo.data.repository
 import android.content.Context
 import androidx.work.*
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldPath
+import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.DocumentChange
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
@@ -25,6 +27,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.tasks.await
 import java.util.Calendar
 import java.util.concurrent.TimeUnit
 
@@ -37,17 +43,24 @@ class ReminderRepository(
     private val firestore: FirebaseFirestore,
     private val context: Context
 ) {
-    private val repositoryScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val repositoryScope = CoroutineScope(Dispatchers.Main.immediate + SupervisorJob())
     private var oneOffListener: ListenerRegistration? = null
     private var recurringListener: ListenerRegistration? = null
+    private val _historyPageStates = MutableStateFlow<Map<String, PageLoadState>>(emptyMap())
+    val historyPageStates = _historyPageStates.asStateFlow()
+    private val historyListeners = mutableMapOf<String, ListenerRegistration>()
 
     // ── Observe ───────────────────────────────────────────────────────────────
 
     fun observeOneOffs(userId: String) = oneOffDao.observeActive(userId)
-    fun observeCompletedOneOffs(userId: String) = oneOffDao.observeCompleted(userId)
-    fun observeDeletedOneOffs(userId: String) = oneOffDao.observeDeleted(userId)
+    fun observeCompletedOneOffs(userId: String, limit: Int) = oneOffDao.observeCompleted(userId, limit)
+    fun observeDeletedOneOffs(userId: String, limit: Int) = oneOffDao.observeDeleted(userId, limit)
     fun observeRecurring(userId: String) = recurringDao.observeActive(userId)
-    fun observeDeletedRecurring(userId: String) = recurringDao.observeDeleted(userId)
+    fun observeDeletedRecurring(userId: String, limit: Int) = recurringDao.observeDeleted(userId, limit)
+
+    fun observeCompletedCount(userId: String) = oneOffDao.observeCompletedCount(userId)
+    fun observeDeletedCount(userId: String) = oneOffDao.observeDeletedCount(userId)
+    fun observeDeletedRecurringCount(userId: String) = recurringDao.observeDeletedCount(userId)
 
     suspend fun getOneOffById(id: String): OneOffReminderEntity? = oneOffDao.getById(id)
     suspend fun getRecurringById(id: String): RecurringReminderEntity? = recurringDao.getById(id)
@@ -290,6 +303,7 @@ class ReminderRepository(
 
         oneOffListener = userRef.collection("reminders")
             .whereEqualTo("isDeleted", false)
+            .whereEqualTo("isCompleted", false)
             .addSnapshotListener { snap, error ->
                 if (error != null || snap == null) return@addSnapshotListener
                 repositoryScope.launch {
@@ -311,8 +325,18 @@ class ReminderRepository(
                                 }
                             }
                             DocumentChange.Type.REMOVED -> {
-                                alarmScheduler.cancelReminder(change.document.id)
-                                oneOffDao.softDelete(change.document.id)
+                                // Leaving the active query can mean completion, not deletion.
+                                val id = change.document.id
+                                if (oneOffDao.getById(id)?.syncStatus == SyncStatus.PENDING) continue
+                                val doc = try { change.document.reference.get().await() } catch (_: Exception) { continue }
+                                if (oneOffDao.getById(id)?.syncStatus == SyncStatus.PENDING) continue
+                                val entity = if (doc.exists()) doc.toOneOffReminderEntity(userId).copy(syncStatus = SyncStatus.SYNCED) else null
+                                if (entity != null) oneOffDao.upsert(entity)
+                                else oneOffDao.getById(id)?.let { oneOffDao.upsert(it.copy(isDeleted = true, syncStatus = SyncStatus.SYNCED)) }
+                                val fireAt = entity?.let { it.snoozedUntilMillis ?: it.scheduledAt }
+                                if (entity != null && !entity.isDeleted && !entity.isCompleted && fireAt != null && fireAt > System.currentTimeMillis()) {
+                                    alarmScheduler.scheduleReminder(id, entity.title, fireAt, entity.reminderStyle.name)
+                                } else alarmScheduler.cancelReminder(id)
                             }
                         }
                     }
@@ -355,8 +379,17 @@ class ReminderRepository(
                                 }
                             }
                             DocumentChange.Type.REMOVED -> {
-                                alarmScheduler.cancelReminder(change.document.id)
-                                recurringDao.softDelete(change.document.id)
+                                val id = change.document.id
+                                if (recurringDao.getById(id)?.syncStatus == SyncStatus.PENDING) continue
+                                val doc = try { change.document.reference.get().await() } catch (_: Exception) { continue }
+                                if (recurringDao.getById(id)?.syncStatus == SyncStatus.PENDING) continue
+                                val entity = if (doc.exists()) doc.toRecurringReminderEntity(userId).copy(syncStatus = SyncStatus.SYNCED) else null
+                                if (entity != null) recurringDao.upsert(entity)
+                                else recurringDao.getById(id)?.let { recurringDao.upsert(it.copy(isDeleted = true, syncStatus = SyncStatus.SYNCED)) }
+                                val fireAt = entity?.let { it.snoozedUntilMillis ?: it.nextFireAt }
+                                if (entity != null && !entity.isDeleted && entity.isEnabled && fireAt != null && fireAt > System.currentTimeMillis()) {
+                                    alarmScheduler.scheduleReminder(id, entity.title, fireAt, entity.reminderStyle.name)
+                                } else alarmScheduler.cancelReminder(id)
                             }
                         }
                     }
@@ -365,7 +398,63 @@ class ReminderRepository(
             }
     }
 
+    fun setHistoryWindow(userId: String, kind: String, limit: Int) {
+        historyListeners.remove(kind)?.remove()
+        if (limit == 0 || firebaseAuth.currentUser?.uid != userId) {
+            _historyPageStates.update { it - kind }
+            return
+        }
+        _historyPageStates.update { it + (kind to PageLoadState(loading = true)) }
+        val recurring = kind == "deletedRecurring"
+        val collection = firestore.collection("users").document(userId)
+            .collection(if (recurring) "recurringReminders" else "reminders")
+        val query = if (kind == "completed") {
+            collection.whereEqualTo("isDeleted", false).whereEqualTo("isCompleted", true)
+                .orderBy("completedAt", Query.Direction.DESCENDING)
+        } else collection.whereEqualTo("isDeleted", true).orderBy("updatedAt", Query.Direction.DESCENDING)
+        var active = true
+        val registration = query.orderBy(FieldPath.documentId(), Query.Direction.DESCENDING)
+            .limit((limit + 1).toLong()).addSnapshotListener { snapshot, error ->
+                if (!active) return@addSnapshotListener
+                if (error != null) {
+                    _historyPageStates.update { it + (kind to PageLoadState(failed = true)) }
+                    return@addSnapshotListener
+                }
+                if (snapshot == null) return@addSnapshotListener
+                repositoryScope.launch {
+                    for (change in snapshot.documentChanges) {
+                        if (!active) break
+                        // A bounded query can evict a row without deleting it.
+                        val doc = if (change.type == DocumentChange.Type.REMOVED) {
+                            try { change.document.reference.get().await() } catch (_: Exception) { continue }
+                        } else change.document
+                        if (!active) break
+                        if (recurring) {
+                            val existing = recurringDao.getById(doc.id)
+                            if (existing?.syncStatus == SyncStatus.PENDING) continue
+                            if (doc.exists()) recurringDao.upsert(doc.toRecurringReminderEntity(userId).copy(syncStatus = SyncStatus.SYNCED))
+                            else if (existing != null) recurringDao.upsert(existing.copy(isDeleted = true, syncStatus = SyncStatus.SYNCED))
+                        } else {
+                            val existing = oneOffDao.getById(doc.id)
+                            if (existing?.syncStatus == SyncStatus.PENDING) continue
+                            if (doc.exists()) oneOffDao.upsert(doc.toOneOffReminderEntity(userId).copy(syncStatus = SyncStatus.SYNCED))
+                            else if (existing != null) oneOffDao.upsert(existing.copy(isDeleted = true, syncStatus = SyncStatus.SYNCED))
+                        }
+                    }
+                    if (active) _historyPageStates.update { it + (kind to PageLoadState()) }
+                }
+            }
+        historyListeners[kind] = ListenerRegistration { active = false; registration.remove() }
+    }
+
+    fun stopHistoryListeners() {
+        historyListeners.values.forEach { it.remove() }
+        historyListeners.clear()
+        _historyPageStates.value = emptyMap()
+    }
+
     fun stopFirestoreListener() {
+        stopHistoryListeners()
         oneOffListener?.remove(); oneOffListener = null
         recurringListener?.remove(); recurringListener = null
     }

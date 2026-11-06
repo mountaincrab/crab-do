@@ -10,8 +10,14 @@ interface OneOffReminderDao {
     @Query("SELECT * FROM one_off_reminders WHERE userId = :userId AND isDeleted = 0 AND isCompleted = 0 ORDER BY scheduledAt")
     fun observeActive(userId: String): Flow<List<OneOffReminderEntity>>
 
-    @Query("SELECT * FROM one_off_reminders WHERE userId = :userId AND isDeleted = 0 AND isCompleted = 1 ORDER BY completedAt DESC")
-    fun observeCompleted(userId: String): Flow<List<OneOffReminderEntity>>
+    @Query("SELECT * FROM one_off_reminders WHERE userId = :userId AND isDeleted = 0 AND isCompleted = 1 ORDER BY completedAt DESC, id DESC LIMIT :limit")
+    fun observeCompleted(userId: String, limit: Int): Flow<List<OneOffReminderEntity>>
+
+    @Query("SELECT COUNT(*) FROM one_off_reminders WHERE userId = :userId AND isDeleted = 0 AND isCompleted = 1")
+    fun observeCompletedCount(userId: String): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM one_off_reminders WHERE userId = :userId AND isDeleted = 1")
+    fun observeDeletedCount(userId: String): Flow<Int>
 
     @Query("SELECT * FROM one_off_reminders WHERE id = :id")
     suspend fun getById(id: String): OneOffReminderEntity?
@@ -52,8 +58,8 @@ interface OneOffReminderDao {
     @Query("UPDATE one_off_reminders SET isCompleted = 1, completedAt = :completedAt, updatedAt = :updatedAt, syncStatus = 'PENDING' WHERE id = :id")
     suspend fun markCompleted(id: String, completedAt: Long = currentTimeMillis(), updatedAt: Long = currentTimeMillis())
 
-    @Query("SELECT * FROM one_off_reminders WHERE userId = :userId AND isDeleted = 1 ORDER BY updatedAt DESC")
-    fun observeDeleted(userId: String): Flow<List<OneOffReminderEntity>>
+    @Query("SELECT * FROM one_off_reminders WHERE userId = :userId AND isDeleted = 1 ORDER BY updatedAt DESC, id DESC LIMIT :limit")
+    fun observeDeleted(userId: String, limit: Int): Flow<List<OneOffReminderEntity>>
 
     @Query("UPDATE one_off_reminders SET isDeleted = 0, updatedAt = :updatedAt, syncStatus = 'PENDING' WHERE id = :id")
     suspend fun restore(id: String, updatedAt: Long = currentTimeMillis())

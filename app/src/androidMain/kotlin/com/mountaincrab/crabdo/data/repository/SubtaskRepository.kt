@@ -11,6 +11,8 @@ class SubtaskRepository(
     private val subtaskDao: SubtaskDao,
     private val workManager: WorkManager
 ) {
+    fun observeCountsForTasks(taskIds: List<String>) = subtaskDao.observeCountsForTasks(taskIds)
+
     fun observeSubtasks(taskId: String) = subtaskDao.observeSubtasks(taskId)
 
     fun observeSubtaskCountsForBoard(boardId: String) =

@@ -10,6 +10,9 @@ import com.mountaincrab.crabdo.data.local.entity.RecurringReminderEntity
 import com.mountaincrab.crabdo.data.repository.ReminderRepository
 import com.mountaincrab.crabdo.data.repository.TaskRepository
 import com.mountaincrab.crabdo.data.local.entity.TaskReminderSummary
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -33,12 +36,47 @@ class RemindersViewModel(
         reminderRepository.observeOneOffs(userId)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val historyPageStates = reminderRepository.historyPageStates
+
+    private val completedLimit = MutableStateFlow(0)
+    private val deletedLimit = MutableStateFlow(0)
+    private val deletedRecurringLimit = MutableStateFlow(0)
+
+    val completedCount = reminderRepository.observeCompletedCount(userId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+    val deletedCount = reminderRepository.observeDeletedCount(userId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+    val deletedRecurringCount = reminderRepository.observeDeletedRecurringCount(userId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    fun showCompleted(show: Boolean) { completedLimit.value = if (show) maxOf(50, completedLimit.value) else 0 }
+    fun showDeleted(show: Boolean) { deletedLimit.value = if (show) maxOf(50, deletedLimit.value) else 0 }
+    fun showDeletedRecurring(show: Boolean) { deletedRecurringLimit.value = if (show) maxOf(50, deletedRecurringLimit.value) else 0 }
+    fun retryHistory(kind: String) {
+        val limit = when (kind) {
+            "completed" -> completedLimit.value
+            "deleted" -> deletedLimit.value
+            else -> deletedRecurringLimit.value
+        }
+        reminderRepository.setHistoryWindow(userId, kind, limit)
+    }
+
+    fun moreCompleted() { completedLimit.update { it + 50 } }
+    fun moreDeleted() { deletedLimit.update { it + 50 } }
+    fun moreDeletedRecurring() { deletedRecurringLimit.update { it + 50 } }
+
     val completedOneOffs: StateFlow<List<OneOffReminderEntity>> =
-        reminderRepository.observeCompletedOneOffs(userId)
+        completedLimit.flatMapLatest {
+            reminderRepository.setHistoryWindow(userId, "completed", it)
+            reminderRepository.observeCompletedOneOffs(userId, it)
+        }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val deletedOneOffs: StateFlow<List<OneOffReminderEntity>> =
-        reminderRepository.observeDeletedOneOffs(userId)
+        deletedLimit.flatMapLatest {
+            reminderRepository.setHistoryWindow(userId, "deleted", it)
+            reminderRepository.observeDeletedOneOffs(userId, it)
+        }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val recurringReminders: StateFlow<List<RecurringReminderEntity>> =
@@ -46,13 +84,21 @@ class RemindersViewModel(
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val deletedRecurring: StateFlow<List<RecurringReminderEntity>> =
-        reminderRepository.observeDeletedRecurring(userId)
+        deletedRecurringLimit.flatMapLatest {
+            reminderRepository.setHistoryWindow(userId, "deletedRecurring", it)
+            reminderRepository.observeDeletedRecurring(userId, it)
+        }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val isSyncing: StateFlow<Boolean> =
         workManager.getWorkInfosForUniqueWorkFlow("sync")
             .map { infos -> infos.any { it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.ENQUEUED } }
             .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    override fun onCleared() {
+        reminderRepository.stopHistoryListeners()
+        super.onCleared()
+    }
 
     fun sync() { reminderRepository.triggerSync() }
 

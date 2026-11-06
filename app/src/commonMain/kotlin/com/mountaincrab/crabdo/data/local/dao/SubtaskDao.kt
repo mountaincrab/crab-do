@@ -13,6 +13,13 @@ data class SubtaskCountAggregate(
 
 @Dao
 interface SubtaskDao {
+    @Query("""
+        SELECT taskId, COUNT(*) AS total,
+               SUM(CASE WHEN isCompleted = 1 THEN 1 ELSE 0 END) AS completed
+        FROM subtasks WHERE taskId IN (:taskIds) AND isDeleted = 0 GROUP BY taskId
+    """)
+    fun observeCountsForTasks(taskIds: List<String>): Flow<List<SubtaskCountAggregate>>
+
     @Query("SELECT * FROM subtasks WHERE taskId = :taskId AND isDeleted = 0 ORDER BY `order`")
     fun observeSubtasks(taskId: String): Flow<List<SubtaskEntity>>
 

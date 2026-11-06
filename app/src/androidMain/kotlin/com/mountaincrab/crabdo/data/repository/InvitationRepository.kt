@@ -1,5 +1,6 @@
 package com.mountaincrab.crabdo.data.repository
 
+import com.mountaincrab.crabdo.data.remote.forEachDocumentPage
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -136,14 +137,14 @@ class InvitationRepository(
             )
         )
 
-        boardRef.collection("columns").get().await().documents.forEach { doc ->
+        boardRef.collection("columns").forEachDocumentPage { doc ->
             columnDao.upsert(doc.toColumnEntity().copy(syncStatus = SyncStatus.SYNCED))
         }
 
-        boardRef.collection("tasks").get().await().documents.forEach { taskDoc ->
+        boardRef.collection("tasks").forEachDocumentPage { taskDoc ->
             taskDao.upsert(taskDoc.toTaskEntity().copy(syncStatus = SyncStatus.SYNCED))
             boardRef.collection("tasks").document(taskDoc.id)
-                .collection("subtasks").get().await().documents.forEach { subDoc ->
+                .collection("subtasks").forEachDocumentPage { subDoc ->
                     subtaskDao.upsert(subDoc.toSubtaskEntity().copy(syncStatus = SyncStatus.SYNCED))
                 }
         }

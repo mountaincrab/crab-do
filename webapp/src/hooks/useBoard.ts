@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react'
 import {
   collection, doc, query, where, onSnapshot,
   addDoc, updateDoc, serverTimestamp,
-  getDocs, writeBatch,
+  getDocsFromServer, writeBatch, orderBy, limit,
 } from 'firebase/firestore'
 import { db } from '../firebase'
-import { Board, Column, Task, Subtask } from '../types'
+import { clearedTaskReminder, softDeletePages } from '../lib/softDeletePages'
+import { Board, Column } from '../types'
 import { NewTaskDraft } from '../components/NewTaskModal'
 
 export interface SubtaskCount {
@@ -16,10 +17,8 @@ export interface SubtaskCount {
 export function useBoard(userId: string, boardId: string) {
   const [board, setBoard] = useState<Board | null>(null)
   const [columns, setColumns] = useState<Column[]>([])
-  const [tasks, setTasks] = useState<Task[]>([])
-  const [subtaskCounts, setSubtaskCounts] = useState<Record<string, SubtaskCount>>({})
-  const [subtasksByTask, setSubtasksByTask] = useState<Record<string, Subtask[]>>({})
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string>()
 
   const boardRef = doc(db, 'users', userId, 'boards', boardId)
 
@@ -30,6 +29,9 @@ export function useBoard(userId: string, boardId: string) {
   }, [userId, boardId])
 
   useEffect(() => {
+    setLoading(true)
+    setError(undefined)
+    setColumns([])
     const q = query(
       collection(db, 'users', userId, 'boards', boardId, 'columns'),
       where('isDeleted', '==', false),
@@ -39,55 +41,9 @@ export function useBoard(userId: string, boardId: string) {
         .map((d) => ({ id: d.id, ...d.data() } as Column))
         .sort((a, b) => a.order - b.order)
       setColumns(cols)
-    })
-  }, [userId, boardId])
-
-  useEffect(() => {
-    const q = query(
-      collection(db, 'users', userId, 'boards', boardId, 'tasks'),
-      where('isDeleted', '==', false),
-    )
-    return onSnapshot(q, (snap) => {
-      const ts = snap.docs
-        .map((d) => ({ id: d.id, ...d.data() } as Task))
-        .sort((a, b) => a.order - b.order)
-      setTasks(ts)
       setLoading(false)
-    })
+    }, (err) => { setError(err.message); setLoading(false) })
   }, [userId, boardId])
-
-  // One snapshot listener per task to surface checklist progress on board cards.
-  const taskIdsKey = tasks.map((t) => t.id).sort().join(',')
-  useEffect(() => {
-    const ids = taskIdsKey ? taskIdsKey.split(',') : []
-    if (ids.length === 0) {
-      setSubtaskCounts({})
-      setSubtasksByTask({})
-      return
-    }
-    const unsubs = ids.map((taskId) =>
-      onSnapshot(
-        query(
-          collection(db, 'users', userId, 'boards', boardId, 'tasks', taskId, 'subtasks'),
-          where('isDeleted', '==', false),
-        ),
-        (snap) => {
-          const subs = snap.docs
-            .map((d) => ({ id: d.id, ...d.data() } as Subtask))
-            .sort((a, b) => a.order - b.order)
-          const completed = subs.filter((s) => s.isCompleted).length
-          setSubtaskCounts((prev) => ({ ...prev, [taskId]: { total: subs.length, completed } }))
-          setSubtasksByTask((prev) => ({ ...prev, [taskId]: subs }))
-        },
-      ),
-    )
-    return () => unsubs.forEach((u) => u())
-  }, [userId, boardId, taskIdsKey])
-
-  const tasksByColumn = columns.reduce<Record<string, Task[]>>((acc, col) => {
-    acc[col.id] = tasks.filter((t) => t.columnId === col.id)
-    return acc
-  }, {})
 
   const addColumn = async (title: string) => {
     const maxOrder = columns.length > 0 ? Math.max(...columns.map((c) => c.order)) : 0
@@ -108,21 +64,10 @@ export function useBoard(userId: string, boardId: string) {
   }
 
   const deleteColumn = async (columnId: string) => {
-    // Soft-delete the column and all its tasks
-    const batch = writeBatch(db)
-    batch.update(
-      doc(db, 'users', userId, 'boards', boardId, 'columns', columnId),
-      { isDeleted: true, updatedAt: serverTimestamp() },
-    )
-    tasks
-      .filter((t) => t.columnId === columnId)
-      .forEach((t) => {
-        batch.update(
-          doc(db, 'users', userId, 'boards', boardId, 'tasks', t.id),
-          { isDeleted: true, reminderTimeMillis: null, snoozedUntilMillis: null, reminderTransitionColumnId: null, updatedAt: serverTimestamp() },
-        )
-      })
-    await batch.commit()
+    await softDeletePages(query(collection(db, 'users', userId, 'boards', boardId, 'tasks'),
+      where('columnId', '==', columnId), where('isDeleted', '==', false)), clearedTaskReminder)
+    await updateDoc(doc(db, 'users', userId, 'boards', boardId, 'columns', columnId),
+      { isDeleted: true, updatedAt: serverTimestamp() })
   }
 
   /**
@@ -130,8 +75,10 @@ export function useBoard(userId: string, boardId: string) {
    * reaches Firestore once the user has committed to it (see NewTaskModal).
    */
   const createTask = async (columnId: string, draft: NewTaskDraft) => {
-    const colTasks = tasks.filter((t) => t.columnId === columnId)
-    const newOrder = colTasks.length > 0 ? Math.min(...colTasks.map((t) => t.order)) - 1 : 1
+    const first = await getDocsFromServer(query(collection(db, 'users', userId, 'boards', boardId, 'tasks'),
+      where('columnId', '==', columnId), where('isDeleted', '==', false), orderBy('order'), limit(1)))
+    const minOrder = first.docs[0]?.data().order
+    const newOrder = minOrder == null ? 1 : minOrder - 1
     const taskRef = doc(collection(db, 'users', userId, 'boards', boardId, 'tasks'))
     const batch = writeBatch(db)
     batch.set(taskRef, {
@@ -161,7 +108,12 @@ export function useBoard(userId: string, boardId: string) {
     return taskRef.id
   }
 
-  const moveTask = async (taskId: string, targetColumnId: string, newOrder: number) => {
+  const moveTask = async (taskId: string, targetColumnId: string, newOrder?: number) => {
+    if (newOrder === undefined) {
+      const first = await getDocsFromServer(query(collection(db, 'users', userId, 'boards', boardId, 'tasks'),
+        where('columnId', '==', targetColumnId), where('isDeleted', '==', false), orderBy('order'), limit(1)))
+      newOrder = (first.docs[0]?.data().order ?? 1) - 1
+    }
     await updateDoc(
       doc(db, 'users', userId, 'boards', boardId, 'tasks', taskId),
       { columnId: targetColumnId, order: newOrder, updatedAt: serverTimestamp() },
@@ -187,29 +139,18 @@ export function useBoard(userId: string, boardId: string) {
   }
 
   const deleteTask = async (taskId: string) => {
-    // Soft-delete task and its subtasks
-    const batch = writeBatch(db)
-    batch.update(
-      doc(db, 'users', userId, 'boards', boardId, 'tasks', taskId),
-      { isDeleted: true, reminderTimeMillis: null, snoozedUntilMillis: null, reminderTransitionColumnId: null, updatedAt: serverTimestamp() },
-    )
-    const subtasksSnap = await getDocs(
-      collection(db, 'users', userId, 'boards', boardId, 'tasks', taskId, 'subtasks'),
-    )
-    subtasksSnap.docs.forEach((d) => {
-      batch.update(d.ref, { isDeleted: true, updatedAt: serverTimestamp() })
+    await softDeletePages(query(collection(db, 'users', userId, 'boards', boardId, 'tasks', taskId, 'subtasks'),
+      where('isDeleted', '==', false)))
+    await updateDoc(doc(db, 'users', userId, 'boards', boardId, 'tasks', taskId), {
+      ...clearedTaskReminder, isDeleted: true, updatedAt: serverTimestamp(),
     })
-    await batch.commit()
   }
 
   return {
     board,
     columns,
-    tasks,
-    tasksByColumn,
-    subtaskCounts,
-    subtasksByTask,
     loading,
+    error,
     addColumn,
     renameColumn,
     deleteColumn,

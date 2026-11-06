@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useReminders } from '../hooks/useReminders'
 import { Reminder, RecurringReminder } from '../types'
 import AppShell from '../components/AppShell'
+import LoadMore from '../components/LoadMore'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -326,21 +327,24 @@ function DeletedRow({ title, subtitle, onRestore }: { title: string; subtitle: s
 function CollapsibleGroup({
   label,
   count,
+  open,
+  onToggle,
   children,
 }: {
   label: string
-  count: number
+  count?: string
+  open: boolean
+  onToggle: () => void
   children: ReactNode
 }) {
-  const [open, setOpen] = useState(false)
   return (
     <div className="pt-4">
       <button
-        onClick={() => setOpen((v) => !v)}
+        onClick={onToggle}
         className="text-sm text-fg-faint hover:text-fg-muted transition-colors flex items-center gap-1 mb-2 font-semibold"
       >
         <ChevronRight size={14} className={`transition-transform ${open ? 'rotate-90' : ''}`} />
-        {label} ({count})
+        {label}{count !== undefined && ` (${count})`}
       </button>
       {open && <div className="space-y-1.5">{children}</div>}
     </div>
@@ -368,6 +372,8 @@ function recurringFireAt(r: RecurringReminder): number {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function RemindersPage() {
+  const [history, setHistory] = useState({ completed: false, deleted: false, deletedRecurring: false })
+  const toggleHistory = (key: keyof typeof history) => setHistory((prev) => ({ ...prev, [key]: !prev[key] }))
   const { user } = useAuth()
   const {
     reminders,
@@ -375,7 +381,7 @@ export default function RemindersPage() {
     deletedReminders,
     recurringReminders,
     deletedRecurring,
-    loading,
+    loading, error, completedPage, deletedPage, deletedRecurringPage,
     createReminder,
     updateReminder,
     deleteReminder,
@@ -383,7 +389,7 @@ export default function RemindersPage() {
     deleteRecurringReminder,
     restoreRecurringReminder,
     toggleRecurringEnabled,
-  } = useReminders(user!.uid)
+  } = useReminders(user!.uid, history)
 
   const [searchParams] = useSearchParams()
   const view = searchParams.get('view') // 'one-off' | 'recurring' | null
@@ -438,11 +444,6 @@ export default function RemindersPage() {
     />
   )
 
-  const oneOffEmpty =
-    reminders.length === 0 && completedReminders.length === 0 && deletedReminders.length === 0
-  const recurringEmpty = recurringReminders.length === 0 && deletedRecurring.length === 0
-  const isEmpty = (!showOneOff || oneOffEmpty) && (!showRecurring || recurringEmpty)
-
   const heading = view === 'one-off' ? 'One-off Reminders' : view === 'recurring' ? 'Recurring Reminders' : 'Reminders'
 
   return (
@@ -461,13 +462,9 @@ export default function RemindersPage() {
           )}
         </div>
 
+        {error && <p role="alert" className="text-danger-text py-4">Couldn’t load reminders. Reload to retry.</p>}
         {loading ? (
           <div className="text-fg-faint text-center py-20">Loading…</div>
-        ) : isEmpty ? (
-          <div className="text-fg-muted text-center py-20">
-            <Bell size={40} className="mx-auto mb-4 text-fg-faint" />
-            <p>No reminders yet. Create your first one.</p>
-          </div>
         ) : (
           <div className="space-y-6">
             {showOneOff && (
@@ -507,8 +504,9 @@ export default function RemindersPage() {
                     {ooPast.map(renderOneOff)}
                   </>
                 )}
-                {completedReminders.length > 0 && (
-                  <CollapsibleGroup label="Completed" count={completedReminders.length}>
+                {(
+                  <CollapsibleGroup label="Completed" open={history.completed} onToggle={() => toggleHistory('completed')}
+                    count={history.completed && !completedPage.loading && !completedPage.error ? `${completedReminders.length}${completedPage.hasMore ? '+' : ''}` : undefined}>
                     {completedReminders.map((r) => (
                       <OneOffReminderRow
                         key={r.id}
@@ -518,10 +516,13 @@ export default function RemindersPage() {
                         dimmed
                       />
                     ))}
+                    {!completedPage.loading && !completedPage.error && completedReminders.length === 0 && <p className="text-sm text-fg-faint py-2">No completed reminders.</p>}
+                    <LoadMore {...completedPage} />
                   </CollapsibleGroup>
                 )}
-                {deletedReminders.length > 0 && (
-                  <CollapsibleGroup label="Deleted" count={deletedReminders.length}>
+                {(
+                  <CollapsibleGroup label="Deleted" open={history.deleted} onToggle={() => toggleHistory('deleted')}
+                    count={history.deleted && !deletedPage.loading && !deletedPage.error ? `${deletedReminders.length}${deletedPage.hasMore ? '+' : ''}` : undefined}>
                     {deletedReminders.map((r) => (
                       <DeletedRow
                         key={r.id}
@@ -530,6 +531,8 @@ export default function RemindersPage() {
                         onRestore={() => restoreReminder(r.id)}
                       />
                     ))}
+                    {!deletedPage.loading && !deletedPage.error && deletedReminders.length === 0 && <p className="text-sm text-fg-faint py-2">No deleted reminders.</p>}
+                    <LoadMore {...deletedPage} />
                   </CollapsibleGroup>
                 )}
               </div>
@@ -566,8 +569,9 @@ export default function RemindersPage() {
                     {recFuture.map(renderRecurring)}
                   </>
                 )}
-                {deletedRecurring.length > 0 && (
-                  <CollapsibleGroup label="Deleted" count={deletedRecurring.length}>
+                {(
+                  <CollapsibleGroup label="Deleted" open={history.deletedRecurring} onToggle={() => toggleHistory('deletedRecurring')}
+                    count={history.deletedRecurring && !deletedRecurringPage.loading && !deletedRecurringPage.error ? `${deletedRecurring.length}${deletedRecurringPage.hasMore ? '+' : ''}` : undefined}>
                     {deletedRecurring.map((r) => (
                       <DeletedRow
                         key={r.id}
@@ -576,6 +580,8 @@ export default function RemindersPage() {
                         onRestore={() => restoreRecurringReminder(r.id)}
                       />
                     ))}
+                    {!deletedRecurringPage.loading && !deletedRecurringPage.error && deletedRecurring.length === 0 && <p className="text-sm text-fg-faint py-2">No deleted reminders.</p>}
+                    <LoadMore {...deletedRecurringPage} />
                   </CollapsibleGroup>
                 )}
               </div>

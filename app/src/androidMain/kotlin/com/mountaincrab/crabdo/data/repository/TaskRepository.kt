@@ -7,7 +7,6 @@ import com.mountaincrab.crabdo.data.local.dao.TaskDao
 import com.mountaincrab.crabdo.data.local.entity.TaskEntity
 import com.mountaincrab.crabdo.data.model.SyncStatus
 import com.mountaincrab.crabdo.data.remote.SyncWorker
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -49,6 +48,12 @@ class TaskRepository(
     }
 
     fun observeTasksByColumn(columnId: String) = taskDao.observeTasksByColumn(columnId)
+    fun observeTaskWindow(columnId: String, limit: Int) = taskDao.observeTaskWindow(columnId, limit)
+    fun observeColumnCounts(boardId: String) = taskDao.observeColumnCounts(boardId)
+    suspend fun moveTaskToTop(taskId: String, columnId: String) {
+        val first = taskDao.minOrder(columnId) ?: 1.0
+        moveTask(taskId, columnId, first - 2.0, first)
+    }
     fun observeTask(taskId: String) = taskDao.observeTask(taskId)
     fun observeReminderSummary(userId: String) = taskDao.observeReminderSummary(userId)
 
@@ -63,8 +68,7 @@ class TaskRepository(
         reminderStyle: TaskEntity.ReminderStyle = TaskEntity.ReminderStyle.ALARM,
         reminderTransitionColumnId: String? = null
     ): TaskEntity {
-        val tasks = taskDao.observeTasksByColumn(columnId).first()
-        val newOrder = tasks.minOfOrNull { it.order }?.minus(1.0) ?: 1.0
+        val newOrder = taskDao.minOrder(columnId)?.minus(1.0) ?: 1.0
         val task = TaskEntity(
             boardId = boardId, columnId = columnId,
             title = title, description = description, order = newOrder,
@@ -125,7 +129,7 @@ class TaskRepository(
             ?.let { columnDao.getColumnById(it) }
             ?.takeIf { !it.isDeleted && it.boardId == task.boardId && it.id != task.columnId }
         val order = if (target != null) {
-            (taskDao.observeTasksByColumn(target.id).first().maxOfOrNull { it.order } ?: 0.0) + 1.0
+            (taskDao.maxOrder(target.id) ?: 0.0) + 1.0
         } else null
         if (taskDao.consumeReminder(taskId, trigger, newColumnId = target?.id, newOrder = order) == 0) return null
         return task

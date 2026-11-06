@@ -10,8 +10,11 @@ interface RecurringReminderDao {
     @Query("SELECT * FROM recurring_reminders WHERE userId = :userId AND isDeleted = 0 ORDER BY COALESCE(snoozedUntilMillis, nextFireAt)")
     fun observeActive(userId: String): Flow<List<RecurringReminderEntity>>
 
-    @Query("SELECT * FROM recurring_reminders WHERE userId = :userId AND isDeleted = 1 ORDER BY updatedAt DESC")
-    fun observeDeleted(userId: String): Flow<List<RecurringReminderEntity>>
+    @Query("SELECT * FROM recurring_reminders WHERE userId = :userId AND isDeleted = 1 ORDER BY updatedAt DESC, id DESC LIMIT :limit")
+    fun observeDeleted(userId: String, limit: Int): Flow<List<RecurringReminderEntity>>
+
+    @Query("SELECT COUNT(*) FROM recurring_reminders WHERE userId = :userId AND isDeleted = 1")
+    fun observeDeletedCount(userId: String): Flow<Int>
 
     @Query("SELECT * FROM recurring_reminders WHERE id = :id")
     suspend fun getById(id: String): RecurringReminderEntity?
