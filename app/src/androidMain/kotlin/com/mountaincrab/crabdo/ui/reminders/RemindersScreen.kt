@@ -141,11 +141,13 @@ private fun OneOffTab(
     val dayAfterStart = tomorrowStart + 86_400_000L
     val next7End = todayStart + 8 * 86_400_000L
 
-    val todayItems = reminders.filter { it.scheduledAt in todayStart until tomorrowStart }
-    val tomorrowItems = reminders.filter { it.scheduledAt in tomorrowStart until dayAfterStart }
-    val next7Items = reminders.filter { it.scheduledAt in dayAfterStart until next7End }
-    val futureItems = reminders.filter { it.scheduledAt >= next7End }
-    val pastItems = reminders.filter { it.scheduledAt < todayStart }
+    val timeGroups = listOf(
+        "Today" to (todayStart until tomorrowStart),
+        "Tomorrow" to (tomorrowStart until dayAfterStart),
+        "Next 7 Days" to (dayAfterStart until next7End),
+        "Future" to (next7End..Long.MAX_VALUE),
+        "Past" to (Long.MIN_VALUE until todayStart)
+    )
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -154,46 +156,34 @@ private fun OneOffTab(
         if (reminders.isEmpty() && taskReminders.isEmpty()) {
             item { Text("No active one-off reminders", modifier = Modifier.padding(20.dp)) }
         }
-        if (todayItems.isNotEmpty()) {
-            item { SectionHeader("Today") }
-            items(todayItems, key = { it.id }) { reminder ->
-                OneOffRow(reminder, navController, viewModel)
-            }
-        }
-        if (tomorrowItems.isNotEmpty()) {
-            item { SectionHeader("Tomorrow") }
-            items(tomorrowItems, key = { it.id }) { reminder ->
-                OneOffRow(reminder, navController, viewModel)
-            }
-        }
-        if (next7Items.isNotEmpty()) {
-            item { SectionHeader("Next 7 Days") }
-            items(next7Items, key = { it.id }) { reminder ->
-                OneOffRow(reminder, navController, viewModel)
-            }
-        }
-        if (futureItems.isNotEmpty()) {
-            item { SectionHeader("Future") }
-            items(futureItems, key = { it.id }) { reminder ->
-                OneOffRow(reminder, navController, viewModel)
-            }
-        }
-        if (pastItems.isNotEmpty()) {
-            item { SectionHeader("Past") }
-            items(pastItems, key = { it.id }) { reminder ->
-                OneOffRow(reminder, navController, viewModel)
+        timeGroups.forEach { (label, range) ->
+            val grouped = reminders.filter { it.scheduledAt in range }
+            if (grouped.isNotEmpty()) {
+                item { SectionHeader(label) }
+                items(grouped, key = { it.id }) { reminder ->
+                    OneOffRow(reminder, navController, viewModel)
+                }
             }
         }
         if (taskReminders.isNotEmpty()) {
             item { SectionHeader("Task reminders (${taskReminders.size})") }
-            items(taskReminders, key = { "task:${it.task.id}" }) { summary ->
-                TaskReminderItem(
-                    summary = summary,
-                    onDelete = { viewModel.deleteTaskReminder(summary.task.id) },
-                    modifier = Modifier.clickable {
-                        navController.navigate(Screen.TaskDetail.createRoute(summary.task.id))
+            timeGroups.forEach { (label, range) ->
+                val summaries = taskReminders.filter {
+                    val fireAt = it.task.nextReminderTimeMillis()
+                    fireAt != null && fireAt in range
+                }
+                if (summaries.isNotEmpty()) {
+                    item { SectionHeader(label) }
+                    items(summaries, key = { "task:${it.task.id}" }) { summary ->
+                        TaskReminderItem(
+                            summary = summary,
+                            onDelete = { viewModel.deleteTaskReminder(summary.task.id) },
+                            modifier = Modifier.clickable {
+                                navController.navigate(Screen.TaskDetail.createRoute(summary.task.id))
+                            }
+                        )
                     }
-                )
+                }
             }
         }
         item {

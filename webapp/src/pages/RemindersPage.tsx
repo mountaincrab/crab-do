@@ -1,8 +1,9 @@
-import { useState, type ReactNode } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Fragment, useState, type ReactNode } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Bell, AlarmClock, Repeat, Pencil, Trash2, ChevronRight, RotateCcw } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useReminders } from '../hooks/useReminders'
+import { useTaskReminders } from '../hooks/useTaskReminders'
 import { Reminder, RecurringReminder } from '../types'
 import AppShell from '../components/AppShell'
 import LoadMore from '../components/LoadMore'
@@ -390,6 +391,7 @@ export default function RemindersPage() {
     restoreRecurringReminder,
     toggleRecurringEnabled,
   } = useReminders(user!.uid, history)
+  const { taskReminders, loading: tasksLoading, clearTaskReminder } = useTaskReminders(user!.uid)
 
   const [searchParams] = useSearchParams()
   const view = searchParams.get('view') // 'one-off' | 'recurring' | null
@@ -402,12 +404,14 @@ export default function RemindersPage() {
 
   const { todayStart, tomorrowStart, dayAfterStart, next7End } = dayBounds()
 
-  // One-off groups (by scheduled time)
-  const ooToday = reminders.filter((r) => r.scheduledAt >= todayStart && r.scheduledAt < tomorrowStart)
-  const ooTomorrow = reminders.filter((r) => r.scheduledAt >= tomorrowStart && r.scheduledAt < dayAfterStart)
-  const ooNext7 = reminders.filter((r) => r.scheduledAt >= dayAfterStart && r.scheduledAt < next7End)
-  const ooFuture = reminders.filter((r) => r.scheduledAt >= next7End)
-  const ooPast = reminders.filter((r) => r.scheduledAt < todayStart)
+  // Standalone and task reminders use the same time sections.
+  const timeGroups = [
+    { label: 'Today', start: todayStart, end: tomorrowStart },
+    { label: 'Tomorrow', start: tomorrowStart, end: dayAfterStart },
+    { label: 'Next 7 Days', start: dayAfterStart, end: next7End },
+    { label: 'Future', start: next7End, end: Infinity },
+    { label: 'Past', start: -Infinity, end: todayStart },
+  ]
 
   // Recurring groups (by effective fire time, honouring snooze)
   const recToday = recurringReminders.filter((r) => {
@@ -463,7 +467,7 @@ export default function RemindersPage() {
         </div>
 
         {error && <p role="alert" className="text-danger-text py-4">Couldn’t load reminders. Reload to retry.</p>}
-        {loading ? (
+        {loading || (showOneOff && tasksLoading) ? (
           <div className="text-fg-faint text-center py-20">Loading…</div>
         ) : (
           <div className="space-y-6">
@@ -474,35 +478,50 @@ export default function RemindersPage() {
                     <Bell size={16} className="text-accent-text" /> One-off
                   </h2>
                 )}
-                {ooToday.length > 0 && (
-                  <>
-                    <SectionHeader label="Today" />
-                    {ooToday.map(renderOneOff)}
-                  </>
-                )}
-                {ooTomorrow.length > 0 && (
-                  <>
-                    <SectionHeader label="Tomorrow" />
-                    {ooTomorrow.map(renderOneOff)}
-                  </>
-                )}
-                {ooNext7.length > 0 && (
-                  <>
-                    <SectionHeader label="Next 7 Days" />
-                    {ooNext7.map(renderOneOff)}
-                  </>
-                )}
-                {ooFuture.length > 0 && (
-                  <>
-                    <SectionHeader label="Future" />
-                    {ooFuture.map(renderOneOff)}
-                  </>
-                )}
-                {ooPast.length > 0 && (
-                  <>
-                    <SectionHeader label="Past" />
-                    {ooPast.map(renderOneOff)}
-                  </>
+                {timeGroups.map(({ label, start, end }) => {
+                  const grouped = reminders.filter((r) => r.scheduledAt >= start && r.scheduledAt < end)
+                  return grouped.length > 0 && (
+                    <Fragment key={label}>
+                      <SectionHeader label={label} />
+                      {grouped.map(renderOneOff)}
+                    </Fragment>
+                  )
+                })}
+                {taskReminders.length > 0 && (
+                  <section className="space-y-1.5 pt-6" aria-label="Task reminders">
+                    <h2 className="text-lg font-bold text-fg">Task reminders ({taskReminders.length})</h2>
+                    {timeGroups.map(({ label, start, end }) => {
+                      const grouped = taskReminders.filter(({ task }) => {
+                        const fireAt = task.snoozedUntilMillis ?? task.reminderTimeMillis!
+                        return fireAt >= start && fireAt < end
+                      })
+                      return grouped.length > 0 && (
+                        <Fragment key={label}>
+                          <SectionHeader label={label} />
+                          {grouped.map(({ task, boardTitle, columnTitle }) => (
+                            <div key={`${task.boardId}:${task.id}`} className="bg-surface-raised border border-transparent hover:border-DEFAULT rounded-xl px-3 py-2.5 flex items-center gap-3 group transition-colors">
+                              <StyleTile style={task.reminderStyle} />
+                              <Link to={`/board/${task.boardId}`} className="flex-1 min-w-0" title="Open board">
+                                <p className="font-semibold truncate text-fg">{task.title}</p>
+                                <p className="text-xs mt-0.5 text-fg-muted truncate">{boardTitle} › {columnTitle}</p>
+                                <p className={`text-xs mt-0.5 font-mono ${task.snoozedUntilMillis != null ? 'text-success-text' : 'text-fg-muted'}`}>
+                                  {task.snoozedUntilMillis != null ? 'Snoozed until ' : ''}
+                                  {formatTriggerTime(task.snoozedUntilMillis ?? task.reminderTimeMillis!)}
+                                </p>
+                              </Link>
+                              <button
+                                onClick={() => clearTaskReminder(task)}
+                                className="p-1.5 rounded-lg text-fg-muted hover:text-danger-text hover:bg-surface-high transition-colors"
+                                title={`Delete reminder for ${task.title}`}
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          ))}
+                        </Fragment>
+                      )
+                    })}
+                  </section>
                 )}
                 {(
                   <CollapsibleGroup label="Completed" open={history.completed} onToggle={() => toggleHistory('completed')}
