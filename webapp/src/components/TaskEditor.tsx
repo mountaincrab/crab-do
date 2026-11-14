@@ -1,5 +1,5 @@
 import { ReactNode, useEffect, useRef, useState } from 'react'
-import { AlarmClock, ArrowRight, Bell, Check, Pencil, X } from 'lucide-react'
+import { AlarmClock, Bell, Check, X } from 'lucide-react'
 import { Column, Subtask } from '../types'
 import { Linkified, makeLinkPasteHandler, makeLinkKeyHandler } from '../lib/linkify'
 
@@ -9,10 +9,28 @@ export function millisToDatetimeLocal(ms: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-export function defaultReminderDatetimeLocal(): string {
+function defaultReminderMillis(): number {
   const d = new Date(Date.now() + 3_600_000)
   d.setMinutes(0, 0, 0)
-  return millisToDatetimeLocal(d.getTime())
+  return d.getTime()
+}
+
+export type QuickPreset = 'LATER_TODAY' | 'TOMORROW' | 'NEXT_WEEK'
+
+/** Quick-set reminder times, matching the Android task editor's chips. */
+export function quickPresetMillis(preset: QuickPreset, now: Date = new Date()): number {
+  const d = new Date(now)
+  if (preset === 'LATER_TODAY') {
+    d.setHours(d.getHours() + 3, 0, 0, 0)
+  } else if (preset === 'TOMORROW') {
+    d.setDate(d.getDate() + 1)
+    d.setHours(9, 0, 0, 0)
+  } else {
+    // The coming Monday at 09:00 (a full week ahead when today is Monday).
+    d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7))
+    d.setHours(9, 0, 0, 0)
+  }
+  return d.getTime()
 }
 
 function formatReminderTime(ms: number): string {
@@ -25,6 +43,12 @@ function formatReminderTime(ms: number): string {
 /** Midpoint ordering, matching the other surfaces. */
 export function orderBetween(orderBefore: number, orderAfter: number): number {
   return orderAfter <= orderBefore ? orderBefore + 1 : (orderBefore + orderAfter) / 2
+}
+
+export interface ReminderFields {
+  reminderTimeMillis?: number
+  reminderStyle?: 'ALARM' | 'NOTIFICATION'
+  reminderTransitionColumnId?: string | null
 }
 
 interface TaskEditorProps {
@@ -48,11 +72,11 @@ interface TaskEditorProps {
   /** The board's columns, offered as transition targets (minus the task's current one). */
   columns: Column[]
   currentColumnId: string
-  onSaveReminder: (
-    millis: number,
-    style: 'ALARM' | 'NOTIFICATION',
-    transitionColumnId: string | null,
-  ) => void
+  /**
+   * Called as soon as the user changes any reminder field, with only the fields
+   * that changed; there is no Save step. Setting a reminder sends all three.
+   */
+  onReminderChange: (fields: ReminderFields) => void
   onClearReminder: () => void
   subtasks: Subtask[]
   onAddSubtask: (title: string) => void
@@ -75,16 +99,15 @@ interface TaskEditorProps {
 export default function TaskEditor({
   title, description, onTitleChange, onDescriptionChange, onSubmitTitle, onFieldBlur, autoFocusTitle,
   reminderTimeMillis, snoozedUntilMillis, reminderStyle, reminderTransitionColumnId, columns, currentColumnId,
-  onSaveReminder, onClearReminder,
+  onReminderChange, onClearReminder,
   subtasks, onAddSubtask, onToggleSubtask, onDeleteSubtask, onRenameSubtask, onReorderSubtask,
   headerStatus, footer, onClose,
 }: TaskEditorProps) {
   const effectiveReminderTime = snoozedUntilMillis ?? reminderTimeMillis
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('')
-  const [editingReminder, setEditingReminder] = useState(false)
-  const [reminderDraft, setReminderDraft] = useState(defaultReminderDatetimeLocal())
-  const [reminderStyleDraft, setReminderStyleDraft] = useState<'ALARM' | 'NOTIFICATION'>('ALARM')
-  const [transitionDraft, setTransitionDraft] = useState<string | null>(null)
+  // Mirrors the datetime input so half-typed values (e.g. year "0202") stay on
+  // screen without being saved.
+  const [reminderInput, setReminderInput] = useState('')
   const [draggingSubtaskId, setDraggingSubtaskId] = useState<string | null>(null)
   const [hoverGap, setHoverGap] = useState<number | null>(null)
   const subtaskListRef = useRef<HTMLDivElement>(null)
@@ -100,32 +123,20 @@ export default function TaskEditor({
     return () => window.removeEventListener('keydown', onKey)
   })
 
-  const openReminderEditor = () => {
-    setReminderDraft(
-      effectiveReminderTime != null
-        ? millisToDatetimeLocal(effectiveReminderTime)
-        : defaultReminderDatetimeLocal(),
-    )
-    setReminderStyleDraft(reminderStyle)
-    setTransitionDraft(reminderTransitionColumnId)
-    setEditingReminder(true)
-  }
+  useEffect(() => {
+    setReminderInput(effectiveReminderTime != null ? millisToDatetimeLocal(effectiveReminderTime) : '')
+  }, [effectiveReminderTime])
 
-  const saveReminder = () => {
-    if (!reminderDraft) return
-    const transition = transitionDraft && transitionDraft !== currentColumnId
-      && transitionTargets.some((c) => c.id === transitionDraft) ? transitionDraft : null
-    onSaveReminder(new Date(reminderDraft).getTime(), reminderStyleDraft, transition)
-    setEditingReminder(false)
+  const changeReminderInput = (value: string) => {
+    setReminderInput(value)
+    const millis = new Date(value).getTime()
+    if (value && !Number.isNaN(millis) && new Date(millis).getFullYear() >= new Date().getFullYear()) {
+      onReminderChange({ reminderTimeMillis: millis })
+    }
   }
 
   const transitionTargets = columns.filter((c) => c.id !== currentColumnId)
   const transitionColumn = columns.find((c) => c.id === reminderTransitionColumnId && c.id !== currentColumnId)
-
-  const clearReminder = () => {
-    onClearReminder()
-    setEditingReminder(false)
-  }
 
   const handleAddSubtask = () => {
     if (!newSubtaskTitle.trim()) return
@@ -232,21 +243,46 @@ export default function TaskEditor({
           <div>
             <span className="text-sm font-bold text-fg">Reminder</span>
             <div className="mt-3">
-              {editingReminder ? (
+              {effectiveReminderTime != null ? (
                 <div className="flex flex-col gap-3 bg-surface border border-DEFAULT rounded-xl p-3">
-                  <input
-                    type="datetime-local"
-                    value={reminderDraft}
-                    onChange={(e) => setReminderDraft(e.target.value)}
-                    className="w-full bg-surface-raised border border-DEFAULT rounded-lg px-3 py-2 text-fg outline-none focus:border-accent transition-colors text-sm [color-scheme:dark]"
-                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="datetime-local"
+                      value={reminderInput}
+                      onChange={(e) => changeReminderInput(e.target.value)}
+                      className="flex-1 min-w-0 bg-surface-raised border border-DEFAULT rounded-lg px-3 py-2 text-fg outline-none focus:border-accent transition-colors text-sm [color-scheme:dark]"
+                    />
+                    <button
+                      onClick={onClearReminder}
+                      className="p-2 rounded-lg text-fg-muted hover:text-danger-text hover:bg-surface-high transition-colors"
+                      title="Clear reminder"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                  {snoozedUntilMillis != null && (
+                    <p className="text-xs font-medium text-success-text -mt-1">
+                      Snoozed until {formatReminderTime(snoozedUntilMillis)}
+                    </p>
+                  )}
+                  <div className="flex gap-2">
+                    {([['LATER_TODAY', 'Later'], ['TOMORROW', 'Tomorrow'], ['NEXT_WEEK', 'Next week']] as const).map(([preset, label]) => (
+                      <button
+                        key={preset}
+                        onClick={() => onReminderChange({ reminderTimeMillis: quickPresetMillis(preset) })}
+                        className="px-3 py-1 rounded-full border border-DEFAULT text-xs font-semibold text-fg-muted hover:text-fg hover:border-strong transition-colors"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                   <div className="flex gap-2">
                     {(['NOTIFICATION', 'ALARM'] as const).map((s) => (
                       <button
                         key={s}
-                        onClick={() => setReminderStyleDraft(s)}
+                        onClick={() => { if (s !== reminderStyle) onReminderChange({ reminderStyle: s }) }}
                         className={`flex-1 py-2 rounded-lg text-sm font-semibold border transition-colors flex items-center justify-center gap-1.5 ${
-                          reminderStyleDraft === s
+                          reminderStyle === s
                             ? 'bg-accent border-accent text-accent-fg'
                             : 'border-DEFAULT text-fg-muted hover:text-fg'
                         }`}
@@ -261,16 +297,18 @@ export default function TaskEditor({
                       <label className="flex items-center gap-2 text-sm text-fg cursor-pointer select-none">
                         <input
                           type="checkbox"
-                          checked={transitionDraft != null}
-                          onChange={(e) => setTransitionDraft(e.target.checked ? transitionTargets[0].id : null)}
+                          checked={transitionColumn != null}
+                          onChange={(e) => onReminderChange({
+                            reminderTransitionColumnId: e.target.checked ? transitionTargets[0].id : null,
+                          })}
                           className="accent-[var(--accent)] w-4 h-4"
                         />
                         Also move task to column
                       </label>
-                      {transitionDraft != null && (
+                      {transitionColumn != null && (
                         <select
-                          value={transitionDraft}
-                          onChange={(e) => setTransitionDraft(e.target.value)}
+                          value={transitionColumn.id}
+                          onChange={(e) => onReminderChange({ reminderTransitionColumnId: e.target.value })}
                           className="w-full bg-surface-raised border border-DEFAULT rounded-lg px-3 py-2 text-fg outline-none focus:border-accent transition-colors text-sm"
                         >
                           {transitionTargets.map((c) => (
@@ -280,68 +318,14 @@ export default function TaskEditor({
                       )}
                     </div>
                   )}
-                  <div className="flex justify-end gap-2">
-                    {effectiveReminderTime != null && (
-                      <button
-                        onClick={clearReminder}
-                        className="mr-auto px-3 py-1.5 rounded-lg text-danger-text hover:bg-surface-high text-sm font-semibold transition-colors"
-                      >
-                        Clear
-                      </button>
-                    )}
-                    <button
-                      onClick={() => setEditingReminder(false)}
-                      className="px-3 py-1.5 rounded-lg text-fg-muted hover:text-fg text-sm font-semibold transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={saveReminder}
-                      disabled={!reminderDraft}
-                      className="px-3 py-1.5 bg-accent hover:bg-accent-hover disabled:opacity-40 text-accent-fg rounded-lg text-sm font-semibold transition-colors"
-                    >
-                      Save
-                    </button>
-                  </div>
-                </div>
-              ) : effectiveReminderTime != null ? (
-                <div className="flex items-center gap-3 bg-surface border border-DEFAULT rounded-xl px-3 py-2.5">
-                  <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-accent-soft text-accent-text">
-                    {reminderStyle === 'ALARM' ? <AlarmClock size={16} /> : <Bell size={16} />}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium font-mono ${snoozedUntilMillis != null ? 'text-success-text' : 'text-fg'}`}>
-                      {snoozedUntilMillis != null ? 'Snoozed until ' : ''}{formatReminderTime(effectiveReminderTime)}
-                    </p>
-                    <p className="text-xs text-fg-muted mt-0.5 flex items-center gap-1">
-                      {reminderStyle === 'ALARM' ? 'Alarm' : 'Notification'}
-                      {transitionColumn && (
-                        <>
-                          <span>·</span>
-                          <ArrowRight size={12} />
-                          <span className="truncate">Moves to {transitionColumn.title}</span>
-                        </>
-                      )}
-                    </p>
-                  </div>
-                  <button
-                    onClick={openReminderEditor}
-                    className="p-1.5 rounded-lg text-fg-muted hover:text-fg hover:bg-surface-high transition-colors"
-                    title="Edit reminder"
-                  >
-                    <Pencil size={14} />
-                  </button>
-                  <button
-                    onClick={clearReminder}
-                    className="p-1.5 rounded-lg text-fg-muted hover:text-danger-text hover:bg-surface-high transition-colors"
-                    title="Clear reminder"
-                  >
-                    <X size={14} />
-                  </button>
                 </div>
               ) : (
                 <button
-                  onClick={openReminderEditor}
+                  onClick={() => onReminderChange({
+                    reminderTimeMillis: defaultReminderMillis(),
+                    reminderStyle,
+                    reminderTransitionColumnId: null,
+                  })}
                   className="flex items-center gap-2 text-fg-muted hover:text-fg px-3 py-2 rounded-lg border border-dashed border-DEFAULT hover:border-strong transition-colors text-sm font-semibold w-full"
                 >
                   <Bell size={15} /> Set reminder
