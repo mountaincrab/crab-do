@@ -19,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessAlarm
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Link
@@ -347,7 +348,7 @@ fun EditCardDialog(
         color = MaterialTheme.colorScheme.surface
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            DialogHeader(title = "Edit Task", onClose = saveAndDismiss) {
+            DialogHeader(title = "Edit Task", onClose = saveAndDismiss, closeIsBack = true) {
                 IconButton(onClick = { showDeleteConfirm = true }) {
                     Icon(
                         Icons.Default.Delete,
@@ -652,6 +653,9 @@ fun EditCardDialog(
 private fun DialogHeader(
     title: String,
     onClose: () -> Unit,
+    // The edit dialog autosaves on close, so it shows a back arrow rather than
+    // a cross, which reads as "discard".
+    closeIsBack: Boolean = false,
     actions: @Composable RowScope.() -> Unit
 ) {
     Row(
@@ -663,7 +667,11 @@ private fun DialogHeader(
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = onClose) {
-            Icon(Icons.Default.Close, contentDescription = "Close")
+            if (closeIsBack) {
+                Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+            } else {
+                Icon(Icons.Default.Close, contentDescription = "Close")
+            }
         }
         Text(
             text = title,
@@ -1056,7 +1064,9 @@ private fun quickPreset(preset: QuickPreset): Long {
             cal.set(Calendar.MINUTE, 0)
         }
         QuickPreset.NEXT_WEEK -> {
-            cal.add(Calendar.DAY_OF_YEAR, 7)
+            // The coming Monday (a full week ahead when today is Monday).
+            val daysUntilMonday = (Calendar.MONDAY - cal.get(Calendar.DAY_OF_WEEK) + 7) % 7
+            cal.add(Calendar.DAY_OF_YEAR, if (daysUntilMonday == 0) 7 else daysUntilMonday)
             cal.set(Calendar.HOUR_OF_DAY, 9)
             cal.set(Calendar.MINUTE, 0)
         }

@@ -98,10 +98,10 @@ export default function NewTaskModal({ columns, columnId, onCreate, onClose }: N
         reminderTransitionColumnId={reminderTransitionColumnId}
         columns={columns}
         currentColumnId={columnId}
-        onSaveReminder={(millis, style, transitionColumnId) => {
-          setReminderTimeMillis(millis)
-          setReminderStyle(style)
-          setReminderTransitionColumnId(transitionColumnId)
+        onReminderChange={(fields) => {
+          if (fields.reminderTimeMillis !== undefined) setReminderTimeMillis(fields.reminderTimeMillis)
+          if (fields.reminderStyle !== undefined) setReminderStyle(fields.reminderStyle)
+          if (fields.reminderTransitionColumnId !== undefined) setReminderTransitionColumnId(fields.reminderTransitionColumnId)
         }}
         onClearReminder={() => { setReminderTimeMillis(null); setReminderTransitionColumnId(null) }}
         subtasks={subtasks}

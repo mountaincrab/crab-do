@@ -72,9 +72,7 @@ export default function TaskModal({ userId, boardId, taskId, columns, onClose }:
       reminderTransitionColumnId={task?.reminderTransitionColumnId ?? null}
       columns={columns}
       currentColumnId={task?.columnId ?? ''}
-      onSaveReminder={(millis, style, transitionColumnId) => updateTask({
-        reminderTimeMillis: millis, reminderStyle: style, reminderTransitionColumnId: transitionColumnId,
-      })}
+      onReminderChange={updateTask}
       onClearReminder={() => updateTask({ reminderTimeMillis: null, reminderTransitionColumnId: null })}
       subtasks={subtasks}
       onAddSubtask={addSubtask}
