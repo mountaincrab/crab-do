@@ -57,6 +57,7 @@ import androidx.compose.ui.zIndex
 import com.mountaincrab.crabdo.data.local.entity.ColumnEntity
 import com.mountaincrab.crabdo.data.local.entity.SubtaskEntity
 import com.mountaincrab.crabdo.data.local.entity.TaskEntity
+import com.mountaincrab.crabdo.ui.reminders.QuickReminderPresets
 import com.mountaincrab.crabdo.ui.theme.LocalAppPalette
 import com.mountaincrab.crabdo.ui.theme.Eyebrow
 import com.mountaincrab.crabdo.ui.theme.PillButton
@@ -878,11 +879,7 @@ private fun TaskFormFields(
                 }
 
                 Spacer(Modifier.height(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    QuickChip("Later") { onReminderMillisChange(quickPreset(QuickPreset.LATER_TODAY)) }
-                    QuickChip("Tomorrow") { onReminderMillisChange(quickPreset(QuickPreset.TOMORROW)) }
-                    QuickChip("Next Wk") { onReminderMillisChange(quickPreset(QuickPreset.NEXT_WEEK)) }
-                }
+                QuickReminderPresets(onSelect = onReminderMillisChange)
 
                 Spacer(Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1032,45 +1029,10 @@ private fun Modifier.animatePlacement(): Modifier = composed {
         }
 }
 
-@Composable
-private fun QuickChip(label: String, onClick: () -> Unit) {
-    AssistChip(
-        onClick = onClick,
-        label = { Text(label, style = MaterialTheme.typography.labelMedium) }
-    )
-}
-
-private enum class QuickPreset { LATER_TODAY, TOMORROW, NEXT_WEEK }
-
 private fun defaultReminderTime(): Long {
     val cal = Calendar.getInstance()
     cal.add(Calendar.HOUR_OF_DAY, 1)
     cal.set(Calendar.MINUTE, 0)
-    cal.set(Calendar.SECOND, 0)
-    cal.set(Calendar.MILLISECOND, 0)
-    return cal.timeInMillis
-}
-
-private fun quickPreset(preset: QuickPreset): Long {
-    val cal = Calendar.getInstance()
-    when (preset) {
-        QuickPreset.LATER_TODAY -> {
-            cal.add(Calendar.HOUR_OF_DAY, 3)
-            cal.set(Calendar.MINUTE, 0)
-        }
-        QuickPreset.TOMORROW -> {
-            cal.add(Calendar.DAY_OF_YEAR, 1)
-            cal.set(Calendar.HOUR_OF_DAY, 9)
-            cal.set(Calendar.MINUTE, 0)
-        }
-        QuickPreset.NEXT_WEEK -> {
-            // The coming Monday (a full week ahead when today is Monday).
-            val daysUntilMonday = (Calendar.MONDAY - cal.get(Calendar.DAY_OF_WEEK) + 7) % 7
-            cal.add(Calendar.DAY_OF_YEAR, if (daysUntilMonday == 0) 7 else daysUntilMonday)
-            cal.set(Calendar.HOUR_OF_DAY, 9)
-            cal.set(Calendar.MINUTE, 0)
-        }
-    }
     cal.set(Calendar.SECOND, 0)
     cal.set(Calendar.MILLISECOND, 0)
     return cal.timeInMillis

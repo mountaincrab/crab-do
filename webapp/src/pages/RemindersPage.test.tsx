@@ -5,7 +5,7 @@ import type { ReactNode } from 'react'
 import type { TaskReminderSummary } from '../hooks/useTaskReminders'
 import RemindersPage from './RemindersPage'
 
-const fixtures = vi.hoisted(() => ({ tasks: [] as TaskReminderSummary[] }))
+const fixtures = vi.hoisted(() => ({ tasks: [] as TaskReminderSummary[], createReminder: vi.fn() }))
 vi.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ user: { uid: 'user' } }) }))
 vi.mock('../components/AppShell', () => ({ default: ({ children }: { children: ReactNode }) => children }))
 vi.mock('../hooks/useTaskReminders', () => ({
@@ -15,11 +15,14 @@ vi.mock('../hooks/useReminders', () => ({
   useReminders: () => ({
     reminders: [], completedReminders: [], deletedReminders: [], recurringReminders: [], deletedRecurring: [],
     loading: false, completedPage: {}, deletedPage: {}, deletedRecurringPage: {},
+    createReminder: fixtures.createReminder,
   }),
 }))
 
 let renderer: ReactTestRenderer
 beforeEach(() => {
+  fixtures.tasks = []
+  fixtures.createReminder.mockReset()
   vi.useFakeTimers()
   vi.setSystemTime(new Date(2026, 10, 10, 12))
 })
@@ -70,4 +73,21 @@ it('groups task reminders at the standalone time boundaries, using snooze times 
 it('shows only populated time groups when there are task reminders but no standalone reminders', () => {
   fixtures.tasks = [reminder('snoozed task', null, new Date(2026, 10, 11, 10))]
   expect(visibleGroups()).toEqual(['Tomorrow', 'snoozed task'])
+})
+
+it.each([
+  ['Later', '2026-11-10T15:00', new Date(2026, 10, 10, 15)],
+  ['Tomorrow', '2026-11-11T09:00', new Date(2026, 10, 11, 9)],
+  ['Next week', '2026-11-16T09:00', new Date(2026, 10, 16, 9)],
+] as const)('sets a standalone reminder with %s, saving only on Save', async (label, datetime, expected) => {
+  act(() => { renderer = create(<MemoryRouter initialEntries={['/reminders?view=one-off']}><RemindersPage /></MemoryRouter>) })
+  const button = (text: string) => renderer.root.findAllByType('button').find((node) => node.children.join('') === text)!
+  act(() => button('+ New reminder').props.onClick())
+  act(() => renderer.root.findByProps({ placeholder: 'Reminder title' }).props.onChange({ target: { value: 'Collect prescription' } }))
+  act(() => button(label).props.onClick())
+  expect(renderer.root.findByProps({ type: 'datetime-local' }).props.value).toBe(datetime)
+  expect(fixtures.createReminder).not.toHaveBeenCalled()
+  await act(async () => { await button('Save').props.onClick() })
+  expect(fixtures.createReminder).toHaveBeenCalledWith('Collect prescription', expected.getTime(), 'NOTIFICATION')
+  expect(renderer.root.findAllByProps({ type: 'datetime-local' })).toHaveLength(0)
 })

@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -36,6 +37,47 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import java.util.Calendar
 import java.util.TimeZone
+
+@Composable
+internal fun QuickReminderPresets(onSelect: (Long) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        QuickPreset.entries.forEach { preset ->
+            AssistChip(
+                onClick = { onSelect(quickPresetMillis(preset)) },
+                label = { Text(preset.label, style = MaterialTheme.typography.labelMedium) }
+            )
+        }
+    }
+}
+
+private enum class QuickPreset(val label: String) {
+    LATER_TODAY("Later"), TOMORROW("Tomorrow"), NEXT_WEEK("Next Wk")
+}
+
+private fun quickPresetMillis(preset: QuickPreset): Long {
+    val cal = Calendar.getInstance()
+    when (preset) {
+        QuickPreset.LATER_TODAY -> {
+            cal.add(Calendar.HOUR_OF_DAY, 3)
+            cal.set(Calendar.MINUTE, 0)
+        }
+        QuickPreset.TOMORROW -> {
+            cal.add(Calendar.DAY_OF_YEAR, 1)
+            cal.set(Calendar.HOUR_OF_DAY, 9)
+            cal.set(Calendar.MINUTE, 0)
+        }
+        QuickPreset.NEXT_WEEK -> {
+            // The coming Monday (a full week ahead when today is Monday).
+            val daysUntilMonday = (Calendar.MONDAY - cal.get(Calendar.DAY_OF_WEEK) + 7) % 7
+            cal.add(Calendar.DAY_OF_YEAR, if (daysUntilMonday == 0) 7 else daysUntilMonday)
+            cal.set(Calendar.HOUR_OF_DAY, 9)
+            cal.set(Calendar.MINUTE, 0)
+        }
+    }
+    cal.set(Calendar.SECOND, 0)
+    cal.set(Calendar.MILLISECOND, 0)
+    return cal.timeInMillis
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
