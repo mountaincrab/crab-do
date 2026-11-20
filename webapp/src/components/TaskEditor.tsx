@@ -2,6 +2,7 @@ import { ReactNode, useEffect, useRef, useState } from 'react'
 import { AlarmClock, Bell, Check, X } from 'lucide-react'
 import { Column, Subtask } from '../types'
 import { Linkified, makeLinkPasteHandler, makeLinkKeyHandler } from '../lib/linkify'
+import QuickReminderPresets from './QuickReminderPresets'
 
 export function millisToDatetimeLocal(ms: number): string {
   const d = new Date(ms)
@@ -12,24 +13,6 @@ export function millisToDatetimeLocal(ms: number): string {
 function defaultReminderMillis(): number {
   const d = new Date(Date.now() + 3_600_000)
   d.setMinutes(0, 0, 0)
-  return d.getTime()
-}
-
-export type QuickPreset = 'LATER_TODAY' | 'TOMORROW' | 'NEXT_WEEK'
-
-/** Quick-set reminder times, matching the Android task editor's chips. */
-export function quickPresetMillis(preset: QuickPreset, now: Date = new Date()): number {
-  const d = new Date(now)
-  if (preset === 'LATER_TODAY') {
-    d.setHours(d.getHours() + 3, 0, 0, 0)
-  } else if (preset === 'TOMORROW') {
-    d.setDate(d.getDate() + 1)
-    d.setHours(9, 0, 0, 0)
-  } else {
-    // The coming Monday at 09:00 (a full week ahead when today is Monday).
-    d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7))
-    d.setHours(9, 0, 0, 0)
-  }
   return d.getTime()
 }
 
@@ -265,17 +248,7 @@ export default function TaskEditor({
                       Snoozed until {formatReminderTime(snoozedUntilMillis)}
                     </p>
                   )}
-                  <div className="flex gap-2">
-                    {([['LATER_TODAY', 'Later'], ['TOMORROW', 'Tomorrow'], ['NEXT_WEEK', 'Next week']] as const).map(([preset, label]) => (
-                      <button
-                        key={preset}
-                        onClick={() => onReminderChange({ reminderTimeMillis: quickPresetMillis(preset) })}
-                        className="px-3 py-1 rounded-full border border-DEFAULT text-xs font-semibold text-fg-muted hover:text-fg hover:border-strong transition-colors"
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
+                  <QuickReminderPresets onSelect={(millis) => onReminderChange({ reminderTimeMillis: millis })} />
                   <div className="flex gap-2">
                     {(['NOTIFICATION', 'ALARM'] as const).map((s) => (
                       <button

@@ -7,6 +7,7 @@ import { useTaskReminders } from '../hooks/useTaskReminders'
 import { Reminder, RecurringReminder } from '../types'
 import AppShell from '../components/AppShell'
 import LoadMore from '../components/LoadMore'
+import QuickReminderPresets from '../components/QuickReminderPresets'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -160,6 +161,8 @@ function ReminderDialog({ initial, onSave, onClose }: ReminderDialogProps) {
             onChange={(e) => setDatetime(e.target.value)}
             className="w-full bg-surface-raised border border-DEFAULT rounded-lg px-3 py-2.5 text-fg outline-none focus:border-accent transition-colors [color-scheme:dark]"
           />
+
+          <QuickReminderPresets onSelect={(millis) => setDatetime(millisToDatetimeLocal(millis))} />
 
           <div className="flex gap-2">
             {(['NOTIFICATION', 'ALARM'] as const).map((s) => (

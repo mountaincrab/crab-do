@@ -133,6 +133,8 @@ fun AddEditOneOffReminderScreen(
                 }
             }
 
+            QuickReminderPresets(onSelect = { viewModel.selectedDateTime = it })
+
             Eyebrow("Reminder style")
             PillGroup {
                 PillButton(
